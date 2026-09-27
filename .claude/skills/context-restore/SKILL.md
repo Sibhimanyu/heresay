@@ -1,0 +1,1 @@
+/Users/sibhi-zstch1643/.gstack/render/claude/context-restore/SKILL.md
