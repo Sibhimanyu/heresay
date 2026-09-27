@@ -40,9 +40,12 @@ npm run dev     # emulators; dashboard at http://127.0.0.1:5055, demo host app a
 Emulator ports are non-default (auth 9199, firestore 8181, functions 5101, hosting 5055, UI 4100)
 so this can run next to other Firebase projects on the same machine.
 
-## Deploying (not done yet)
+## Live
 
-1. Create a new Firebase project (not Flotilla's), Blaze plan, and set it in `.firebaserc`.
-2. Enable Google sign-in in Authentication.
-3. `npx firebase deploy`. `firestore.indexes.json` turns on TTL for `rate.expire_at`, which
-   deletes old rate-limit buckets.
+- Dashboard: https://feedback-sdk-live.web.app
+- SDK: `https://feedback-sdk-live.web.app/sdk.js`
+- Firebase project `feedback-sdk-live` (billing: Sibhi Orchards). `.firebaserc` keeps
+  `default` on the `demo-` project so emulators never touch it; deploy with
+  `npx firebase deploy --project live`.
+- Firestore TTL on `rate.expire_at` deletes old rate-limit buckets. Container images are
+  cleaned up after 1 day.

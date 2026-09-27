@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "demo-feedback-sdk"
+    "default": "demo-feedback-sdk",
+    "live": "feedback-sdk-live"
   }
 }
