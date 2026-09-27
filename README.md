@@ -1,0 +1,48 @@
+# Feedback SDK (name TBD)
+
+People using your app can report something from inside it: broken, confusing, could be better,
+or an idea. You get each report with the screen, app version and device attached, accept or
+decline it (a decline needs a reason), and the reporter sees the outcome in the app.
+
+## Setup
+
+1. Create a project in the dashboard (`/`), giving the site it runs on.
+2. Paste the line it shows you before `</body>`:
+   ```html
+   <script src="https://<sdk-host>/sdk.js" data-key="pk_..." defer></script>
+   ```
+3. Reports show up in the dashboard.
+
+Optional: `data-version="1.4.0"` on the tag, `Feedback.identify({ id, label })` once you know who
+is signed in, `Feedback.setScreen("Pump room")` if your URL does not change per screen.
+
+## How it fits together
+
+One Firebase project, one origin:
+
+| Path | What |
+| --- | --- |
+| `/sdk.js` | The web SDK. Plain JS, shadow DOM, no dependencies. `public/sdk.js` |
+| `/` | The developer dashboard. `public/index.html`, `public/dashboard.js` |
+| `/v1/**` | The `api` Cloud Function. `functions/src/handler.ts` |
+
+Firestore rules deny all client access; everything goes through the function.
+
+## Develop
+
+```sh
+npm install && npm --prefix functions install
+npm test        # handler logic, in memory
+npm run e2e     # the whole loop in a real browser against the emulators
+npm run dev     # emulators; dashboard at http://127.0.0.1:5055, demo host app at /demo.html?key=pk_...
+```
+
+Emulator ports are non-default (auth 9199, firestore 8181, functions 5101, hosting 5055, UI 4100)
+so this can run next to other Firebase projects on the same machine.
+
+## Deploying (not done yet)
+
+1. Create a new Firebase project (not Flotilla's), Blaze plan, and set it in `.firebaserc`.
+2. Enable Google sign-in in Authentication.
+3. `npx firebase deploy`. `firestore.indexes.json` turns on TTL for `rate.expire_at`, which
+   deletes old rate-limit buckets.

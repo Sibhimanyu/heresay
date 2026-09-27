@@ -1,0 +1,7 @@
+node_modules/
+functions/lib/
+functions/lib-test/
+*.log
+.firebase/
+*.local
+.context/

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Demo host app</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="font-family:system-ui;padding:40px">
+  <h1>A host app</h1>
+  <p>This page stands in for your app. Open it as <code>/demo.html?key=pk_...</code>.</p>
+  <script>
+    // Only the demo reads the key from the URL. A real app hardcodes it in the tag.
+    var s = document.createElement('script');
+    s.src = '/sdk.js';
+    s.dataset.key = new URLSearchParams(location.search).get('key') || '';
+    s.dataset.version = '0.0.1-demo';
+    document.body.appendChild(s);
+  </script>
+</body>
+</html>
