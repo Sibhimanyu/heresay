@@ -7,7 +7,7 @@
  * Optional calls, any time after the script runs:
  *   Feedback.identify({ id, label })   who the host app says the user is
  *   Feedback.setVersion("1.4.0")
- *   Feedback.setScreen("Pump room")    for apps whose URL does not change per screen
+ *   Feedback.setScreen("Checkout")    for apps whose URL does not change per screen
  *   Feedback.open()
  *
  * No account, no cookies. The reporter is a random per-device id kept in localStorage, and

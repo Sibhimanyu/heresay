@@ -25,4 +25,4 @@ Date: 2026-09-27
 ## Open
 
 - Name.
-- iOS SDK (after the web loop is live in SNOF).
+- iOS SDK, after the web loop is live in a real app.

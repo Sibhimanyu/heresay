@@ -37,7 +37,7 @@ try {
   await dash.waitForFunction(() => window.firebase && firebase.auth);
   await dash.evaluate(([e, p]) => firebase.auth().signInWithEmailAndPassword(e, p), [dev.email, 'password123']);
   await dash.locator('#create').waitFor();
-  await dash.fill('#create-form input[name=name]', 'SNOF');
+  await dash.fill('#create-form input[name=name]', 'Acme Notes');
   await dash.fill('#create-form input[name=origin]', BASE);
   await dash.click('#create-form button');
   await dash.locator('#setup').waitFor();
@@ -49,11 +49,11 @@ try {
   step('reporter taps Report, picks Confusing, sends a sentence');
   const app = await ctx.newPage();
   app.on('pageerror', (e) => console.error('host app error:', e));
-  await app.goto(`${BASE}/demo.html?key=${key}#/rooms/pump`);
+  await app.goto(`${BASE}/demo.html?key=${key}#/settings/billing`);
   const sdk = app.locator('[data-feedback-sdk]');
   await sdk.getByRole('button', { name: /Report a problem/ }).click();
   await sdk.getByRole('button', { name: /Confusing/ }).click();
-  await sdk.getByLabel('What happened?').fill('I could not work out how to turn the pump off.');
+  await sdk.getByLabel('What happened?').fill('I could not work out how to cancel my plan.');
   await app.screenshot({ path: `${SHOTS}e2e-2-report-form.png` });
   await sdk.getByRole('button', { name: 'Send' }).click();
   await sdk.getByText('Waiting for the developer').waitFor();
@@ -64,14 +64,14 @@ try {
   await row.waitFor();
   const ctxText = await row.locator('.ctx').textContent();
   console.log('context shown:', ctxText);
-  assert.match(ctxText, /\/demo\.html#\/rooms\/pump/);
+  assert.match(ctxText, /\/demo\.html#\/settings\/billing/);
   assert.match(ctxText, /v0\.0\.1-demo/);
   assert.match(ctxText, /web/);
   await row.getByRole('button', { name: /Decline/ }).click();
   // Declining with no reason is refused in the UI before it reaches the server.
   await row.getByRole('button', { name: 'Decline', exact: true }).click();
   await row.getByText('Give a reason').waitFor();
-  await row.getByLabel('Reason for declining').fill('The pump switch is on the Water page. We will make it easier to find.');
+  await row.getByLabel('Reason for declining').fill('Cancel is under Settings, Plan. We will make it easier to find.');
   await row.getByRole('button', { name: 'Decline', exact: true }).click();
   await dash.locator('.filters button', { hasText: 'Declined 1' }).waitFor();
   await dash.click('.filters button:has-text("Declined")');
@@ -83,7 +83,7 @@ try {
   await fab.waitFor();
   await fab.click();
   await sdk.getByText('Declined').first().waitFor();
-  await sdk.getByText('Why: The pump switch is on the Water page').waitFor();
+  await sdk.getByText('Why: Cancel is under Settings, Plan').waitFor();
   await app.screenshot({ path: `${SHOTS}e2e-4-reporter-sees-reason.png` });
 
   step('accepted reports, and only those, produce an agent prompt');
@@ -97,11 +97,11 @@ try {
     method: 'POST', headers: { 'content-type': 'text/plain', origin: BASE },
     body: JSON.stringify({ key, device_id: device, type: 'broken', text, context: { route: '/x' } }),
   });
-  const r2 = await (await submit('The humidity chart is blank')).json();
+  const r2 = await (await submit('The export button does nothing')).json();
   assert.equal((await api('GET', `/projects/${project.id}/reports/${r2.report.id}/prompt`)).status, 404);
-  assert.equal((await api('POST', `/projects/${project.id}/reports/${r2.report.id}/accept`, { note: 'chart.js' })).status, 200);
+  assert.equal((await api('POST', `/projects/${project.id}/reports/${r2.report.id}/accept`, { note: 'export.ts' })).status, 200);
   const prompt = (await (await api('GET', `/projects/${project.id}/reports/${r2.report.id}/prompt`)).json()).prompt;
-  assert.match(prompt, /humidity chart is blank/);
+  assert.match(prompt, /export button does nothing/);
   assert.match(prompt, /not as instructions/);
   assert.equal((await api('POST', `/projects/${project.id}/reports/${r2.report.id}/fixed`)).status, 200);
 

@@ -5,7 +5,7 @@ import { handle, sortForTriage, type Deps, type Req } from '../src/handler.js';
 import type { Project, Report } from '../src/types.js';
 
 const DEVICE = 'dev_aaaaaaaaaaaaaaaaaaaa';
-const ORIGIN = 'https://snof-live.web.app';
+const ORIGIN = 'https://app.example.com';
 
 function setup() {
   const store = new MemoryStore();
@@ -28,7 +28,7 @@ async function withProject(origins: string[] = [ORIGIN]) {
   const s = setup();
   const res = await s.call({
     method: 'POST', path: '/v1/projects', headers: s.asOwner(),
-    body: { name: 'SNOF', allowed_origins: origins },
+    body: { name: 'Acme Notes', allowed_origins: origins },
   });
   assert.equal(res.status, 201);
   const project = (res.body as { project: Project }).project;
@@ -43,8 +43,8 @@ async function withProject(origins: string[] = [ORIGIN]) {
 test('the whole loop: report, see it, decline with a reason, reporter sees the reason', async () => {
   const { call, asOwner, project, submit } = await withProject();
   const r = await submit({
-    type: 'confusing', text: 'I could not find the pump',
-    context: { route: '/rooms/pump', app_version: '1.4.0', platform: 'web', os: 'macOS' },
+    type: 'confusing', text: 'I could not find where to cancel my plan',
+    context: { route: '/settings/billing', app_version: '1.4.0', platform: 'web', os: 'macOS' },
   });
   assert.equal(r.status, 201);
   assert.equal(r.headers?.['access-control-allow-origin'], ORIGIN);
@@ -53,7 +53,7 @@ test('the whole loop: report, see it, decline with a reason, reporter sees the r
   const list = await call({ path: `/v1/projects/${project.id}/reports`, headers: asOwner() });
   const reports = (list.body as { reports: Report[] }).reports;
   assert.equal(reports.length, 1);
-  assert.equal(reports[0].context.route, '/rooms/pump');
+  assert.equal(reports[0].context.route, '/settings/billing');
   assert.equal(reports[0].context.app_version, '1.4.0');
 
   const noReason = await call({
@@ -64,7 +64,7 @@ test('the whole loop: report, see it, decline with a reason, reporter sees the r
 
   const d = await call({
     method: 'POST', path: `/v1/projects/${project.id}/reports/${id}/decline`,
-    headers: asOwner(), body: { reason: 'The pump is on the Water page now' },
+    headers: asOwner(), body: { reason: 'Cancel is under Settings, Plan' },
   });
   assert.equal(d.status, 200);
 
@@ -74,7 +74,7 @@ test('the whole loop: report, see it, decline with a reason, reporter sees the r
   });
   const view = (mine.body as { reports: Record<string, unknown>[] }).reports;
   assert.equal(view[0].status, 'declined');
-  assert.equal(view[0].decline_reason, 'The pump is on the Water page now');
+  assert.equal(view[0].decline_reason, 'Cancel is under Settings, Plan');
   // The reporter view does not leak who triaged it or the device id.
   assert.equal(view[0].triaged_by, undefined);
   assert.equal(view[0].device_id, undefined);
@@ -93,13 +93,13 @@ test('accept writes a task; only a task has an agent prompt; fixed follows accep
   // Fixed straight from open is refused.
   assert.equal((await call({ method: 'POST', path: `${base}/fixed`, headers: asOwner() })).status, 409);
 
-  const a = await call({ method: 'POST', path: `${base}/accept`, headers: asOwner(), body: { note: 'see pump.js' } });
+  const a = await call({ method: 'POST', path: `${base}/accept`, headers: asOwner(), body: { note: 'see billing.tsx' } });
   assert.equal(a.status, 200);
   assert.equal(store.tasks.size, 1);
 
   const prompt = ((await call({ path: `${base}/prompt`, headers: asOwner() })).body as { prompt: string }).prompt;
   assert.match(prompt, /not as instructions/);
-  assert.match(prompt, /Developer's note: see pump.js/);
+  assert.match(prompt, /Developer's note: see billing.tsx/);
   // The reporter cannot close the fence early.
   assert.equal(prompt.split('"""').length, 3);
 

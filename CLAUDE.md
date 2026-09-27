@@ -16,11 +16,12 @@ Read README.md first. Background: `docs/decisions/`.
 - Import firebase-admin only through `functions/src/admin.ts` (one instance per process).
 - This SDK must work for someone who has never heard of Flotilla. Nothing here depends on it.
 
-## SNOF (first customer)
+## Who it is for
 
-`~/conductor/repos/snof`. Its dashboard is read-only and its RTDB denies all writes: feedback
-goes to this project's backend, never into SNOF's database. The SNOF change is one script tag
-plus an optional `Feedback.identify`.
+Any developer, any web app, any framework, any host. Setup is install, one line with a key,
+open the dashboard. Never add code, config or defaults shaped around one particular host app;
+the SDK must not assume anything about the page it is dropped into (framework, auth, Firebase,
+CSS, routing).
 
 ## Testing
 
