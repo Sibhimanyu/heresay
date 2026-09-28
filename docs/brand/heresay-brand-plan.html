@@ -6,25 +6,26 @@
 <title>Heresay · Brand plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink:#15171c; --ink-2:#2a2e36; --slate:#5b6472; --line:#e3e6ea; --chalk:#f5f6f7; --white:#fff;
     --wax:#e0552f; --wax-deep:#b93f1f; --wax-soft:#fbe4dc;
     --green:#17704a; --green-soft:#dcf1e6; --amber:#855309; --amber-soft:#f7ead3;
-    --serif:"Instrument Serif", Georgia, serif; --sans:"Instrument Sans", system-ui, sans-serif; --mono:"JetBrains Mono", ui-monospace, monospace;
+    --serif:"Libre Caslon Text", Georgia, serif; --sans:"Public Sans", system-ui, sans-serif; --mono:"JetBrains Mono", ui-monospace, monospace;
   }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--chalk); color:var(--ink); font:16px/1.5 var(--sans); }
   main { max-width:1080px; margin:0 auto; padding:0 24px 120px; }
   section { margin-top:96px; }
   .label { font:600 12px var(--sans); letter-spacing:.14em; text-transform:uppercase; color:var(--slate); margin:0 0 18px; }
+  .label .sub { text-transform:none; letter-spacing:0; font-weight:400; font-size:14px; margin-left:8px; }
   .card { background:var(--white); border:1px solid var(--line); border-radius:18px; }
   .serif { font-family:var(--serif); font-weight:400; }
 
   /* hero */
   .hero { background:var(--ink); color:var(--chalk); border-radius:0 0 28px 28px; padding:88px 56px 64px; margin:0 -24px; position:relative; overflow:hidden; }
-  .hero .word { font:400 128px/0.95 var(--serif); letter-spacing:-.02em; margin:0; }
+  .hero .word { font:400 118px/1 var(--serif); letter-spacing:-.03em; margin:0; }
   .hero .word em { color:var(--wax); }
   .hero .tag { font:500 22px var(--sans); margin:22px 0 0; color:#c9ced6; }
   .hero .tag b { color:var(--chalk); font-weight:600; }
@@ -104,7 +105,7 @@
   /* applications */
   .apps { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
   .app { padding:0; overflow:hidden; }
-  .app .stage { height:250px; position:relative; background:var(--chalk); }
+  .app .stage { height:250px; position:relative; background:var(--chalk); padding:18px; }
   .app .cap { padding:14px 18px 18px; font-weight:600; font-size:15px; }
   .app .cap span { display:block; color:var(--slate); font-weight:400; font-size:13px; }
 
@@ -139,7 +140,7 @@
   <svg class="seal-bg" viewBox="0 0 200 200" aria-hidden="true">
     <path d="M179.3 100.0 L180.7 101.4 L182.0 102.9 L183.0 104.3 L183.6 105.8 L183.7 107.3 L183.3 108.8 L182.5 110.1 L181.2 111.4 L179.7 112.6 L178.0 113.8 L176.3 114.8 L174.6 115.9 L173.2 116.9 L172.1 118.0 L171.4 119.1 L171.1 120.4 L171.2 121.8 L171.6 123.3 L172.2 124.9 L172.9 126.5 L173.5 128.2 L174.1 129.9 L174.3 131.5 L174.2 133.0 L173.7 134.4 L172.8 135.5 L171.5 136.4 L169.9 137.2 L168.1 137.8 L166.3 138.3 L164.4 138.7 L162.7 139.2 L161.2 139.7 L160.0 140.5 L159.2 141.4 L158.7 142.6 L158.6 144.1 L158.7 145.8 L159.0 147.7 L159.3 149.8 L159.6 151.8 L159.8 153.8 L159.7 155.6 L159.3 157.3 L158.6 158.6 L157.5 159.5 L156.1 160.2 L154.5 160.5 L152.7 160.6 L150.8 160.6 L149.0 160.5 L147.2 160.4 L145.6 160.5 L144.2 160.8 L143.0 161.4 L142.1 162.4 L141.3 163.6 L140.7 165.1 L140.2 166.9 L139.7 168.7 L139.1 170.5 L138.4 172.2 L137.5 173.6 L136.4 174.7 L135.2 175.4 L133.7 175.7 L132.0 175.5 L130.3 174.9 L128.4 174.1 L126.6 173.1 L124.8 172.1 L123.1 171.1 L121.5 170.4 L120.1 170.0 L118.8 170.0 L117.6 170.4 L116.4 171.2 L115.4 172.4 L114.3 173.8 L113.3 175.4 L112.2 176.9 L111.0 178.4 L109.8 179.6 L108.4 180.4 L107.1 180.8 L105.6 180.8 L104.2 180.3 L102.8 179.5 L101.4 178.4 L100.0 177.2 L98.7 175.9 L97.4 174.8 L96.1 174.0 L94.9 173.4 L93.6 173.3 L92.3 173.6 L90.9 174.2 L89.4 175.2 L87.9 176.4 L86.3 177.7 L84.7 179.0 L83.0 180.0 L81.3 180.8 L79.8 181.2 L78.3 181.1 L76.9 180.5 L75.7 179.5 L74.6 178.1 L73.7 176.5 L72.8 174.6 L72.1 172.8 L71.3 171.1 L70.5 169.5 L69.6 168.3 L68.5 167.4 L67.3 166.9 L66.0 166.8 L64.4 166.9 L62.7 167.2 L61.0 167.6 L59.2 168.0 L57.4 168.1 L55.8 168.1 L54.3 167.7 L53.1 166.9 L52.2 165.8 L51.5 164.3 L51.1 162.6 L50.9 160.7 L50.8 158.7 L50.7 156.7 L50.6 154.9 L50.3 153.3 L49.8 152.0 L49.1 150.9 L48.0 150.2 L46.6 149.8 L44.9 149.6 L43.0 149.5 L41.0 149.5 L39.0 149.4 L37.0 149.2 L35.2 148.8 L33.7 148.1 L32.6 147.2 L31.8 146.0 L31.4 144.6 L31.3 142.9 L31.5 141.2 L31.9 139.3 L32.3 137.6 L32.6 135.8 L32.7 134.3 L32.6 132.9 L32.2 131.6 L31.4 130.6 L30.2 129.6 L28.8 128.8 L27.1 128.0 L25.3 127.2 L23.6 126.3 L22.0 125.4 L20.7 124.3 L19.7 123.0 L19.2 121.6 L19.2 120.1 L19.6 118.6 L20.5 116.9 L21.6 115.2 L22.9 113.6 L24.2 112.0 L25.4 110.5 L26.4 109.0 L27.1 107.7 L27.3 106.4 L27.2 105.1 L26.6 103.8 L25.7 102.6 L24.6 101.3 L23.3 100.0 L22.0 98.6 L20.8 97.2 L19.9 95.8 L19.4 94.4 L19.3 92.9 L19.6 91.6 L20.4 90.2 L21.5 89.0 L22.9 87.8 L24.4 86.7 L25.9 85.6 L27.2 84.5 L28.3 83.5 L29.1 82.3 L29.4 81.1 L29.4 79.8 L29.0 78.3 L28.3 76.7 L27.3 75.0 L26.3 73.2 L25.3 71.3 L24.5 69.5 L24.0 67.7 L23.9 66.1 L24.2 64.6 L24.9 63.4 L26.0 62.3 L27.5 61.5 L29.3 60.8 L31.2 60.3 L33.1 59.8 L34.8 59.3 L36.4 58.7 L37.8 58.0 L38.8 57.1 L39.4 56.0 L39.8 54.6 L39.9 53.1 L39.9 51.3 L39.8 49.5 L39.8 47.6 L39.9 45.9 L40.3 44.3 L40.9 42.9 L41.9 41.9 L43.2 41.2 L44.8 40.8 L46.6 40.7 L48.6 40.8 L50.6 41.1 L52.6 41.4 L54.4 41.7 L56.1 41.7 L57.5 41.5 L58.7 41.0 L59.6 40.1 L60.3 38.9 L60.8 37.3 L61.3 35.5 L61.7 33.6 L62.1 31.6 L62.7 29.8 L63.4 28.1 L64.3 26.8 L65.4 25.9 L66.7 25.3 L68.2 25.2 L69.9 25.4 L71.5 25.9 L73.3 26.5 L74.9 27.2 L76.5 27.8 L78.1 28.2 L79.4 28.3 L80.7 28.0 L81.9 27.4 L83.0 26.3 L84.1 25.0 L85.1 23.4 L86.2 21.7 L87.3 20.1 L88.6 18.7 L89.9 17.5 L91.2 16.7 L92.7 16.4 L94.2 16.6 L95.7 17.3 L97.1 18.3 L98.6 19.7 L100.0 21.2 L101.3 22.8 L102.6 24.2 L103.9 25.4 L105.2 26.3 L106.4 26.8 L107.7 26.9 L109.0 26.6 L110.4 26.0 L111.9 25.1 L113.4 24.1 L114.9 23.1 L116.5 22.3 L118.1 21.7 L119.6 21.5 L121.0 21.7 L122.3 22.3 L123.4 23.4 L124.5 24.7 L125.4 26.3 L126.2 28.0 L127.0 29.8 L127.7 31.3 L128.6 32.6 L129.6 33.6 L130.7 34.2 L132.0 34.4 L133.5 34.3 L135.2 33.8 L137.0 33.2 L139.0 32.5 L140.9 31.9 L142.9 31.4 L144.7 31.1 L146.4 31.3 L147.8 31.8 L148.9 32.7 L149.8 33.9 L150.4 35.5 L150.8 37.3 L151.0 39.2 L151.2 41.1 L151.4 42.9 L151.7 44.5 L152.2 45.9 L153.0 47.0 L154.0 47.8 L155.4 48.4 L156.9 48.7 L158.7 49.0 L160.5 49.2 L162.4 49.5 L164.1 49.9 L165.6 50.5 L166.9 51.4 L167.7 52.6 L168.2 54.0 L168.3 55.6 L168.1 57.4 L167.6 59.4 L167.0 61.3 L166.3 63.3 L165.7 65.1 L165.3 66.7 L165.2 68.2 L165.4 69.5 L166.1 70.6 L167.1 71.5 L168.5 72.3 L170.1 73.1 L171.9 73.8 L173.7 74.6 L175.4 75.5 L176.8 76.5 L177.9 77.7 L178.6 78.9 L178.9 80.3 L178.7 81.8 L178.2 83.4 L177.4 84.9 L176.5 86.5 L175.5 88.0 L174.7 89.5 L174.0 90.9 L173.7 92.3 L173.8 93.5 L174.3 94.8 L175.1 96.1 L176.3 97.3 L177.8 98.6 L179.3 100.0Z" fill="#e0552f"/>
     <circle cx="100" cy="100" r="60" fill="none" stroke="#b93f1f" stroke-width="2"/>
-    <text x="100" y="138" text-anchor="middle" font-family="Instrument Serif, Georgia, serif" font-size="120" fill="#15171c">“</text>
+    <g fill="#15171c" transform="translate(100 108) scale(1.0)"><path d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(-19 0)"/><path d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(19 0)"/></g>
   </svg>
   <h1 class="word">here<em>say</em></h1>
   <p class="tag"><b>Here, say it.</b> Every report gets a hearing.</p>
@@ -163,7 +164,7 @@
 
 <!-- VOCABULARY -->
 <section>
-  <p class="label">The vocabulary · court words, used lightly</p>
+  <p class="label">Vocabulary <span class="sub">court words, used lightly</span></p>
   <div class="vocab">
     <div class="card v-item"><span class="pill p-heard"><i></i>Heard</span><div class="plain">plain: <b>Open</b></div></div>
     <div class="card v-item"><span class="pill p-sus"><i></i>Sustained</span><div class="plain">plain: <b>Accepted</b></div></div>
@@ -178,14 +179,14 @@
 
 <!-- LOGO DIRECTIONS -->
 <section>
-  <p class="label">Logo · three directions to pick from</p>
+  <p class="label">Logo <span class="sub">three directions to pick from</span></p>
   <div class="logos">
     <div class="card logo">
       <div class="art dark">
         <svg width="170" height="170" viewBox="0 0 200 200" aria-label="Seal logo sketch">
           <path d="M179.3 100.0 L180.7 101.4 L182.0 102.9 L183.0 104.3 L183.6 105.8 L183.7 107.3 L183.3 108.8 L182.5 110.1 L181.2 111.4 L179.7 112.6 L178.0 113.8 L176.3 114.8 L174.6 115.9 L173.2 116.9 L172.1 118.0 L171.4 119.1 L171.1 120.4 L171.2 121.8 L171.6 123.3 L172.2 124.9 L172.9 126.5 L173.5 128.2 L174.1 129.9 L174.3 131.5 L174.2 133.0 L173.7 134.4 L172.8 135.5 L171.5 136.4 L169.9 137.2 L168.1 137.8 L166.3 138.3 L164.4 138.7 L162.7 139.2 L161.2 139.7 L160.0 140.5 L159.2 141.4 L158.7 142.6 L158.6 144.1 L158.7 145.8 L159.0 147.7 L159.3 149.8 L159.6 151.8 L159.8 153.8 L159.7 155.6 L159.3 157.3 L158.6 158.6 L157.5 159.5 L156.1 160.2 L154.5 160.5 L152.7 160.6 L150.8 160.6 L149.0 160.5 L147.2 160.4 L145.6 160.5 L144.2 160.8 L143.0 161.4 L142.1 162.4 L141.3 163.6 L140.7 165.1 L140.2 166.9 L139.7 168.7 L139.1 170.5 L138.4 172.2 L137.5 173.6 L136.4 174.7 L135.2 175.4 L133.7 175.7 L132.0 175.5 L130.3 174.9 L128.4 174.1 L126.6 173.1 L124.8 172.1 L123.1 171.1 L121.5 170.4 L120.1 170.0 L118.8 170.0 L117.6 170.4 L116.4 171.2 L115.4 172.4 L114.3 173.8 L113.3 175.4 L112.2 176.9 L111.0 178.4 L109.8 179.6 L108.4 180.4 L107.1 180.8 L105.6 180.8 L104.2 180.3 L102.8 179.5 L101.4 178.4 L100.0 177.2 L98.7 175.9 L97.4 174.8 L96.1 174.0 L94.9 173.4 L93.6 173.3 L92.3 173.6 L90.9 174.2 L89.4 175.2 L87.9 176.4 L86.3 177.7 L84.7 179.0 L83.0 180.0 L81.3 180.8 L79.8 181.2 L78.3 181.1 L76.9 180.5 L75.7 179.5 L74.6 178.1 L73.7 176.5 L72.8 174.6 L72.1 172.8 L71.3 171.1 L70.5 169.5 L69.6 168.3 L68.5 167.4 L67.3 166.9 L66.0 166.8 L64.4 166.9 L62.7 167.2 L61.0 167.6 L59.2 168.0 L57.4 168.1 L55.8 168.1 L54.3 167.7 L53.1 166.9 L52.2 165.8 L51.5 164.3 L51.1 162.6 L50.9 160.7 L50.8 158.7 L50.7 156.7 L50.6 154.9 L50.3 153.3 L49.8 152.0 L49.1 150.9 L48.0 150.2 L46.6 149.8 L44.9 149.6 L43.0 149.5 L41.0 149.5 L39.0 149.4 L37.0 149.2 L35.2 148.8 L33.7 148.1 L32.6 147.2 L31.8 146.0 L31.4 144.6 L31.3 142.9 L31.5 141.2 L31.9 139.3 L32.3 137.6 L32.6 135.8 L32.7 134.3 L32.6 132.9 L32.2 131.6 L31.4 130.6 L30.2 129.6 L28.8 128.8 L27.1 128.0 L25.3 127.2 L23.6 126.3 L22.0 125.4 L20.7 124.3 L19.7 123.0 L19.2 121.6 L19.2 120.1 L19.6 118.6 L20.5 116.9 L21.6 115.2 L22.9 113.6 L24.2 112.0 L25.4 110.5 L26.4 109.0 L27.1 107.7 L27.3 106.4 L27.2 105.1 L26.6 103.8 L25.7 102.6 L24.6 101.3 L23.3 100.0 L22.0 98.6 L20.8 97.2 L19.9 95.8 L19.4 94.4 L19.3 92.9 L19.6 91.6 L20.4 90.2 L21.5 89.0 L22.9 87.8 L24.4 86.7 L25.9 85.6 L27.2 84.5 L28.3 83.5 L29.1 82.3 L29.4 81.1 L29.4 79.8 L29.0 78.3 L28.3 76.7 L27.3 75.0 L26.3 73.2 L25.3 71.3 L24.5 69.5 L24.0 67.7 L23.9 66.1 L24.2 64.6 L24.9 63.4 L26.0 62.3 L27.5 61.5 L29.3 60.8 L31.2 60.3 L33.1 59.8 L34.8 59.3 L36.4 58.7 L37.8 58.0 L38.8 57.1 L39.4 56.0 L39.8 54.6 L39.9 53.1 L39.9 51.3 L39.8 49.5 L39.8 47.6 L39.9 45.9 L40.3 44.3 L40.9 42.9 L41.9 41.9 L43.2 41.2 L44.8 40.8 L46.6 40.7 L48.6 40.8 L50.6 41.1 L52.6 41.4 L54.4 41.7 L56.1 41.7 L57.5 41.5 L58.7 41.0 L59.6 40.1 L60.3 38.9 L60.8 37.3 L61.3 35.5 L61.7 33.6 L62.1 31.6 L62.7 29.8 L63.4 28.1 L64.3 26.8 L65.4 25.9 L66.7 25.3 L68.2 25.2 L69.9 25.4 L71.5 25.9 L73.3 26.5 L74.9 27.2 L76.5 27.8 L78.1 28.2 L79.4 28.3 L80.7 28.0 L81.9 27.4 L83.0 26.3 L84.1 25.0 L85.1 23.4 L86.2 21.7 L87.3 20.1 L88.6 18.7 L89.9 17.5 L91.2 16.7 L92.7 16.4 L94.2 16.6 L95.7 17.3 L97.1 18.3 L98.6 19.7 L100.0 21.2 L101.3 22.8 L102.6 24.2 L103.9 25.4 L105.2 26.3 L106.4 26.8 L107.7 26.9 L109.0 26.6 L110.4 26.0 L111.9 25.1 L113.4 24.1 L114.9 23.1 L116.5 22.3 L118.1 21.7 L119.6 21.5 L121.0 21.7 L122.3 22.3 L123.4 23.4 L124.5 24.7 L125.4 26.3 L126.2 28.0 L127.0 29.8 L127.7 31.3 L128.6 32.6 L129.6 33.6 L130.7 34.2 L132.0 34.4 L133.5 34.3 L135.2 33.8 L137.0 33.2 L139.0 32.5 L140.9 31.9 L142.9 31.4 L144.7 31.1 L146.4 31.3 L147.8 31.8 L148.9 32.7 L149.8 33.9 L150.4 35.5 L150.8 37.3 L151.0 39.2 L151.2 41.1 L151.4 42.9 L151.7 44.5 L152.2 45.9 L153.0 47.0 L154.0 47.8 L155.4 48.4 L156.9 48.7 L158.7 49.0 L160.5 49.2 L162.4 49.5 L164.1 49.9 L165.6 50.5 L166.9 51.4 L167.7 52.6 L168.2 54.0 L168.3 55.6 L168.1 57.4 L167.6 59.4 L167.0 61.3 L166.3 63.3 L165.7 65.1 L165.3 66.7 L165.2 68.2 L165.4 69.5 L166.1 70.6 L167.1 71.5 L168.5 72.3 L170.1 73.1 L171.9 73.8 L173.7 74.6 L175.4 75.5 L176.8 76.5 L177.9 77.7 L178.6 78.9 L178.9 80.3 L178.7 81.8 L178.2 83.4 L177.4 84.9 L176.5 86.5 L175.5 88.0 L174.7 89.5 L174.0 90.9 L173.7 92.3 L173.8 93.5 L174.3 94.8 L175.1 96.1 L176.3 97.3 L177.8 98.6 L179.3 100.0Z" fill="#e0552f"/>
           <circle cx="100" cy="100" r="60" fill="none" stroke="#b93f1f" stroke-width="2.5"/>
-          <text x="100" y="140" text-anchor="middle" font-family="Instrument Serif, Georgia, serif" font-size="128" fill="#15171c">“</text>
+          <g fill="#15171c" transform="translate(100 108) scale(1.0666666666666667)"><path d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(-19 0)"/><path d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(19 0)"/></g>
         </svg>
       </div>
       <div class="meta"><div class="letter">A</div><div class="name">The Seal</div><div class="why">A quote pressed in wax. What users say, sealed on the record.</div></div>
@@ -236,15 +237,15 @@
 <section>
   <p class="label">Type</p>
   <div class="type">
-    <div class="card"><div class="spec serif">Every report gets <i>a hearing.</i></div><div class="nm"><b>Instrument Serif</b> · headlines, wordmark. It reads like the record.</div></div>
-    <div class="card"><div class="spec" style="font-weight:600;font-size:56px">Aa 123</div><div class="nm"><b>Instrument Sans</b> · interface and body text</div></div>
+    <div class="card"><div class="spec serif">Every report gets <i>a hearing.</i></div><div class="nm"><b>Libre Caslon</b> · headlines, wordmark. Caslon set the first printed Declaration of Independence: the typeface of the record.</div></div>
+    <div class="card"><div class="spec" style="font-weight:600;font-size:56px">Aa 123</div><div class="nm"><b>Public Sans</b> · interface and body. Made for the US government's public websites.</div></div>
     <div class="card"><div class="spec" style="font-family:var(--mono);font-size:30px;line-height:1.3">&lt;script<br>&nbsp;data-key&gt;</div><div class="nm"><b>JetBrains Mono</b> · code and keys</div></div>
   </div>
 </section>
 
 <!-- VOICE -->
 <section>
-  <p class="label">Voice · plain first, pun second</p>
+  <p class="label">Voice <span class="sub">plain first, pun second</span></p>
   <div class="voice">
     <div class="card do">
       <div class="h">Say</div>
@@ -272,7 +273,7 @@
           <div style="margin:18px;height:10px;width:55%;background:#eef0f3;border-radius:5px"></div>
           <div style="margin:0 18px;height:10px;width:75%;background:#eef0f3;border-radius:5px"></div>
           <div style="position:absolute;right:14px;bottom:14px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font:600 13px var(--sans);box-shadow:0 4px 14px rgba(0,0,0,.12);display:flex;gap:7px;align-items:center">Report <i style="width:7px;height:7px;border-radius:50%;background:var(--wax)"></i></div>
-          <div style="position:absolute;left:18px;bottom:18px;font:400 11px var(--sans);color:var(--slate)">heard by <span class="serif" style="font-size:14px;color:var(--ink)">here<i style="color:var(--wax)">say</i></span></div>
+          <div style="position:absolute;left:18px;bottom:18px;font:400 11px var(--sans);color:var(--slate)">heard by <span class="serif" style="font-size:14px;color:var(--ink)">here<i style="color:var(--wax-deep)">say</i></span></div>
         </div>
       </div>
       <div class="cap">In their app: quiet<span>The host app's look comes first. We're a small signature.</span></div>
@@ -281,7 +282,7 @@
       <div class="stage" style="background:var(--ink)">
         <div style="position:absolute;left:18px;right:18px;top:18px;display:flex;align-items:center;gap:10px;color:var(--chalk)"><span class="serif" style="font-size:26px">here<i style="color:var(--wax)">say</i></span><span style="margin-left:auto;font:500 12px var(--sans);color:#8b93a1">The Bench</span></div>
         <div style="position:absolute;left:18px;right:18px;top:66px;background:#1f232b;border-radius:10px;padding:12px;color:var(--chalk);font-size:13px">
-          <div style="font:700 10px var(--sans);letter-spacing:.1em;color:#f0b44c">CONFUSING</div>
+          <div style="font:700 11px var(--sans);letter-spacing:.1em;color:#f0b44c">CONFUSING</div>
           <div style="margin:4px 0 10px">Can't find where to cancel.</div>
           <span class="pill p-sus" style="font-size:12px;padding:4px 10px">Sustain</span>
           <span class="pill" style="font-size:12px;padding:4px 10px;background:#2a2f39;color:#c9ced6">Overrule…</span>
