@@ -11,6 +11,8 @@
     s.src = '/sdk.js';
     s.dataset.key = new URLSearchParams(location.search).get('key') || '';
     s.dataset.version = '0.0.1-demo';
+    var accent = new URLSearchParams(location.search).get('accent');
+    if (accent) s.dataset.accent = accent;
     document.body.appendChild(s);
   </script>
 </body>

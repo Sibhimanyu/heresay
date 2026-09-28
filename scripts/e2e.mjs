@@ -86,6 +86,21 @@ try {
   await sdk.getByText('Why: Cancel is under Settings, Plan').waitFor();
   await app.screenshot({ path: `${SHOTS}e2e-4-reporter-sees-reason.png` });
 
+  step('the default accent is peacock; a host accent replaces it; junk is ignored');
+  const sendBg = async (q) => {
+    const pg = await ctx.newPage();
+    await pg.goto(`${BASE}/demo.html?key=${key}${q}`);
+    const w = pg.locator('[data-feedback-sdk]');
+    await pg.waitForFunction(() => window.Feedback && window.Feedback.open);
+    await pg.evaluate(() => window.Feedback.open());
+    const bg = await w.getByRole('button', { name: 'Send' }).evaluate((b) => [getComputedStyle(b).backgroundColor, getComputedStyle(b).color]);
+    await pg.close();
+    return bg;
+  };
+  assert.deepEqual(await sendBg(''), ['rgb(15, 118, 110)', 'rgb(255, 255, 255)']);
+  assert.deepEqual(await sendBg('&accent=%23ffcc00'), ['rgb(255, 204, 0)', 'rgb(21, 23, 28)']);
+  assert.deepEqual(await sendBg('&accent=red;}body{display:none'), ['rgb(15, 118, 110)', 'rgb(255, 255, 255)']);
+
   step('accepted reports, and only those, produce an agent prompt');
   const api = (method, path, body) => fetch(`${BASE}/v1${path}`, {
     method, headers: { authorization: `Bearer ${dev.token}`, 'content-type': 'application/json' },

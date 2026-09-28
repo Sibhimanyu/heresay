@@ -13,7 +13,7 @@ decline it (a decline needs a reason), and the reporter sees the outcome in the 
    ```
 3. Reports show up in the dashboard.
 
-Optional: `data-version="1.4.0"` on the tag, `Feedback.identify({ id, label })` once you know who
+Optional: `data-version="1.4.0"` and `data-accent="#0f766e"` (your own brand colour; defaults to Heresay peacock) on the tag, `Feedback.identify({ id, label })` once you know who
 is signed in, `Feedback.setScreen("Checkout")` if your URL does not change per screen.
 
 ## How it fits together

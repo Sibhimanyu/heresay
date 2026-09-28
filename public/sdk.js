@@ -3,7 +3,8 @@
  *
  *   <script src="https://<sdk-host>/sdk.js" data-key="pk_..." defer></script>
  *
- * Optional attributes: data-version, data-user-id, data-user-label, data-position ("left").
+ * Optional attributes: data-version, data-user-id, data-user-label, data-position ("left"),
+ *   data-accent ("#0f766e"; a hex colour, to match the host app. Defaults to Heresay peacock).
  * Optional calls, any time after the script runs:
  *   Feedback.identify({ id, label })   who the host app says the user is
  *   Feedback.setVersion("1.4.0")
@@ -139,9 +140,9 @@
   // ---- ui --------------------------------------------------------------------------------
 
   var CSS = [
-    ':host{all:initial;--fb-bg:#fff;--fb-fg:#1a1d1b;--fb-mute:#5d6660;--fb-line:#dde2de;--fb-acc:#1f6f4a;--fb-acc-fg:#fff;--fb-bad:#b3261e;',
+    ':host{all:initial;--fb-bg:#fff;--fb-fg:#15171c;--fb-mute:#5b6472;--fb-line:#e3e6ea;--fb-acc:#0f766e;--fb-acc-fg:#fff;--fb-bad:#b42318;',
     'font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--fb-fg)}',
-    '@media (prefers-color-scheme:dark){:host{--fb-bg:#171c19;--fb-fg:#e8ece9;--fb-mute:#9aa49e;--fb-line:#2c342f;--fb-acc:#5fc28d;--fb-acc-fg:#0d1210;--fb-bad:#f2b8b5}}',
+    '@media (prefers-color-scheme:dark){:host{--fb-bg:#16181d;--fb-fg:#eceef1;--fb-mute:#9aa1ad;--fb-line:#2c313a;--fb-acc:#2dd4bf;--fb-acc-fg:#0b1f1d;--fb-bad:#f2b8b5}}',
     '*{box-sizing:border-box;font:inherit;color:inherit}',
     '.fab{position:fixed;bottom:20px;right:20px;z-index:2147483000;display:flex;align-items:center;gap:6px;',
     'padding:9px 14px;border-radius:999px;border:1px solid var(--fb-line);background:var(--fb-bg);color:var(--fb-fg);',
@@ -172,11 +173,29 @@
     '.item{border-top:1px solid var(--fb-line);padding:10px 0}',
     '.item:first-child{border-top:0}',
     '.status{font-size:12px;font-weight:600}',
-    '.status.fixed,.status.accepted{color:var(--fb-acc)}',
+    '.status.fixed,.status.accepted{color:var(--fb-fg)}',
     '.reason{margin-top:4px;padding:8px;border-radius:8px;background:var(--fb-line);font-size:13px}',
     '.text{margin:2px 0;white-space:pre-wrap;word-break:break-word}',
     '.empty{color:var(--fb-mute);padding:12px 0}',
   ].join('');
+
+  /**
+   * The host app's own accent, if it gave one. Only a plain hex colour is accepted, so the
+   * attribute cannot inject CSS. The text on top of it is whichever of white or ink reads better.
+   */
+  function accentCss(v) {
+    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((v || '').trim());
+    if (!m) return '';
+    var hex = m[1].length === 3 ? m[1].replace(/(.)/g, '$1$1') : m[1];
+    var lin = [0, 2, 4].map(function (i) {
+      var c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    var L = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+    var fg = (1.05 / (L + 0.05)) >= ((L + 0.05) / 0.0598) ? '#fff' : '#15171c';
+    return ':host{--fb-acc:#' + hex + ';--fb-acc-fg:' + fg + '}';
+  }
+  CSS += accentCss(script.getAttribute('data-accent'));
 
   var host = document.createElement('div');
   host.setAttribute('data-feedback-sdk', '');
