@@ -33,7 +33,7 @@ try {
   step('developer creates a project in the dashboard');
   const dash = await ctx.newPage();
   dash.on('pageerror', (e) => console.error('dashboard error:', e));
-  await dash.goto(`${BASE}/`);
+  await dash.goto(`${BASE}/app/`);
   await dash.waitForFunction(() => window.firebase && firebase.auth);
   await dash.evaluate(([e, p]) => firebase.auth().signInWithEmailAndPassword(e, p), [dev.email, 'password123']);
   await dash.locator('#create').waitFor();

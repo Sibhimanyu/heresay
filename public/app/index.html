@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heresay · Reports</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+
+<div id="gate" class="gate" hidden>
+  <img src="/logo.svg" alt="Heresay" height="56">
+  <p>Every report gets a hearing. Sign in to read yours.</p>
+  <button id="signin" class="btn primary">Sign in with Google</button>
+</div>
+
+<div id="app" hidden>
+  <header class="top">
+    <a href="/" aria-label="Heresay home"><img src="/logo.svg" alt="Heresay" height="30" style="display:block"></a>
+    <select id="project" aria-label="Project"></select>
+    <span class="spacer"></span>
+    <button id="setup-btn" class="btn ghost">Setup</button>
+    <button id="new-btn" class="btn ghost">New project</button>
+    <button id="signout" class="btn ghost">Sign out</button>
+  </header>
+
+  <section id="create" class="card" hidden>
+    <h2>New project</h2>
+    <form id="create-form">
+      <label>App name <input name="name" required placeholder="My app"></label>
+      <label>Where it runs <input name="origin" type="url" placeholder="https://app.example.com"></label>
+      <p class="hint">Only this site may send reports with the key. Leave it empty to allow any site.</p>
+      <button class="btn primary">Create</button>
+      <span id="create-err" class="err"></span>
+    </form>
+  </section>
+
+  <section id="setup" class="card" hidden>
+    <h2>Add this line to your app</h2>
+    <p class="hint">Put it before <code>&lt;/body&gt;</code>. A <b>Report</b> button appears in the corner.</p>
+    <pre id="snippet"></pre>
+    <button id="copy-snippet" class="btn">Copy</button>
+    <p class="hint">Optional: <code>Feedback.identify({ id, label })</code> once you know who is signed in,
+      and <code>data-version="1.4.0"</code> on the tag.</p>
+  </section>
+
+  <nav id="filters" class="filters" aria-label="Filter"></nav>
+  <main id="reports"></main>
+  <p id="empty" class="empty" hidden>No reports yet.</p>
+</div>
+
+<script src="/__/firebase/10.14.1/firebase-app-compat.js"></script>
+<script src="/__/firebase/10.14.1/firebase-auth-compat.js"></script>
+<script src="/__/firebase/init.js"></script>
+<script src="/dashboard.js"></script>
+</body>
+</html>

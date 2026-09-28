@@ -140,14 +140,15 @@
   // ---- ui --------------------------------------------------------------------------------
 
   var CSS = [
-    ':host{all:initial;--fb-bg:#fff;--fb-fg:#15171c;--fb-mute:#5b6472;--fb-line:#e3e6ea;--fb-acc:#0f766e;--fb-acc-fg:#fff;--fb-bad:#b42318;',
+    ':host{all:initial;--fb-bg:#fff;--fb-fg:#15171c;--fb-mute:#5b6472;--fb-line:#e3e6ea;--fb-acc:#0f766e;--fb-acc-fg:#fff;--fb-bad:#b42318;--fb-mark:#0b5e57;',
     'font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--fb-fg)}',
-    '@media (prefers-color-scheme:dark){:host{--fb-bg:#16181d;--fb-fg:#eceef1;--fb-mute:#9aa1ad;--fb-line:#2c313a;--fb-acc:#2dd4bf;--fb-acc-fg:#0b1f1d;--fb-bad:#f2b8b5}}',
+    '@media (prefers-color-scheme:dark){:host{--fb-bg:#16181d;--fb-fg:#eceef1;--fb-mute:#9aa1ad;--fb-line:#2c313a;--fb-acc:#2dd4bf;--fb-acc-fg:#0b1f1d;--fb-bad:#f2b8b5;--fb-mark:#2dd4bf}}',
     '*{box-sizing:border-box;font:inherit;color:inherit}',
     '.fab{position:fixed;bottom:20px;right:20px;z-index:2147483000;display:flex;align-items:center;gap:6px;',
     'padding:9px 14px;border-radius:999px;border:1px solid var(--fb-line);background:var(--fb-bg);color:var(--fb-fg);',
     'box-shadow:0 4px 14px rgba(0,0,0,.18);cursor:pointer;font-weight:600}',
     '.fab.left{right:auto;left:20px}',
+    '.mark{display:inline-flex;color:var(--fb-mark)}.mark svg{display:block}',
     '.dot{width:8px;height:8px;border-radius:50%;background:var(--fb-acc)}',
     '.scrim{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:flex-end;padding:16px}',
     '.panel{width:min(380px,100%);max-height:min(560px,calc(100vh - 32px));overflow:auto;background:var(--fb-bg);',
@@ -215,11 +216,18 @@
     return n;
   }
 
+  /** The Heresay mark, compact: a soft wave with quote-mark eyes. Drawn from a constant string. */
+  function markEl() {
+    var s = document.createElement('span');
+    s.className = 'mark';
+    s.innerHTML = '<svg viewBox="0 0 200 200" width="18" height="18" aria-hidden="true"><path d="M174 100L177 105L180 110L181 116L180 121L178 126L174 131L169 134L164 137L159 139L154 141L149 143L146 146L143 149L141 154L139 159L137 164L134 169L131 174L126 178L121 180L116 181L110 180L105 177L100 174L95 170L91 167L87 164L83 163L79 162L74 162L69 163L63 164L57 164L51 164L46 162L41 159L38 154L36 149L36 143L36 137L37 131L38 126L38 121L37 117L36 113L33 109L30 105L26 100L23 95L20 90L19 84L20 79L22 74L26 69L31 66L36 63L41 61L46 59L51 57L54 54L57 51L59 46L61 41L63 36L66 31L69 26L74 22L79 20L84 19L90 20L95 23L100 26L105 30L109 33L113 36L117 37L121 38L126 38L131 37L137 36L143 36L149 36L154 38L159 41L162 46L164 51L164 57L164 63L163 69L162 74L162 79L163 83L164 87L167 91L170 95Z" fill="currentColor"/><path d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" fill="#fff" transform="translate(80 106) rotate(-24) scale(1.25)"/><path d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" fill="#fff" transform="translate(124 101) rotate(-24) scale(1.25)"/></svg>';
+    return s;
+  }
   var fabDot = el('span', { class: 'dot', hidden: '' });
   var fab = el('button', {
     class: 'fab' + (script.getAttribute('data-position') === 'left' ? ' left' : ''),
     type: 'button', 'aria-haspopup': 'dialog', onclick: function () { open(); },
-  }, [el('span', { text: 'Report' }), fabDot]);
+  }, [markEl(), el('span', { text: 'Report' }), fabDot]);
   root.appendChild(fab);
 
   var scrim = null, view = 'new', listBox = null, lastFocus = null;
@@ -355,7 +363,7 @@
   }
   if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
 
-  window.Feedback = {
+  window.Heresay = window.Feedback = {
     __loaded: true,
     identify: function (u) {
       u = u || {};

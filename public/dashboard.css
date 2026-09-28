@@ -5,7 +5,7 @@
     --broken:#f2b8b5; --confusing:#f0c77a; --improvement:#9dbcf0; --idea:#c7b5f0; }
 }
 * { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 Figtree,system-ui,-apple-system,"Segoe UI",sans-serif; }
 [hidden] { display:none !important; }
 .gate { max-width:360px; margin:18vh auto; text-align:center; }
 .top { display:flex; align-items:center; gap:10px; padding:12px 20px; border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; }
