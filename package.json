@@ -5,7 +5,8 @@
   "scripts": {
     "test": "npm --prefix functions test",
     "e2e": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e.mjs'",
-    "dev": "npm --prefix functions run build && firebase emulators:start --only auth,firestore,functions,hosting"
+    "dev": "npm --prefix functions run build && firebase emulators:start --only auth,firestore,functions,hosting",
+    "test:firestore": "npm --prefix functions run build:test && firebase emulators:exec --only firestore 'node --test functions/lib-test/test/store-firestore.test.js'"
   },
   "devDependencies": {
     "firebase-tools": "^15.31.0",

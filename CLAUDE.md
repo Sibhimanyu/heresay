@@ -13,7 +13,11 @@ Read README.md first. Background: `docs/decisions/`.
 - **No accounts for reporters.** The host app may pass an id or label; otherwise a per-device id.
 - **The public endpoints are rate-limited** (device, IP, key) and origin-checked. Do not add a
   public endpoint without both.
-- Import firebase-admin only through `functions/src/admin.ts` (one instance per process).
+- Import firebase-admin only through `functions/src/providers/firebase/admin.ts` (one instance per process).
+- **Backend-portable.** `functions/src/core/` is the product and must never import from
+  `providers/` or any Firebase package. Each backend (Firebase today, Catalyst later) is an adapter
+  in `providers/<name>/` that implements `Store` and wires `handle()`. Every `Store` must pass
+  `test/store-contract.ts`. The SDK and dashboard talk only to `/v1`, never to a database directly.
 - This SDK must work for someone who has never heard of Flotilla. Nothing here depends on it.
 
 ## Who it is for
@@ -25,6 +29,6 @@ CSS, routing).
 
 ## Testing
 
-`npm test` is pure logic. `npm run e2e` drives the real SDK and dashboard in Chromium against
+`npm test` is pure logic plus the store contract on MemoryStore. `npm run test:firestore` runs the same contract on the Firestore emulator. `npm run e2e` drives the real SDK and dashboard in Chromium against
 the emulators and writes screenshots to `.context/`. Run emulator suites as separate processes;
 they degrade when batched.

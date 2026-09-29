@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import type { Store, Transition } from './store.js';
-import type { Project, Report, ReportStatus, Task } from './types.js';
+import type { Store, Transition } from '../../core/store.js';
+import type { Project, Report, ReportStatus, Task } from '../../core/types.js';
 
 /**
  * projects/{project_id}

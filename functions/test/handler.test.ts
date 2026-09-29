@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MemoryStore } from '../src/store.js';
-import { handle, sortForTriage, type Deps, type Req } from '../src/handler.js';
-import type { Project, Report } from '../src/types.js';
+import { MemoryStore } from '../src/core/store.js';
+import { handle, sortForTriage, type Deps, type Req } from '../src/core/handler.js';
+import type { Project, Report } from '../src/core/types.js';
 
 const DEVICE = 'dev_aaaaaaaaaaaaaaaaaaaa';
 const ORIGIN = 'https://app.example.com';

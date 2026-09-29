@@ -22,7 +22,9 @@
     || document.querySelector('script[src*="sdk.js"][data-key]');
   if (!script) return;
   var KEY = script.getAttribute('data-key');
-  var API = new URL(script.src, location.href).origin + '/v1';
+  // The API normally sits beside sdk.js. data-api points elsewhere, for backends that serve
+  // functions from a different address than static files.
+  var API = (script.getAttribute('data-api') || new URL(script.src, location.href).origin + '/v1').replace(/\/+$/, '');
   if (!KEY) { console.warn('[feedback] missing data-key on the sdk.js script tag'); return; }
 
   var state = {
