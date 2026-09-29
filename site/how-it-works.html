@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Heresay works</title>
+<meta name="description" content="The whole Heresay loop, from the Report button to a fix note: who sees what, how it is set up, and how coding agents stay safe.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:title" content="How Heresay works">
+<meta property="og:description" content="Report, decide, fix, hear back. The whole loop in pictures.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="nav" aria-label="Main">
+    <a href="./" aria-label="Heresay home"><img src="logo.svg" alt="Heresay" height="34"></a>
+    <div class="links"><a href="how-it-works.html" aria-current="page">How it works</a><a class="keep" href="docs.html">Docs</a><a href="./#faq">FAQ</a></div>
+    <a class="btn btn-p btn-sm" href="docs.html#self-host">Set up</a>
+  </nav>
+
+  <header class="hw-hero">
+    <h1>How Heresay <em>works.</em></h1>
+    <p class="lede">Someone in your app says what's wrong. A person on your team decides. A coding agent can fix it. They hear back.</p>
+    <ol class="hw-index">
+      <li><a href="#loop"><b>1</b>The loop</a></li>
+      <li><a href="#setup"><b>2</b>Setting it up</a></li>
+      <li><a href="#users"><b>3</b>What your users see</a></li>
+      <li><a href="#team"><b>4</b>What your team sees</a></li>
+      <li><a href="#agents"><b>5</b>Coding agents, safely</a></li>
+      <li><a href="#data"><b>6</b>Where your data lives</a></li>
+    </ol>
+  </header>
+</div>
+
+<!-- 1. The loop -->
+<section id="loop">
+  <div class="wrap">
+    <div class="section-head"><span class="hw-num">1</span><h2>The loop</h2><p>Every report ends with an answer the reporter can read.</p></div>
+
+    <figure class="hw-loop" role="img" aria-label="Someone in the app sends a report. A person on the team accepts it or declines it with a reason. An accepted report becomes a brief a coding agent fixes. The reporter sees the outcome and the fix note in the app.">
+      <svg class="hw-svg hw-loop-wide" viewBox="0 0 1100 390" aria-hidden="true">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0f766e"/></marker>
+          <marker id="ahs" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#855309"/></marker>
+        </defs>
+        <!-- return paths first, so nodes sit on top -->
+        <path d="M975 210 V340 H95 V218" class="ln" marker-end="url(#ah)"/>
+        <path d="M415 210 V275 H175 V218" class="ln warm" marker-end="url(#ahs)"/>
+        <rect x="185" y="261" width="220" height="28" rx="14" class="pill-warm"/>
+        <text x="295" y="280" class="t-sm warm" text-anchor="middle">Declined, with a reason they read</text>
+        <rect x="395" y="326" width="360" height="28" rx="14" class="pill-mist"/>
+        <text x="575" y="345" class="t-sm deep" text-anchor="middle">Fixed, with a note they read in the app</text>
+
+        <!-- forward arrows -->
+        <path d="M252 118 H296" class="ln" marker-end="url(#ah)"/>
+        <path d="M532 118 H576" class="ln" marker-end="url(#ah)"/>
+        <text x="554" y="106" class="t-xs deep" text-anchor="middle">Accept</text>
+        <path d="M812 118 H856" class="ln" marker-end="url(#ah)"/>
+
+        <!-- A: reporter -->
+        <rect x="20" y="40" width="230" height="170" rx="18" class="node"/>
+        <text x="40" y="76" class="t-h">Someone in the app</text>
+        <text x="40" y="98" class="t-sm mute">taps Report and picks one</text>
+        <rect x="40" y="114" width="64" height="24" rx="12" fill="#fdecea"/><text x="72" y="131" class="t-xs" fill="#b42318" text-anchor="middle">Broken</text>
+        <rect x="110" y="114" width="84" height="24" rx="12" fill="#fdf3e3"/><text x="152" y="131" class="t-xs" fill="#8a4b0b" text-anchor="middle">Confusing</text>
+        <rect x="40" y="144" width="114" height="24" rx="12" fill="#e6f4f2"/><text x="97" y="161" class="t-xs" fill="#0b5e57" text-anchor="middle">Could be better</text>
+        <rect x="160" y="144" width="50" height="24" rx="12" fill="#eef0f3"/><text x="185" y="161" class="t-xs" fill="#5b6472" text-anchor="middle">Idea</text>
+
+        <!-- B: team -->
+        <rect x="300" y="40" width="230" height="170" rx="18" class="node"/>
+        <text x="320" y="76" class="t-h">A person on your team</text>
+        <text x="320" y="98" class="t-sm mute">reads it in the inbox</text>
+        <rect x="320" y="126" width="74" height="30" rx="9" fill="#0f766e"/><text x="357" y="146" class="t-xs" fill="#fff" text-anchor="middle">Accept</text>
+        <rect x="402" y="126" width="84" height="30" rx="9" fill="#fff" stroke="#e3e6ea" stroke-width="1.5"/><text x="444" y="146" class="t-xs" text-anchor="middle">Decline…</text>
+
+        <!-- C: brief -->
+        <rect x="580" y="40" width="230" height="170" rx="18" class="node"/>
+        <text x="600" y="76" class="t-h">A brief</text>
+        <text x="600" y="98" class="t-sm mute">only once a person accepts</text>
+        <rect x="600" y="116" width="190" height="72" rx="10" fill="#f5f6f7"/>
+        <rect x="614" y="130" width="90" height="8" rx="4" fill="#cfd3db"/>
+        <rect x="614" y="146" width="160" height="8" rx="4" fill="#e3e6ea"/>
+        <rect x="614" y="162" width="120" height="8" rx="4" fill="#e3e6ea"/>
+
+        <!-- D: agent -->
+        <rect x="860" y="40" width="230" height="170" rx="18" class="node deep-node"/>
+        <text x="880" y="76" class="t-h" fill="#fff">Your coding agent</text>
+        <text x="880" y="98" class="t-sm" fill="#b9dcd6">fixes it on a branch</text>
+        <text x="880" y="118" class="t-sm" fill="#b9dcd6">and writes a note</text>
+        <text x="880" y="138" class="t-sm" fill="#b9dcd6">for the reporter</text>
+        <rect x="880" y="160" width="100" height="28" rx="9" fill="#2dd4bf"/><text x="930" y="179" class="t-xs" fill="#0b5e57" text-anchor="middle">Mark fixed</text>
+      </svg>
+
+      <!-- Narrow screens: the same loop, stacked -->
+      <ol class="hw-loop-stack" aria-hidden="true">
+        <li class="card"><b>Someone in the app</b><span>taps Report and picks one</span>
+          <div class="hw-chips"><i class="c-broken">Broken</i><i class="c-conf">Confusing</i><i class="c-better">Could be better</i><i class="c-idea">Idea</i></div></li>
+        <li class="card"><b>A person on your team</b><span>reads it, then accepts it, or declines it with a reason</span></li>
+        <li class="card"><b>A brief</b><span>only once a person accepts</span></li>
+        <li class="card dark"><b>Your coding agent</b><span>fixes it and writes a note for the reporter</span></li>
+        <li class="card back"><b>Back in the app</b><span class="warm">Declined, with the reason</span><span class="deep">Fixed, with the note</span></li>
+      </ol>
+    </figure>
+  </div>
+</section>
+
+<!-- 2. Setting it up -->
+<section id="setup">
+  <div class="wrap">
+    <div class="section-head"><span class="hw-num">2</span><h2>Setting it up</h2><p>One command for your team. One prompt per app.</p></div>
+
+    <div class="hw-rows">
+      <div class="hw-row">
+        <div class="hw-copy">
+          <span class="hw-step">A</span>
+          <h3>Your own Heresay</h3>
+          <p>One command creates it in your team's own Google account: a dashboard, an API and the SDK. About five minutes.</p>
+        </div>
+        <div class="hw-vis">
+          <div class="hw-term" aria-label="Terminal">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <div><span class="p">$</span> npx create-heresay</div>
+          </div>
+          <div class="hw-nest" role="img" aria-label="Your Google account holds your Firebase project, which holds the dashboard, the API and the SDK">
+            <div class="lvl1"><small>Your Google account</small>
+              <div class="lvl2"><small>Your Firebase project</small>
+                <div class="hw-trio"><span>Dashboard</span><span>API</span><span>SDK</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hw-row">
+        <div class="hw-copy">
+          <span class="hw-step">B</span>
+          <h3>Add an app, copy one prompt</h3>
+          <p>Paste it into your coding agent. It connects the repo, installs Heresay and checks the install by itself.</p>
+        </div>
+        <div class="hw-vis hw-flow">
+          <div class="hw-mock">
+            <small class="muted">Dashboard</small>
+            <b class="hw-mock-h">Put Heresay in Acme</b>
+            <span class="send">Copy prompt</span>
+            <small class="muted">The page ticks over by itself when it's done.</small>
+          </div>
+          <div class="hw-arrow" aria-hidden="true"></div>
+          <ol class="hw-checks">
+            <li>Connect the repo</li>
+            <li>Install Heresay</li>
+            <li>Verify it</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="hw-row">
+        <div class="hw-copy">
+          <span class="hw-step">C</span>
+          <h3>Web, iOS or Mac</h3>
+          <p>On the web it's one script tag. On iOS and macOS it's a Swift package.</p>
+        </div>
+        <div class="hw-vis hw-plats">
+          <div class="hw-plat"><small>Web</small><code>&lt;script src="…/sdk/v1.js" data-key="pk_…" defer&gt;&lt;/script&gt;</code></div>
+          <div class="hw-plat"><small>iOS and macOS</small><code>import Heresay<br>ContentView()<br>&nbsp;&nbsp;.heresayReportButton()</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. What users see -->
+<section id="users">
+  <div class="wrap">
+    <div class="section-head"><span class="hw-num">3</span><h2>What your users see</h2><p>No sign-up. A button, a short form, and the answer.</p></div>
+
+    <div class="hw-mocks">
+      <figure class="hw-shot">
+        <div class="hw-screen">
+          <div class="bar"></div><div class="bar b"></div>
+          <div class="hw-bubble"><b>Something not right? Tell the team.</b><p>A person reads every report, and you will see what happens to yours right here.</p><div class="r"><span class="lnk">Got it</span><span class="send">Try it</span></div></div>
+          <div class="fab"><img src="mark.svg" alt="" width="22" height="22">Report</div>
+        </div>
+        <figcaption><b>The Report button</b> and a one-time note that it's there.</figcaption>
+      </figure>
+
+      <figure class="hw-shot">
+        <div class="hw-screen mac">
+          <div class="hw-menubar"><span>Acme</span><span>File</span><span>Edit</span><span>View</span><span class="on">Help</span></div>
+          <div class="hw-menu"><span>Acme Help</span><hr><span class="on">Report a Problem… <kbd>⌥⌘R</kbd></span></div>
+        </div>
+        <figcaption><b>On the Mac,</b> it lives under Help › Report a Problem…</figcaption>
+      </figure>
+
+      <figure class="hw-shot">
+        <div class="hw-screen flat">
+          <div class="hw-w">
+            <div class="tabs"><span>Report</span><span class="on">Your reports</span><span>Preferences</span></div>
+            <div class="hw-item"><i class="s-open">Waiting for the developer</i><p>Dark mode resets on reload.</p></div>
+            <div class="hw-item"><i class="s-acc">Accepted, being worked on</i><p>The export button does nothing.</p></div>
+            <div class="hw-item"><i class="s-fix">Fixed</i><p>Search misses old notes.</p><div class="reply">Search now finds notes of any age.</div></div>
+            <div class="hw-item"><i class="s-dec">Declined</i><p>Where do I cancel my plan?</p><div class="reply"><b>Why:</b> It's under Settings › Plan.</div></div>
+          </div>
+        </div>
+        <figcaption><b>Your reports:</b> every report from this device, and what happened to it.</figcaption>
+      </figure>
+
+      <figure class="hw-shot">
+        <div class="hw-screen flat hw-prefs">
+          <div class="hw-w">
+            <small class="hw-tag">Not signed in</small>
+            <label><span>Your name <i>(optional)</i></span><span class="in"></span></label>
+            <label><span>Email <i>(optional)</i></span><span class="in"></span></label>
+            <label><span>About your setup <i>(optional)</i></span><span class="in tall">I use a screen reader.</span></label>
+          </div>
+          <div class="hw-w">
+            <small class="hw-tag">Signed in</small>
+            <div class="hw-who"><span class="av">AK</span><div><b>Signed in as Asha K.</b><small>The app told Heresay. Nobody asks.</small></div></div>
+            <label><span>About your setup <i>(optional)</i></span><span class="in tall">I use a screen reader.</span></label>
+          </div>
+        </div>
+        <figcaption><b>Preferences:</b> a note about their setup. A name and email only if the app hasn't said who they are.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- 4. What the team sees -->
+<section id="team">
+  <div class="wrap">
+    <div class="section-head"><span class="hw-num">4</span><h2>What your team sees</h2><p>One inbox per product, most urgent first.</p></div>
+
+    <div class="hw-team">
+      <div class="hw-inbox">
+        <div class="hw-inbox-h"><b>Acme</b><small class="muted">Web · iOS · Mac</small></div>
+        <div class="hw-filter"><span class="on">All</span><span>Web</span><span>iOS</span><span>Mac</span></div>
+        <div class="hw-rep"><i class="c-broken">Broken</i><p>The export button does nothing.</p><small>/export · v1.4.0 · Safari · macOS</small><em>Web</em></div>
+        <div class="hw-rep"><i class="c-conf">Confusing</i><p>I can't find where to cancel my plan.</p><small>Settings · 2.1 (40) · iOS 18</small><em>iOS</em></div>
+        <div class="hw-rep"><i class="c-better">Could be better</i><p>Sync takes a while on first launch.</p><small>Library · 2.1 · macOS 15</small><em>Mac</em></div>
+        <div class="hw-rep"><i class="c-idea">Idea</i><p>Let me pin a note to the top.</p><small>/notes · v1.4.0 · Chrome · Windows</small><em>Web</em></div>
+      </div>
+
+      <div class="hw-side">
+        <div class="card">
+          <h3>Priority comes from the type</h3>
+          <p class="muted">The reporter picks what it is. Nobody picks their own priority.</p>
+          <ol class="hw-ladder"><li><i class="c-broken">Broken</i></li><li><i class="c-conf">Confusing</i></li><li><i class="c-better">Could be better</i></li><li><i class="c-idea">Idea</i></li></ol>
+        </div>
+        <div class="card">
+          <h3>Every platform, one inbox</h3>
+          <svg class="hw-svg hw-merge" viewBox="0 0 300 120" role="img" aria-label="Web, iOS and Mac reports flow into one inbox">
+            <rect x="0" y="4" width="70" height="28" rx="14" class="pill-mist"/><text x="35" y="23" class="t-xs deep" text-anchor="middle">Web</text>
+            <rect x="0" y="46" width="70" height="28" rx="14" class="pill-mist"/><text x="35" y="65" class="t-xs deep" text-anchor="middle">iOS</text>
+            <rect x="0" y="88" width="70" height="28" rx="14" class="pill-mist"/><text x="35" y="107" class="t-xs deep" text-anchor="middle">Mac</text>
+            <path d="M72 18 C140 18 140 60 196 60 M72 60 H196 M72 102 C140 102 140 60 196 60" class="ln" fill="none"/>
+            <rect x="200" y="38" width="100" height="44" rx="12" fill="#0b5e57"/><text x="250" y="65" class="t-xs" fill="#fff" text-anchor="middle">One inbox</text>
+          </svg>
+        </div>
+        <div class="card">
+          <h3>Details, attached</h3>
+          <div class="hw-tags"><span>Page or screen</span><span>App version</span><span>Browser</span><span>OS</span><span>Device</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Coding agents -->
+<section id="agents">
+  <div class="wrap">
+    <div class="section-head"><span class="hw-num">5</span><h2>Coding agents, safely</h2><p>Reports come from the public. A person stands between them and your code.</p></div>
+
+    <figure class="hw-gate" role="img" aria-label="Open reports stop at a person. Only reports the person accepts go on, as briefs, to a coding agent.">
+      <div class="g-in"><small>Open reports</small><span></span><span></span><span></span></div>
+      <div class="g-line"></div>
+      <div class="g-person"><img src="mark.svg" alt="" width="40" height="40"><b>A person accepts</b></div>
+      <div class="g-line on"></div>
+      <div class="g-out"><small>Briefs</small><span></span></div>
+      <div class="g-line on"></div>
+      <div class="g-agent"><b>Agent</b></div>
+    </figure>
+
+    <div class="grid3 hw-rules">
+      <div class="feature"><h3>Accepted only</h3><p>Agents see briefs a person accepted, for the apps in their repo. Never open reports.</p></div>
+      <div class="feature"><h3>A description, not instructions</h3><p>The reporter's words are fenced and labelled, so a report can't steer your agent.</p>
+        <pre class="hw-fence">"""
+The export button does nothing.
+"""</pre></div>
+      <div class="feature"><h3>People decide</h3><p>Agents never accept or decline. They claim a brief, fix it and mark it fixed.</p></div>
+    </div>
+
+    <div class="hw-connect">
+      <div>
+        <h3><code>npx heresay connect</code></h3>
+        <p class="muted">Adds files you commit. The token stays on your computer.</p>
+        <ul class="hw-files">
+          <li><code>.mcp.json</code><span>the Heresay MCP server</span></li>
+          <li><code>.claude/skills/heresay/</code><span>a short skill</span></li>
+          <li><code>AGENTS.md</code><span>a Heresay section</span></li>
+          <li class="off"><code>~/.heresay</code><span>the token, outside the repo</span></li>
+        </ul>
+      </div>
+      <div class="hw-chat" aria-label="An agent asking before adding a new feature">
+        <small class="muted"><code>whats_new</code>, before any Heresay task</small>
+        <div class="msg ag">Heresay can now show people a one-time note that the Report button exists. Want me to add it?</div>
+        <div class="msg you">Yes, add it.</div>
+        <small class="muted">No feature is added without a yes. A no is remembered.</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Data -->
+<section id="data">
+  <div class="wrap">
+    <div class="section-head"><span class="hw-num">6</span><h2>Where your data lives</h2><p>In your own Firebase project. Not on anyone else's servers.</p></div>
+
+    <div class="hw-data">
+      <div class="hw-path" role="img" aria-label="A report passes an origin check and rate limits before it reaches the API in your Firebase project">
+        <div class="p-node"><small>From your app</small><b>A report</b></div>
+        <div class="p-gate"><b>Origin check</b><small>your key only works on your sites</small></div>
+        <div class="p-gate"><b>Rate limits</b><small>per device, network and app</small></div>
+        <div class="p-node deep"><small>Your Firebase project</small><b>Your Heresay</b></div>
+      </div>
+      <div class="grid3">
+        <div class="feature"><h3>No accounts for reporters</h3><p>A random device id lets people see their own reports. Your app can pass a name or id if it knows one.</p></div>
+        <div class="feature"><h3>No screenshots, no cookies</h3><p>What they typed, the type, and the context above. Nothing else.</p></div>
+        <div class="feature"><h3>Yours to remove</h3><p><code>npx create-heresay remove</code> deletes a Heresay you set up.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="close">
+  <div class="wrap">
+    <img src="mark.svg" alt="" width="84" height="84" style="margin:0 auto">
+    <h2>Every report gets a hearing.</h2>
+    <div class="ctas"><a class="btn btn-p" href="docs.html#self-host">Set up Heresay</a><a class="btn btn-s" href="docs.html">Read the docs</a></div>
+  </div>
+</section>
+
+<footer class="site"><div class="wrap"><span>© 2026 Heresay</span><span><a href="./">Home</a> · <a href="docs.html">Docs</a> · <a href="docs.html#self-host">Set up</a></span></div></footer>
+
+</body>
+</html>
