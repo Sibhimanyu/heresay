@@ -107,6 +107,16 @@ try {
   assert.match(onePrompt, /heresay@latest connect --url .+ --token hst_[A-Za-z0-9_-]+ --yes/);
   assert.match(onePrompt, new RegExp(`heresay@latest install ${apps[0].id}`));
   assert.match(onePrompt, new RegExp(`heresay@latest check ${apps[0].id}`));
+
+  step('going back to explore and returning copies the same prompt, not a second token');
+  await dash.getByRole('link', { name: 'Back to Details' }).click();
+  await dash.getByRole('button', { name: 'Save and continue' }).click();
+  await dash.getByText('Checking automatically…').waitFor();
+  await dash.getByRole('button', { name: 'Copy prompt' }).click();
+  await dash.getByText('Copied. Paste it into your coding agent').waitFor();
+  assert.equal(await dash.evaluate(() => navigator.clipboard.readText()), onePrompt, 'same token after navigating away');
+  const tokenList = (await (await fetch(`${BASE}/v1/agent-tokens`, { headers: { authorization: `Bearer ${await dash.evaluate(() => firebase.auth().currentUser.getIdToken())}` } })).json()).tokens;
+  assert.equal(tokenList.filter((t) => t.app_ids.includes(apps[0].id)).length, 1, 'one prompt token for the app');
   await dash.getByText('Prefer to run the command yourself?').click();
   await dash.getByText(`npx heresay connect --url ${BASE}`).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-1c-install.png`, fullPage: true });

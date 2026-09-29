@@ -405,6 +405,15 @@
     ];
   }
 
+  /** The unused prompt token last made for an app in this tab (hst_<id>_<secret>), or set it. */
+  function promptToken(appId, token) {
+    var k = 'heresay.prompt-token.' + appId;
+    try {
+      if (token === undefined) return sessionStorage.getItem(k);
+      sessionStorage.setItem(k, token);
+    } catch (e) { return null; }
+  }
+
   /** One prompt that connects the repo, installs Heresay and waits for the test report. */
   function onePrompt(p, token) {
     var apple = platformOf(p.platform).apple;
@@ -441,11 +450,23 @@
     var promptBox = el('div', { class: 'copy-prompt' });
     var copyBtn = el('button', { class: 'btn primary', type: 'button', text: 'Copy prompt' });
     var copyNote = el('p', { class: 'hint', role: 'status', text: 'It connects the repo, installs Heresay and verifies it. This page ticks over by itself when it’s done.' });
-    var promptText = null;
     function makePrompt() {
-      if (promptText) return Promise.resolve(promptText);
-      // No repo yet: the token binds to whichever repo the agent runs it in.
-      return api('POST', '/agent-tokens', { app_ids: [p.id] }).then(function (b) { return (promptText = onePrompt(p, b.token)); });
+      // The same prompt every time for this app in this tab, so going back to explore while an
+      // agent works on it doesn't hand out a second token. A new one only once the last is used
+      // by a repo or revoked. No repo yet: the token binds to whichever repo runs it first.
+      var cached = promptToken(p.id);
+      var fresh = function () {
+        return api('POST', '/agent-tokens', { app_ids: [p.id] }).then(function (b) {
+          promptToken(p.id, b.token);
+          return onePrompt(p, b.token);
+        });
+      };
+      if (!cached) return fresh();
+      var id = cached.split('_')[1];
+      return api('GET', '/agent-tokens').then(function (b) {
+        var t = b.tokens.filter(function (x) { return x.id === id; })[0];
+        return t && !t.repo ? onePrompt(p, cached) : fresh();
+      });
     }
     copyBtn.onclick = function () {
       copyBtn.disabled = true;
