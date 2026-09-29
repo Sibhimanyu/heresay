@@ -6,7 +6,7 @@
 // Run with `npm run e2e:agent` (it starts and stops the emulators).
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -105,9 +105,19 @@ assert.ok(found.todo.some((t) => /Commit Heresay's agent files/.test(t)), 'uncom
 execFileSync('git', ['add', '.mcp.json', '.claude', 'AGENTS.md', 'CLAUDE.md'], { cwd: dir });
 execFileSync('git', ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e', 'commit', '-qm', 'Heresay agent files'], { cwd: dir });
 assert.ok(!(await call('check_install', { app: app.id })).todo.some((t) => /Commit Heresay/.test(t)));
+// An app installed before a feature existed: whats_new offers it, and a no is remembered.
+assert.ok(tools.includes('whats_new') && tools.includes('skip_update'));
+const news = await call('whats_new', {});
+assert.deepEqual(news.updates.map((u) => u.id), ['introduce'], 'offers what this app lacks, nothing it has');
+assert.match(news.ask_first, /ask/i);
+assert.match(await call('heresay_guide', { topic: 'whats-new' }), /Never add a feature without a yes/);
+await call('skip_update', { id: 'introduce' });
+assert.deepEqual((await call('whats_new', {})).updates, [], 'not offered again after a no');
+rmSync(join(dir, '.claude/skills/heresay/decisions.json'));
 // Telling people it exists clears it.
 writeFileSync(join(dir, 'index.html'), `<!doctype html><body><h1>Notes</h1>\n<script src="${BASE}/sdk/v1.js" data-key="${app.key}" data-intro="auto" defer></script></body>`);
 assert.deepEqual((await call('check_install', { app: app.id })).todo, [], 'nothing owed once people are told');
+assert.deepEqual((await call('whats_new', {})).updates, [], 'and nothing new to offer');
 const seenByTeam = await person('GET', `/projects/${app.id}`);
 assert.equal(seenByTeam.body.project.code_found.file, 'index.html', 'the dashboard sees where it was found');
 assert.equal(seenByTeam.body.project.code_found.repo, repoName);

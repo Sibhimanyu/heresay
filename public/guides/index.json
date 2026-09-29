@@ -1,11 +1,12 @@
 {
-  "skill_version": 1,
+  "skill_version": 3,
   "topics": {
     "start": "What Heresay is, the rules, and which topic to read next",
     "install-web": "Add the Heresay web SDK to an app, for any framework, and prove it works",
     "install-apple": "Add the Heresay Swift package to an iOS or macOS app",
     "fix-brief": "Fix an accepted report: find, claim, fix, hand off, mark fixed",
     "write-note": "Write the note the reporter reads when a report is fixed",
-    "uninstall": "Remove Heresay from an app, and disconnect the repo"
+    "uninstall": "Remove Heresay from an app, and disconnect the repo",
+    "whats-new": "Heresay features this app doesn't use yet: tell the person, and ask before adding any"
   }
 }

@@ -107,7 +107,7 @@ export function client(conn) {
 
 // ---- guides, fetched from the Heresay itself ----------------------------------------------
 
-export const SKILL_VERSION = 2;
+export const SKILL_VERSION = 3;
 
 /** The bootstrap skill version installed in this repo, or null. */
 export function repoSkillVersion(root) {
@@ -247,8 +247,54 @@ export function findInRepo(root, strings, { code = false } = {}) {
   return null;
 }
 
+// ---- what's new ------------------------------------------------------------------------------
+
+/** Where a repo records the features it said no to, next to the skill, so it's committed with it. */
+export const DECISIONS = '.claude/skills/heresay/decisions.json';
+
+function readDecisions(root) {
+  try { return JSON.parse(readFileSync(join(root, DECISIONS), 'utf8')); } catch { return { skipped: {} }; }
+}
+
+/**
+ * Features this Heresay has that this repo's apps don't use yet and nobody skipped. The list
+ * comes from the Heresay itself, so a new feature reaches every connected repo without a new
+ * package. Detection is by what the code contains, the same way `check` finds the key.
+ */
+export async function whatsNew(conn, apps, { root = repoAt().root } = {}) {
+  const res = await fetch(`${conn.url}/guides/changes.json`, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) return { updates: [], note: 'This Heresay has no feature list yet; nothing to offer.' };
+  const { changes = [] } = await res.json();
+  const skipped = readDecisions(root).skipped ?? {};
+  const updates = [];
+  for (const c of changes) {
+    if (skipped[c.id]) continue;
+    const mine = apps.filter((a) => (!c.platforms || c.platforms.includes(a.platform)) && (!c.sign_in || a.sign_in === c.sign_in));
+    if (!mine.length || !findKeyInRepo(root, mine[0].key)) continue; // not installed here: install covers it
+    if (findInRepo(root, c.detect ?? [], { code: true })) continue;
+    updates.push({
+      id: c.id, since: c.since, title: c.title, summary: c.summary,
+      apps: mine.map((a) => `${a.name} (${a.platform})`),
+      how: [...new Set(mine.map((a) => c.how?.[a.platform]).filter(Boolean))].join('; '),
+    });
+  }
+  return {
+    updates,
+    ...(updates.length ? { ask_first: 'Tell the person what each update does in a sentence and ask whether to add it. Do not add any without a yes. If they say no, call skip_update with its id.' } : {}),
+  };
+}
+
+/** Remember a no, so the next agent doesn't ask again. */
+export function skipUpdate(id, { root = repoAt().root, by = 'the team' } = {}) {
+  const d = readDecisions(root);
+  d.skipped = { ...(d.skipped ?? {}), [id]: { at: new Date().toISOString(), by } };
+  mkdirSync(join(root, DECISIONS, '..'), { recursive: true });
+  writeFileSync(join(root, DECISIONS), JSON.stringify(d, null, 2) + '\n');
+  return { skipped: id, recorded_in: DECISIONS, commit: 'Commit this file so the answer holds in every checkout.' };
+}
+
 /** The files `heresay connect` writes, if they exist here but aren't committed. */
-export const AGENT_FILES = ['.mcp.json', '.claude/skills/heresay/SKILL.md', 'AGENTS.md', 'CLAUDE.md'];
+export const AGENT_FILES = ['.mcp.json', '.claude/skills/heresay/SKILL.md', DECISIONS, 'AGENTS.md', 'CLAUDE.md'];
 export function uncommittedAgentFiles(root) {
   const loose = [];
   for (const f of AGENT_FILES) {
