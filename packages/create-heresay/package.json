@@ -12,7 +12,8 @@
     "bin",
     "src",
     "release",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"
@@ -32,5 +33,6 @@
     "firebase",
     "self-hosted",
     "heresay"
-  ]
+  ],
+  "author": "Sibhimanyu"
 }
