@@ -101,7 +101,7 @@ P.append(page(13, 'Misuse', 'Please don\'t.', 'The mark only works as drawn. Eac
 P.append(page(14, 'Files', 'Where everything lives.', 'Everything is generated from one geometry file. Start from the source, never redraw.',
  '''<table class="files"><tr><td>brand/svg/heresay-mark*.svg</td><td>The mark: colour, accent eyes, on dark, one colour, white</td></tr><tr><td>brand/svg/heresay-logo*.svg</td><td>Horizontal and stacked lockups, colour and white</td></tr>
  <tr><td>brand/svg/heresay-wordmark*.svg</td><td>The outlined wordmark</td></tr><tr><td>brand/svg/heresay-app-icon*.svg</td><td>The app icon, regular and small-size artwork</td></tr>
- <tr><td>brand/png/</td><td>1024 app icon and 32 px favicon PNGs</td></tr><tr><td>brand/heresay-brand-guidelines.pdf</td><td>This document. Opens in Illustrator with one artboard per page.</td></tr>
+ <tr><td>brand/png/</td><td>1024 app icon and 32 px favicon PNGs</td></tr><tr><td>brand/heresay-brand-guidelines.ai</td><td>This document in Illustrator: 14 artboards, one layer per page. PDF copy alongside.</td></tr><tr><td>brand/ai/</td><td>Every logo file as a native Illustrator document</td></tr>
  <tr><td>scripts/brand_geometry.py</td><td>The source of truth: mark construction, wordmark outlines, lockup spacing</td></tr><tr><td>scripts/brand_assets.py · brand_guidelines.py</td><td>Regenerate the files and this document</td></tr></table>'''))
 CSS = f'''@page {{ size: 1600px 1000px; margin: 0 }} * {{ box-sizing:border-box }} body {{ margin:0; font:17px/1.6 Figtree, system-ui, sans-serif; color:{INK} }}
 .page {{ width:1600px; height:1000px; padding:72px 88px; position:relative; page-break-after:always; overflow:hidden; background:#fff }}
