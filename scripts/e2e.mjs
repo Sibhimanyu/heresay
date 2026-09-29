@@ -101,9 +101,9 @@ try {
   assert.equal(await dash.getByText('No MCP?').count(), 0);
   await dash.getByRole('button', { name: 'Get the prompt' }).click();
   const onePrompt = await dash.locator('.code pre').filter({ hasText: 'Set up Heresay' }).textContent();
-  assert.match(onePrompt, /heresay@0 connect --url .+ --token hst_[A-Za-z0-9_-]+ --yes/);
-  assert.match(onePrompt, new RegExp(`heresay@0 install ${apps[0].id}`));
-  assert.match(onePrompt, new RegExp(`heresay@0 check ${apps[0].id}`));
+  assert.match(onePrompt, /heresay@latest connect --url .+ --token hst_[A-Za-z0-9_-]+ --yes/);
+  assert.match(onePrompt, new RegExp(`heresay@latest install ${apps[0].id}`));
+  assert.match(onePrompt, new RegExp(`heresay@latest check ${apps[0].id}`));
   await dash.getByText('Or do it in two steps').click();
   await dash.getByText(`npx heresay connect --url ${BASE}`).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-1c-install.png`, fullPage: true });
@@ -142,7 +142,7 @@ try {
   await dash.goto(`${BASE}/app/#/apps/${mysteryId}/delete`);
   await dash.getByRole('heading', { name: 'Delete Mystery app' }).waitFor();
   const removal = await dash.locator('.code pre').first().textContent();
-  assert.match(removal, /heresay@0 disconnect --yes/);
+  assert.match(removal, /heresay@latest disconnect --yes/);
   assert.match(removal, /guide uninstall/);
   const del = dash.getByRole('button', { name: 'Delete Mystery app' });
   assert.equal(await del.isDisabled(), true);
