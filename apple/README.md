@@ -36,7 +36,8 @@ macOS: use `ContentView().heresay()` and add `.commands { HeresayCommands() }` t
 
 | Call | What it does |
 | --- | --- |
-| `Heresay.identify(id:label:)` | Who is signed in. Call with no arguments after sign-out. |
+| `Heresay.identify(id:label:email:)` | Who is signed in. Then nobody is asked their name, and with `email` you can reply. Call with no arguments after sign-out. |
+| `Heresay.presentPreferences()` | Open the sheet on Preferences: a note about their setup (and a name and email when not signed in). |
 | `Heresay.setScreen(_:)` | Name the screen, so reports say where they came from. |
 | `Heresay.setVersion(_:)` | Override the version read from the bundle. |
 | `Heresay.present()` | Open the sheet from your own button. Use `.heresay()` instead of the corner button. |

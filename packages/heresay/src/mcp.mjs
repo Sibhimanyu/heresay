@@ -45,6 +45,7 @@ export async function serve() {
       platform: z.enum(['web', 'ios', 'macos', 'android', 'react-native', 'flutter']).default('web'),
       sites: z.array(z.string()).default([]).describe('Every origin it runs on, e.g. https://app.example.com and http://localhost:3000. Empty allows any site.'),
       framework: z.string().optional().describe('next, nuxt, react, vue, svelte, angular, html; omit if unsure'),
+      sign_in: z.enum(['yes', 'no']).optional().describe('Do people sign in to the app? Look at the code; omit if unsure'),
     },
   }, tool(async (a) => text(await api().createApp(a))));
 

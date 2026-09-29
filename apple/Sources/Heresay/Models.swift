@@ -76,12 +76,54 @@ struct ReportContext: Codable, Sendable, Equatable {
     var browser: String?
     var userId: String?
     var userLabel: String?
+    var userEmail: String? = nil
     var framework: String?
+    /// The window's size in points, e.g. "1280x720". Layout bugs depend on it.
+    var viewport: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case route, platform, os, browser, framework
+        case route, platform, os, browser, framework, viewport
         case appVersion = "app_version"
         case userId = "user_id"
         case userLabel = "user_label"
+        case userEmail = "user_email"
     }
+}
+
+/// What the person chose to tell the team, in Preferences. All optional, kept on the device, and
+/// sent only with reports they send. Same fields as the web SDK.
+public struct ReporterPrefs: Codable, Sendable, Equatable {
+    public var name: String = ""
+    public var email: String = ""
+    /// Sent with every report: "I use VoiceOver", "usually on slow Wi-Fi".
+    public var note: String = ""
+
+    public init(name: String = "", email: String = "", note: String = "") {
+        self.name = name; self.email = email; self.note = note
+    }
+
+    /// What goes to the server, or nil when there's nothing to say. When the app has said who is
+    /// signed in, it speaks for them: only the note is theirs to add.
+    func reporter(signedIn: Bool = false) -> Reporter? {
+        let r = Reporter(name: signedIn ? nil : name.trimmed.nilIfEmpty,
+                         email: signedIn || !emailLooksValid ? nil : email.trimmed.nilIfEmpty,
+                         note: note.trimmed.nilIfEmpty)
+        return r.name == nil && r.email == nil && r.note == nil ? nil : r
+    }
+
+    var emailLooksValid: Bool {
+        let e = email.trimmed
+        return e.isEmpty || e.range(of: #"^[^\s@]+@[^\s@]+\.[^\s@]+$"#, options: .regularExpression) != nil
+    }
+
+    struct Reporter: Codable, Sendable, Equatable {
+        var name: String?
+        var email: String?
+        var note: String?
+    }
+}
+
+extension String {
+    var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

@@ -40,17 +40,26 @@ On macOS use `ContentView().heresay()` and add `.commands { HeresayCommands() }`
 `WindowGroup`: that adds Help › Report a Problem… (⌥⌘R). Apps with their own feedback button
 call `Heresay.present()` from it and use `.heresay()` instead of the corner button.
 
-## 4. Optional
+## 4. Who is signed in (required if people sign in)
 
-- Signed-in users: `Heresay.identify(id: user.id, label: user.name)` after sign-in,
-  `Heresay.identify()` after sign-out.
+Where the app learns who is signed in, and on sign-out:
+
+```swift
+Heresay.identify(id: user.id, label: user.name, email: user.email)
+Heresay.identify()   // after sign-out
+```
+
+Then nobody is asked their name to send a report, and the team can reply to them.
+
+## 5. Optional
+
 - Screens: `Heresay.setScreen("Checkout")` in `.onAppear` of the main screens.
 - The app version is read from the bundle (`CFBundleShortVersionString` and build).
 - A brand colour: `Heresay.configure(key:url:accent: .purple)`.
 
 Change nothing else in the app.
 
-## 5. Prove it
+## 6. Prove it
 
 Call `check_install`: it finds the key in this repo's code by itself (`found_in_code`). Build and
 run on a simulator or device and `seen_running` shows the SDK loaded. To test the whole path,

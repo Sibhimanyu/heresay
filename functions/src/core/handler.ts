@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { Store, Transition } from './store.js';
 import { agent, normaliseRepo, reposFor, tokens } from './agent.js';
 import {
-  LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, toReporterView,
+  LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, isSignIn, toReporterView,
   type Instance, type Member, type Project, type Report, type ReportContext, type ReporterPrefs, type Task,
 } from './types.js';
 
@@ -88,7 +88,7 @@ export function parseContext(v: unknown): ReportContext {
   const f = (k: string) => str(c[k], LIMITS.contextFieldMax);
   return {
     route: f('route'), app_version: f('app_version'), platform: f('platform'), os: f('os'),
-    browser: f('browser'), user_id: f('user_id'), user_label: f('user_label'),
+    browser: f('browser'), user_id: f('user_id'), user_label: f('user_label'), user_email: email(c.user_email),
     framework: isFramework(c.framework) ? c.framework : null,
     page_title: f('page_title'), page_url: pageUrl(c.page_url),
     viewport: typeof c.viewport === 'string' && /^\d{1,5}x\d{1,5}$/.test(c.viewport) ? c.viewport : null,
@@ -107,14 +107,14 @@ function pageUrl(v: unknown): string | null {
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const email = (v: unknown) => { const e = str(v, LIMITS.emailMax); return e && EMAIL.test(e) ? e : null; };
 
 /** The reporter's own preferences. Anything malformed is dropped, never refused. */
 export function parseReporter(v: unknown): ReporterPrefs | null {
   const c = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
-  const email = str(c.email, LIMITS.emailMax);
   const r: ReporterPrefs = {
     name: str(c.name, LIMITS.nameMax),
-    email: email && EMAIL.test(email) ? email : null,
+    email: email(c.email),
     note: str(c.note, LIMITS.noteMax),
   };
   return r.name || r.email || r.note ? r : null;
@@ -429,8 +429,10 @@ async function createProject(me: Member, req: Req, deps: Deps): Promise<Res> {
     try { u = new URL(o.trim()); } catch { return json(400, { error: `not a URL: ${o}` }); }
     origins.push(normaliseOrigin(u.origin));
   }
+  if (body.sign_in != null && !isSignIn(body.sign_in)) return json(400, { error: 'sign_in must be yes, no or null' });
   const project: Project = {
     id: newId('p_', 9), name, platform, framework: framework ? framework.toLowerCase() : null,
+    sign_in: isSignIn(body.sign_in) ? body.sign_in : null,
     key: newId('pk_', 18), allowed_origins: [...new Set(origins)], created_by: me.email,
     created_at: new Date(deps.now()).toISOString(),
   };
@@ -456,6 +458,10 @@ async function updateProject(project: Project, me: Member, req: Req, deps: Deps)
     const f = str(body.framework, 40);
     patch.framework = f ? f.toLowerCase() : null;
     patch.framework_detected = false;
+  }
+  if (body.sign_in !== undefined) {
+    if (body.sign_in !== null && !isSignIn(body.sign_in)) return json(400, { error: 'sign_in must be yes, no or null' });
+    patch.sign_in = body.sign_in;
   }
   if (body.allowed_origins !== undefined) {
     const origins: string[] = [];

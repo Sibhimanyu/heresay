@@ -296,9 +296,24 @@
         },
       }));
     });
+    // Signed-in apps pass who it is to Heresay, so the person reporting is never asked their name.
+    var signIn = editing && editing.sign_in ? editing.sign_in : 'unknown';
+    var signChips = el('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Do people sign in?' });
+    [['yes', 'Yes, they sign in'], ['no', 'No, anyone can use it'], ['unknown', 'Not sure']].forEach(function (c) {
+      signChips.appendChild(el('button', {
+        type: 'button', role: 'radio', 'aria-checked': String(c[0] === signIn), text: c[1],
+        onclick: function (e) {
+          signIn = c[0];
+          signChips.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-checked', String(b === e.target)); });
+        },
+      }));
+    });
+    var signField = el('div', { class: 'field' }, [el('span', { class: 'lbl' }, ['Do people sign in to your app? ', el('span', { class: 'opt', text: 'optional' })]), signChips,
+      el('p', { class: 'hint', text: 'If they do, your app tells Heresay who is signed in, so nobody types their name to send a report, and you can reply to them. Many users with many logins is fine: it follows whoever is signed in on that device.' })]);
     var form = el('form', { class: 'form' }, native ? [
       el('label', {}, ['Name', el('input', { name: 'name', required: true, maxlength: '80', placeholder: 'Acme for ' + platformOf(platform).label, autocomplete: 'off' })]),
       el('p', { class: 'hint', text: 'Native apps have no web address to lock the key to, so any copy of your app can send reports. The per-device, per-network and per-app rate limits still apply.' }),
+      signField,
       el('div', { class: 'row' }, [el('a', { class: 'btn ghost', href: '#/new' + q, text: 'Back' }), el('button', { class: 'btn primary', text: editing ? 'Save and continue' : 'Create app' })]),
       err,
     ] : [
@@ -307,6 +322,7 @@
         el('p', { class: 'hint', text: 'Only changes the install steps we show. Not sure? Leave it: your coding agent can work it out, and the general steps work everywhere.' })]),
       el('label', {}, ['Where it runs', el('textarea', { name: 'origins', rows: '3', placeholder: 'https://app.example.com\nhttp://localhost:3000' })]),
       el('p', { class: 'hint', text: 'One address per line: your live site and anywhere you test it. Only these sites can send reports with this app’s key. Leave it empty to allow any site while you try things out.' }),
+      signField,
       el('div', { class: 'row' }, [el('a', { class: 'btn ghost', href: '#/new' + q, text: 'Back' }), el('button', { class: 'btn primary', text: editing ? 'Save and continue' : 'Create app' })]),
       err,
     ]);
@@ -314,7 +330,7 @@
       e.preventDefault();
       err.textContent = '';
       var origins = native ? [] : form.origins.value.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-      var body = { name: form.name.value, platform: platform, framework: native ? 'swiftui' : (fw === 'unknown' ? null : fw), allowed_origins: origins };
+      var body = { name: form.name.value, platform: platform, framework: native ? 'swiftui' : (fw === 'unknown' ? null : fw), allowed_origins: origins, sign_in: signIn === 'unknown' ? null : signIn };
       // Editing keeps the key, so a line already pasted into the app keeps working.
       (editing ? api('PATCH', '/projects/' + editing.id, body) : api('POST', '/projects', body))
         .then(function (b) {
@@ -377,11 +393,29 @@
       codeBlock(SWIFT_PACKAGE),
       el('p', { html: '<b>2.</b> Configure it once, where your app starts, and add the ' + (mac ? 'menu item (Help › Report a Problem…)' : 'Report button') + ':' }),
       codeBlock(code),
-      el('p', { class: 'hint', html: 'Optional: <code>Heresay.identify(id:label:)</code> after sign-in, <code>Heresay.setScreen("Checkout")</code> as people move around, and <code>Heresay.present()</code> to open it from your own button. Needs iOS 16 or macOS 13.' }),
+      el('p', { class: 'hint', html: 'Optional: <code>Heresay.setScreen("Checkout")</code> as people move around, and <code>Heresay.present()</code> to open it from your own button. Needs iOS 16 or macOS 13.' }),
     ];
   }
 
+  /** Signed-in apps: the one call that tells Heresay who it is. Required when they said yes. */
+  function identifyStep(p) {
+    var apple = platformOf(p.platform).apple;
+    var code = apple
+      ? '// after sign-in\nHeresay.identify(id: user.id, label: user.name, email: user.email)\n\n// after sign-out\nHeresay.identify()'
+      : '// after sign-in\nwindow.Heresay?.identify({ id: user.id, label: user.name, email: user.email });\n\n// after sign-out\nwindow.Heresay?.identify();';
+    if (p.sign_in === 'yes') {
+      return [el('p', { html: '<b>Then, where your app signs people in,</b> tell Heresay who it is. Nobody is asked their name, and you can reply to them:' }), codeBlock(code)];
+    }
+    if (p.sign_in === 'no') return [];
+    return [el('details', { class: 'where' }, [el('summary', { text: 'Do people sign in to your app?' }),
+      el('p', { text: 'Then tell Heresay who is signed in, so nobody types their name to send a report:' }), codeBlock(code)])];
+  }
+
   function byHand(p) {
+    return byHandSteps(p).concat(identifyStep(p));
+  }
+
+  function byHandSteps(p) {
     if (platformOf(p.platform).apple) return appleByHand(p);
     var fw = p.framework;
     if (fw && fw !== 'other') {
@@ -658,17 +692,26 @@
 
   function ctxLine(c) {
     return [c.page_title, c.route, c.app_version && ('v' + c.app_version), c.platform, c.os, c.browser,
-      c.viewport, c.user_label || c.user_id]
+      c.viewport]
       .filter(Boolean).join(' · ');
   }
 
-  /** What the reporter said about themselves, in the SDK's Preferences. Their words, not verified. */
-  function reporterLine(rp) {
-    if (!rp) return null;
-    var who = [rp.name, rp.email].filter(Boolean).join(' · ');
+  var mailto = function (e) { return el('a', { href: 'mailto:' + encodeURIComponent(e).replace(/%40/g, '@'), text: 'Reply' }); };
+
+  /**
+   * Who sent it. "Signed in" is what the app said (identify); "From" is what the reporter typed
+   * in Preferences, their words, not verified.
+   */
+  function reporterLine(c, rp) {
+    rp = rp || {};
+    var app = [c.user_label || c.user_id, c.user_email].filter(Boolean).join(' · ');
+    var typed = [rp.name, rp.email].filter(Boolean).join(' · ');
+    if (!app && !typed && !rp.note) return null;
+    var reply = c.user_email || rp.email;
     return el('div', { class: 'ctx' }, [
-      who ? el('span', {}, [document.createTextNode('From: ' + who + ' ')]) : null,
-      rp.email ? el('a', { href: 'mailto:' + encodeURIComponent(rp.email).replace(/%40/g, '@'), text: 'Reply' }) : null,
+      app ? el('span', {}, [document.createTextNode('Signed in: ' + app + ' ')]) : null,
+      !app && typed ? el('span', {}, [document.createTextNode('From: ' + typed + ' ')]) : null,
+      reply ? mailto(reply) : null,
       rp.note ? el('div', { text: 'About their setup: ' + rp.note }) : null,
     ]);
   }
@@ -747,7 +790,7 @@
       el('p', { class: 'text', text: r.text }),
       el('div', { class: 'ctx', text: ctxLine(r.context) }),
       r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
-      reporterLine(r.reporter),
+      reporterLine(r.context, r.reporter),
       r.decline_reason ? el('div', { class: 'reason', text: 'Declined: ' + r.decline_reason }) : null,
       r.fix_note ? el('div', { class: 'reason', text: 'Told them: ' + r.fix_note }) : null,
       r.status === 'accepted' && brief ? el('div', { class: 'brief-line' }, [

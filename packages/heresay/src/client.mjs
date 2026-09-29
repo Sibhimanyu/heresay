@@ -160,11 +160,19 @@ export async function guide(conn, topic) {
 export const SWIFT_PACKAGE = 'https://github.com/Sibhimanyu/heresay-swift';
 
 /** The install guide for the app's platform, with its key filled in. */
+/** What the team said about sign-in, as an instruction. */
+function signInLine(app) {
+  if (app.sign_in === 'yes') return 'People sign in to this app: the identify call in step 3 is required, not optional.';
+  if (app.sign_in === 'no') return 'People don\'t sign in to this app: skip identify.';
+  return 'Nobody said whether people sign in: look at the code, and if they do, add the identify call in step 3.';
+}
+
 export async function installGuide(conn, app) {
   if (app.platform === 'ios' || app.platform === 'macos') {
     const g = await guide(conn, 'install-apple');
     return [
       `App: ${app.name} (${app.id}), platform ${app.platform}. Key: ${app.key}`,
+      signInLine(app),
       '',
       g.text.replaceAll('SWIFT_PACKAGE', SWIFT_PACKAGE).replaceAll('HERESAY_URL', conn.url).replaceAll('KEY', app.key),
     ].join('\n');
@@ -178,6 +186,7 @@ export async function installGuide(conn, app) {
   return [
     `App: ${app.name} (${app.id}), platform ${app.platform}. ${known}`,
     `Sites allowed to send reports: ${app.allowed_origins.length ? app.allowed_origins.join(', ') : 'any'}.`,
+    signInLine(app),
     '',
     `The tag for this app:\n\n    ${tag}`,
     '',

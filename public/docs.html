@@ -67,6 +67,7 @@
         <tr><td><code>data-version</code></td><td><code>1.4.0</code></td><td>Your app's version, attached to every report.</td></tr>
         <tr><td><code>data-user-id</code></td><td><code>u_1842</code></td><td>Who the user is, in your system.</td></tr>
         <tr><td><code>data-user-label</code></td><td><code>Asha K.</code></td><td>A name to show in your dashboard.</td></tr>
+        <tr><td><code>data-user-email</code></td><td><code>asha@example.com</code></td><td>Their email, so you can reply. Or use <code>identify</code> below.</td></tr>
         <tr><td><code>data-accent</code></td><td><code>#6d28d9</code></td><td>Your brand colour for the Send button and selected states. Hex only. Text on it switches to white or black automatically.</td></tr>
         <tr><td><code>data-position</code></td><td><code>left</code></td><td>Put the button in the bottom-left corner instead of the right.</td></tr>
         <tr><td><code>data-api</code></td><td><code>https://…/v1</code></td><td>Rarely needed. Where your Heresay API lives, if it is not at the same address as <code>sdk.js</code>.</td></tr></table>
@@ -79,15 +80,15 @@
       <h2 id="api">JavaScript API</h2>
       <p>The script creates <code>window.Heresay</code> (also available as <code>window.Feedback</code>). Call these any time after it loads.</p>
       <table><tr><th>Call</th><th>What it does</th></tr>
-        <tr><td><code>Heresay.identify({ id, label })</code></td><td>Tell Heresay who is signed in. Call it after login; pass nothing to clear it.</td></tr>
+        <tr><td><code>Heresay.identify({ id, label, email })</code></td><td>Tell Heresay who is signed in. Call it after login; pass nothing to clear it. Then nobody is asked their name to send a report, and with <code>email</code> you can reply to them. Apps with many users and logins need nothing more: it follows whoever is signed in on that device.</td></tr>
         <tr><td><code>Heresay.setVersion("1.4.0")</code></td><td>Set or change the app version.</td></tr>
         <tr><td><code>Heresay.setScreen("Checkout")</code></td><td>Name the current screen, for apps whose URL doesn't change between screens.</td></tr>
         <tr><td><code>Heresay.open()</code></td><td>Open the report form from your own button or menu item.</td></tr>
-        <tr><td><code>Heresay.openPreferences()</code></td><td>Open the Preferences tab. There, the person can add a name, an email for replies and a note about their setup (sent with every report), and move the button left or right. It's all optional and saved on their device.</td></tr>
+        <tr><td><code>Heresay.openPreferences()</code></td><td>Open the Preferences tab: a note about their setup, sent with every report. People who aren't signed in can also add a name and an email for replies. It's all optional and saved on their device. Where the button sits is yours to choose, with <code>data-position</code>.</td></tr>
         <tr><td><code>Heresay.close()</code></td><td>Close the panel.</td></tr></table>
       <p>Each report also carries the page it came from: its title, its address without the query string, and the window size.</p>
 <pre><code><span class="k">// after your user signs in</span>
-Heresay.identify({ id: user.id, label: user.name });
+Heresay.identify({ id: user.id, label: user.name, email: user.email });
 
 <span class="k">// single-page apps: name screens as the user moves</span>
 router.afterEach((to) =&gt; Heresay.setScreen(to.name));</code></pre>
@@ -155,7 +156,7 @@ connect-src ORIGIN;</code></pre>
         WindowGroup { ContentView().heresayReportButton() }   <span class="k">// iOS: a Report button in the corner</span>
     }
 }</code></pre>
-      <p>On macOS, use <code>ContentView().heresay()</code> and add <code>.commands { HeresayCommands() }</code> for <b>Help › Report a Problem…</b> (⌥⌘R). The same calls as the web SDK exist: <code>Heresay.identify(id:label:)</code>, <code>Heresay.setScreen(_:)</code>, <code>Heresay.present()</code>, and <code>Heresay.send(_:text:)</code> for your own UI. The app version comes from the bundle. Native apps have no web origin to lock the key to; the rate limits still apply.</p>
+      <p>On macOS, use <code>ContentView().heresay()</code> and add <code>.commands { HeresayCommands() }</code> for <b>Help › Report a Problem…</b> (⌥⌘R). The same calls as the web SDK exist: <code>Heresay.identify(id:label:email:)</code>, <code>Heresay.presentPreferences()</code>, <code>Heresay.setScreen(_:)</code>, <code>Heresay.present()</code>, and <code>Heresay.send(_:text:)</code> for your own UI. The app version comes from the bundle. Native apps have no web origin to lock the key to; the rate limits still apply.</p>
 
       <h2 id="rest">Other platforms</h2>
       <p>Android, React Native and Flutter SDKs are on the way. Until then, any app can talk to the same API. Both calls take a JSON body.</p>

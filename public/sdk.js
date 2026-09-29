@@ -6,11 +6,11 @@
  * Optional attributes: data-version, data-user-id, data-user-label, data-position ("left"),
  *   data-accent ("#0f766e"; a hex colour, to match the host app. Defaults to Heresay peacock).
  * Optional calls, any time after the script runs:
- *   Feedback.identify({ id, label })   who the host app says the user is
+ *   Feedback.identify({ id, label, email })   who is signed in; then nobody is asked their name
  *   Feedback.setVersion("1.4.0")
  *   Feedback.setScreen("Checkout")    for apps whose URL does not change per screen
  *   Feedback.open()
- *   Feedback.openPreferences()        the reporter's own name, email, setup note and button side
+ *   Feedback.openPreferences()        a note about their setup, and a name and email if not signed in
  *
  * No account, no cookies. The reporter is a random per-device id kept in localStorage, and
  * that id is also what lets them see what happened to their own reports. Their preferences are
@@ -33,6 +33,7 @@
     version: script.getAttribute('data-version') || null,
     userId: script.getAttribute('data-user-id') || null,
     userLabel: script.getAttribute('data-user-label') || null,
+    userEmail: script.getAttribute('data-user-email') || null,
     screen: null,
     type: null,
     reports: [],
@@ -81,8 +82,8 @@
   }
 
   /**
-   * What the reporter chose to tell the team, and where they want the button. Per device and
-   * per app. Everything is optional; an empty field is simply not sent.
+   * What the reporter chose to tell the team. Per device and per app. Everything is optional;
+   * an empty field is simply not sent.
    */
   var PREFS_KEY = 'fbsdk.prefs.' + KEY;
   function prefs() {
@@ -92,15 +93,16 @@
     } catch (e) { return {}; }
   }
   function savePrefs(p) { save(PREFS_KEY, JSON.stringify(p)); }
+  /** The host app said who is signed in. Then it speaks for them, and nobody types a name. */
+  function identified() { return !!(state.userId || state.userLabel || state.userEmail); }
   function reporter() {
     var p = prefs();
-    var r = { name: p.name || null, email: p.email || null, note: p.note || null };
+    var mine = !identified();
+    var r = { name: mine && p.name || null, email: mine && p.email || null, note: p.note || null };
     return r.name || r.email || r.note ? r : null;
   }
-  function side() {
-    var p = prefs().side;
-    return p === 'left' || p === 'right' ? p : (script.getAttribute('data-position') === 'left' ? 'left' : 'right');
-  }
+  /** Where the button sits is the developer's choice (data-position), not the reporter's. */
+  var LEFT = script.getAttribute('data-position') === 'left';
 
   // ---- context ---------------------------------------------------------------------------
 
@@ -158,6 +160,7 @@
       browser: p.browser,
       user_id: state.userId,
       user_label: state.userLabel,
+      user_email: state.userEmail,
       framework: framework(),
       page_title: (document.title || '').trim() || null,
       page_url: pageUrl(),
@@ -246,9 +249,9 @@
     '.field>span i{font-style:normal;font-weight:400;color:var(--fb-mute)}',
     '.field textarea{min-height:64px}',
     '.hint{display:block;font-size:12px;color:var(--fb-mute);margin-top:4px}',
-    '.seg{display:flex;gap:6px}',
-    '.seg button{flex:1;padding:8px;border:1px solid var(--fb-line);border-radius:10px;background:none;cursor:pointer}',
-    '.seg button[aria-pressed=true]{border-color:var(--fb-acc);box-shadow:inset 0 0 0 1px var(--fb-acc)}',
+    '.who{display:flex;gap:10px;align-items:center;padding:10px 12px;margin:0 0 12px;border-radius:10px;background:var(--fb-line)}',
+    '.who b{display:block}',
+    '.avatar{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--fb-acc);color:var(--fb-acc-fg);font-weight:700;font-size:13px}',
     '.link{border:0;background:none;padding:0;cursor:pointer;color:var(--fb-mute);text-decoration:underline;font-size:12px}',
     '.row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px}',
     '.small{font-size:12px;color:var(--fb-mute)}',
@@ -309,7 +312,7 @@
   }
   var fabDot = el('span', { class: 'dot', hidden: '' });
   var fab = el('button', {
-    class: 'fab' + (side() === 'left' ? ' left' : ''),
+    class: 'fab' + (LEFT ? ' left' : ''),
     type: 'button', 'aria-haspopup': 'dialog', onclick: function () { open(); },
   }, [markEl(), el('span', { text: 'Report' }), fabDot]);
   root.appendChild(fab);
@@ -328,7 +331,7 @@
     if (scrim || dead) return;
     lastFocus = document.activeElement;
     view = which || (unseen() ? 'mine' : 'new');
-    scrim = el('div', { class: 'scrim' + (side() === 'left' ? ' left' : ''), onclick: function (e) { if (e.target === scrim) close(); } });
+    scrim = el('div', { class: 'scrim' + (LEFT ? ' left' : ''), onclick: function (e) { if (e.target === scrim) close(); } });
     scrim.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     root.appendChild(scrim);
     renderPanel();
@@ -361,7 +364,7 @@
       view === 'new' ? formView() : view === 'prefs' ? prefsView() : listView(),
     ]);
     scrim.appendChild(panel);
-    var first = panel.querySelector(view === 'new' ? '.type' : view === 'prefs' ? 'input' : '.tab[aria-selected=true]');
+    var first = panel.querySelector(view === 'new' ? '.type' : view === 'prefs' ? 'input,textarea' : '.tab[aria-selected=true]');
     if (first) first.focus();
   }
 
@@ -418,6 +421,7 @@
 
   function prefsView() {
     var p = prefs();
+    var signedIn = identified();
     var status = el('span', { class: 'small', role: 'status' });
     var field = function (label, input, hint) {
       return el('label', { class: 'field' }, [
@@ -429,23 +433,23 @@
     var email = el('input', { type: 'email', maxlength: '200', autocomplete: 'email' });
     var note = el('textarea', { maxlength: '500', placeholder: 'For example: I use a screen reader, or I am usually on slow Wi-Fi.' });
     name.value = p.name || ''; email.value = p.email || ''; note.value = p.note || '';
-    var where = side();
-    var sideBtn = function (id, label) {
-      return el('button', {
-        type: 'button', 'aria-pressed': String(where === id), 'data-side': id,
-        onclick: function () {
-          where = id;
-          Array.prototype.forEach.call(seg.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-side') === id)); });
-        },
-      }, [document.createTextNode(label)]);
-    };
-    var seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Button position' }, [sideBtn('left', 'Left'), sideBtn('right', 'Right')]);
     var err = el('div', { class: 'err', role: 'alert' });
 
-    function apply(next) {
-      savePrefs(next);
-      fab.classList.toggle('left', side() === 'left');
-      if (scrim) scrim.classList.toggle('left', side() === 'left');
+    // Signed in: the app already told the team who this is. Say so, and ask nothing twice.
+    var who = null;
+    if (signedIn) {
+      var shown = state.userLabel || state.userEmail || 'your account';
+      var initials = (state.userLabel || state.userEmail || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2)
+        .map(function (w) { return w[0].toUpperCase(); }).join('');
+      who = el('div', { class: 'who' }, [
+        el('span', { class: 'avatar', 'aria-hidden': 'true', text: initials }),
+        el('div', {}, [
+          el('b', { text: 'Signed in as ' + shown }),
+          el('span', { class: 'small', text: state.userEmail && state.userLabel
+            ? state.userEmail + '. The team sees this with each report and can reply.'
+            : 'The team sees this with each report.' }),
+        ]),
+      ]);
     }
 
     return el('form', {
@@ -454,20 +458,19 @@
         e.preventDefault();
         err.textContent = '';
         var em = email.value.trim();
-        if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { err.textContent = 'That email does not look right.'; email.focus(); return; }
-        apply({ name: name.value.trim(), email: em, note: note.value.trim(), side: where });
+        if (!signedIn && em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { err.textContent = 'That email does not look right.'; email.focus(); return; }
+        savePrefs(signedIn ? { name: p.name, email: p.email, note: note.value.trim() }
+          : { name: name.value.trim(), email: em, note: note.value.trim() });
         status.textContent = 'Saved on this device.';
       },
     }, [
-      state.userLabel ? el('p', { class: 'small', text: 'The app already tells the team you are ' + state.userLabel + '.' }) : null,
-      field('Your name', name),
-      field('Email', email, 'Only if you are happy for the team to reply to you.'),
+      who,
+      signedIn ? null : field('Your name', name),
+      signedIn ? null : field('Email', email, 'Only if you are happy for the team to reply to you.'),
       field('About your setup', note, 'Sent with every report, so you only say it once.'),
-      el('div', { class: 'field' }, [el('span', { text: 'Button position' }), seg]),
       el('div', { class: 'row' }, [
         el('button', { class: 'link', type: 'button', text: 'Clear all', onclick: function () {
-          apply({});
-          view = 'prefs';
+          savePrefs({});
           renderPanel();
         } }),
         el('span', {}, [status, document.createTextNode(' '), el('button', { class: 'send', type: 'submit', text: 'Save' })]),
@@ -519,6 +522,8 @@
       u = u || {};
       state.userId = u.id != null ? String(u.id) : null;
       state.userLabel = u.label != null ? String(u.label) : null;
+      state.userEmail = u.email != null ? String(u.email) : null;
+      if (scrim && view === 'prefs') renderPanel();
     },
     setVersion: function (v) { state.version = v != null ? String(v) : null; },
     setScreen: function (s) { state.screen = s != null ? String(s) : null; },

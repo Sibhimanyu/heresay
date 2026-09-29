@@ -39,6 +39,8 @@ export interface ReportContext {
   browser: string | null;
   user_id: string | null;      // from the host app, if it chose to say
   user_label: string | null;
+  /** From the host app too, via identify(): lets the team reply. Checked to look like an email. */
+  user_email?: string | null;
   /** What the SDK saw on the page ('next', 'nuxt', ...). Fills in an app's framework. */
   framework: string | null;
   /** The page the report was sent from. Web only; older SDKs leave them out. */
@@ -90,6 +92,9 @@ export const PLATFORMS: readonly Platform[] = ['web', 'ios', 'macos', 'android',
 export const isPlatform = (v: unknown): v is Platform =>
   typeof v === 'string' && (PLATFORMS as readonly string[]).includes(v);
 
+export type SignIn = 'yes' | 'no';
+export const isSignIn = (v: unknown): v is SignIn => v === 'yes' || v === 'no';
+
 /** One app that reports come from. The dashboard calls these "apps". */
 export interface Project {
   id: string;
@@ -97,6 +102,12 @@ export interface Project {
   platform: Platform;
   /** e.g. 'next', 'react', 'html'. Shapes the install steps; optional. */
   framework: string | null;
+  /**
+   * Whether people sign in to the app. 'yes' makes identify() part of the install, so the
+   * reporter is never asked who they are; 'no' means the SDK's own name and email fields are how
+   * they say it. null: nobody said, and the coding agent looks at the code.
+   */
+  sign_in?: SignIn | null;
   /** True when the framework came from the SDK rather than from a person. */
   framework_detected?: boolean;
   /** The SDK was last seen running in the app: proof the install works, with no test report. */
