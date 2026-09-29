@@ -97,7 +97,7 @@ try {
   assert.equal(apps.length, 1, 'going back did not create a second app');
 
   step('one prompt for the coding agent: connect, install, verify');
-  await dash.getByRole('tab', { name: 'Ask your coding agent' }).click();
+  assert.equal(await dash.getByRole('tab', { name: 'Ask your coding agent' }).getAttribute('aria-selected'), 'true', 'the agent route comes first');
   assert.equal(await dash.getByText('No MCP?').count(), 0);
   await dash.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
   await dash.getByRole('button', { name: 'Copy prompt' }).click();
@@ -162,6 +162,22 @@ try {
   await app.goto(`${BASE}/demo.html?key=${key}#/settings/billing`);
   const sdk = app.locator('[data-feedback-sdk]');
   await sdk.getByRole('button', { name: /Report a problem/ }).click();
+
+  step('reporter sets preferences once: name, email, a setup note, button on the left');
+  await sdk.getByRole('tab', { name: 'Preferences' }).click();
+  await sdk.getByLabel('Your name').fill('Asha');
+  await sdk.getByLabel('Email').fill('not-an-email');
+  await sdk.getByRole('button', { name: 'Save' }).click();
+  await sdk.getByText('That email does not look right.').waitFor();
+  await sdk.getByLabel('Email').fill('asha@example.org');
+  await sdk.getByLabel('About your setup').fill('I use a screen reader.');
+  await sdk.getByRole('button', { name: 'Left' }).click();
+  await sdk.getByRole('button', { name: 'Save' }).click();
+  await sdk.getByText('Saved on this device.').waitFor();
+  await app.screenshot({ path: `${SHOTS}e2e-2a-preferences.png` });
+  assert.equal(await sdk.locator('.fab.left').count(), 1, 'the button moved to the left');
+  await sdk.getByRole('tab', { name: 'Report', exact: true }).click();
+  await sdk.getByText('your preferences are attached').waitFor();
   await sdk.getByRole('button', { name: /Confusing/ }).click();
   await sdk.getByLabel('What happened?').fill('I could not work out how to cancel my plan.');
   await app.screenshot({ path: `${SHOTS}e2e-2-report-form.png` });
@@ -174,11 +190,18 @@ try {
   await dash.locator('.filters button', { hasText: 'Open' }).click();
   const row = dash.locator('article.report').first();
   await row.waitFor();
-  const ctxText = await row.locator('.ctx').textContent();
+  const ctxText = await row.locator('.ctx').first().textContent();
   console.log('context shown:', ctxText);
   assert.match(ctxText, /\/demo\.html#\/settings\/billing/);
   assert.match(ctxText, /v0\.0\.1-demo/);
   assert.match(ctxText, /web/);
+  assert.match(ctxText, /Heresay test page/, 'page title');
+  assert.match(ctxText, /\d+x\d+/, 'viewport');
+  await row.getByText('From: Asha · asha@example.org').waitFor();
+  await row.getByText('About their setup: I use a screen reader.').waitFor();
+  await row.getByRole('link', { name: `${BASE}/demo.html#/settings/billing` }).waitFor();
+  assert.equal(await row.getByText('?key=').count(), 0, 'the query string is not sent');
+  await dash.screenshot({ path: `${SHOTS}e2e-2b-dashboard-prefs.png` });
   await row.getByRole('button', { name: /Decline/ }).click();
   // Declining with no reason is refused in the UI before it reaches the server.
   await row.getByRole('button', { name: 'Decline', exact: true }).click();
@@ -250,6 +273,13 @@ try {
   assert.equal(await dash.locator('textarea[name=origins]').count(), 0);
   await dash.fill('input[name=name]', 'Acme iOS');
   await dash.getByRole('button', { name: 'Create app' }).click();
+  await dash.getByText('Checking automatically…').waitFor();
+  assert.equal(await dash.getByRole('tab', { name: 'Ask your coding agent' }).getAttribute('aria-selected'), 'true', 'agent first on iOS too');
+  await dash.getByRole('button', { name: 'Copy prompt' }).click();
+  await dash.getByText('Copied. Paste it into your coding agent').waitFor();
+  assert.match(await dash.evaluate(() => navigator.clipboard.readText()), /a Swift package and one line of setup/);
+  await dash.screenshot({ path: `${SHOTS}e2e-1f-ios-agent.png`, fullPage: true });
+  await dash.getByRole('tab', { name: 'Add it yourself' }).click();
   await dash.getByText('File › Add Package Dependencies…').waitFor();
   const swift = await dash.locator('.code pre').nth(1).textContent();
   assert.match(swift, /Heresay\.configure\(key: "pk_/);

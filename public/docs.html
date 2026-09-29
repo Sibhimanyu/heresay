@@ -83,7 +83,9 @@
         <tr><td><code>Heresay.setVersion("1.4.0")</code></td><td>Set or change the app version.</td></tr>
         <tr><td><code>Heresay.setScreen("Checkout")</code></td><td>Name the current screen, for apps whose URL doesn't change between screens.</td></tr>
         <tr><td><code>Heresay.open()</code></td><td>Open the report form from your own button or menu item.</td></tr>
+        <tr><td><code>Heresay.openPreferences()</code></td><td>Open the Preferences tab. There, the person can add a name, an email for replies and a note about their setup (sent with every report), and move the button left or right. It's all optional and saved on their device.</td></tr>
         <tr><td><code>Heresay.close()</code></td><td>Close the panel.</td></tr></table>
+      <p>Each report also carries the page it came from: its title, its address without the query string, and the window size.</p>
 <pre><code><span class="k">// after your user signs in</span>
 Heresay.identify({ id: user.id, label: user.name });
 
@@ -160,7 +162,8 @@ connect-src ORIGIN;</code></pre>
 <pre><code><span class="k">POST</span> ORIGIN/v1/reports
 { "key": "pk_…", "device_id": "a-random-id-16-to-64-chars",
   "type": "confusing", "text": "I can't find where to cancel my plan.",
-  "context": { "route": "Settings", "app_version": "1.4.0", "platform": "ios", "os": "iOS 18" } }
+  "context": { "route": "Settings", "app_version": "1.4.0", "platform": "ios", "os": "iOS 18" },
+  "reporter": { "name": "Asha", "email": "asha@example.org", "note": "I use VoiceOver" } }   <span class="k">// optional</span>
 
 <span class="k">POST</span> ORIGIN/v1/reports/mine
 { "key": "pk_…", "device_id": "the-same-id" }   <span class="k">// this device's reports and their statuses</span></code></pre>

@@ -31,6 +31,8 @@ code { font:13px var(--mono); background:var(--mist); color:var(--deep); padding
 .spacer { flex:1; }
 .who { color:var(--mute); font-size:13px; }
 #view { max-width:880px; margin:0 auto; padding:32px 24px 80px; }
+.back { display:inline-block; margin-bottom:12px; color:var(--mute); text-decoration:none; font-size:14px; }
+.back:hover { color:inherit; text-decoration:underline; }
 .head { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; }
 .head .title { display:flex; align-items:center; gap:12px; }
 
