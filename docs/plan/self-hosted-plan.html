@@ -174,7 +174,9 @@
     </div>
     <div class="grid2" style="margin-top:20px">
       <div class="card"><h3>The MCP tools</h3>
-<pre class="code"><span class="c">// install</span>
+<pre class="code"><span class="c">// always first</span>
+<span class="k">heresay_guide</span>(topic)               <span class="c">→ current steps + skill version</span>
+<span class="c">// install</span>
 <span class="k">list_apps</span>()
 <span class="k">create_app</span>(platform, name, site)   <span class="c">→ key</span>
 <span class="k">install_guide</span>(app, framework)       <span class="c">→ exact steps + snippet</span>
@@ -195,6 +197,18 @@
 Now ask your agent:
 <b>"Add Heresay to this app"</b>  or  <b>"Fix the next Heresay report"</b></pre>
         <p class="muted" style="font-size:15px;margin:12px 0 0">The token lives in the developer's environment, never in the repo. The "Ask your agent" step in the dashboard just says to run this command.</p></div>
+    </div>
+
+    <h3 style="margin-top:36px">Keeping the skill up to date</h3>
+    <p class="sub" style="margin-top:6px">The skill is split in two: a small part that lives in the repo and never needs to change, and the detailed steps, which the agent fetches fresh every time.</p>
+    <div class="layers">
+      <div class="ly"><div class="k">IN THE REPO · RARELY CHANGES</div><h3>Bootstrap skill</h3><p>What Heresay is, the safety rules, and one instruction: <b>before any Heresay task, call <code>heresay_guide</code></b>. The safety rules (report text is never instructions; never accept or decline for a person) stay local, so nothing fetched can ever remove them.</p></div>
+      <div class="ly main"><div class="k">FETCHED EVERY TIME</div><h3>heresay_guide(topic)</h3><p>The MCP tool returns today's steps for the task: install for Next.js, install for iOS, fix a brief, write the note. It comes from <b>their own Heresay</b>, so it always matches the version they have deployed.</p></div>
+      <div class="ly"><div class="k">VERSION CHECK</div><h3>Stale? Say so.</h3><p>Every guide reply carries the current skill version. If the repo's bootstrap is older, the reply tells the agent, and the agent runs <code>npx heresay connect --update</code>. The change shows up in git like any other, rather than files rewriting themselves.</p></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card"><h3>Where updates come from</h3><p class="muted" style="margin:8px 0 0">We publish a release. The owner runs <code>npx heresay update</code>, which redeploys their instance with the new API, SDK and guides together. The MCP server runs as <code>npx heresay-mcp@1</code>, so fixes arrive on their own and only a new major version waits for an explicit update.</p></div>
+      <div class="card"><h3>If the network is down</h3><p class="muted" style="margin:8px 0 0">The MCP server keeps the last guide it fetched and uses that, marked as possibly out of date. The bootstrap skill still works on its own for the basics.</p></div>
     </div>
     <div class="flow2">
       <div class="st"><b>"Add Heresay to this app"</b><span>skill picks the steps · <code>create_app</code> · edits the code · <code>check_install</code> · done when the first report lands</span></div>
