@@ -73,6 +73,10 @@ The Swift package lives in `apple/` and is published by copying that folder to t
 repo `github.com/Sibhimanyu/heresay-swift` and tagging it with the version (SwiftPM installs
 from tags).
 
+## What's next
+
+Open work, unverified bits and housekeeping: `docs/plan/next.md`.
+
 ## Brand
 
 Guidelines: `brand/heresay-brand-guidelines.ai` (Illustrator, 14 artboards) and `.pdf`. Logo files: `brand/ai/` and `brand/svg/`. Rebuild the .ai files with `scripts/illustrator_build_guidelines.jsx` and `scripts/illustrator_save_logos.jsx` (paths inside are absolute; adjust before running). Source of truth: `scripts/brand_geometry.py`. See `docs/decisions/0003-brand-system.md`.
