@@ -198,3 +198,13 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .btn.danger:disabled { opacity:.4; }
 .row.tight { margin-top:0; }
 .form label input[name=confirm] { margin-top:6px; }
+
+/* copy prompt; the quieter alternative */
+.copy-prompt { display:flex; flex-direction:column; align-items:flex-start; gap:10px; margin-top:4px; }
+.copy-prompt .hint, .copy-prompt .ok-msg, .copy-prompt .err { margin:0; }
+.alt { margin-top:18px; font-size:13px; }
+.alt summary { cursor:pointer; color:var(--mute); list-style:none; text-decoration:underline; text-underline-offset:3px; display:inline; }
+.alt summary::-webkit-details-marker { display:none; }
+.alt summary:hover { color:var(--fg); }
+.alt[open] summary { margin-bottom:10px; }
+.alt[open] { font-size:15px; }

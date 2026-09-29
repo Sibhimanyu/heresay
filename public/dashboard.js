@@ -437,29 +437,46 @@
 
     // The agent route: one prompt by default, with the same thing as two steps for people who
     // would rather run the command themselves.
-    var promptBox = el('div');
-    var getPrompt = el('button', { class: 'btn primary', type: 'button', text: 'Get the prompt' });
-    getPrompt.onclick = function () {
-      getPrompt.disabled = true;
-      getPrompt.textContent = 'Making a token…';
+    // The prompt is copied, not shown: it's long, and it carries a token.
+    var promptBox = el('div', { class: 'copy-prompt' });
+    var copyBtn = el('button', { class: 'btn primary', type: 'button', text: 'Copy prompt' });
+    var copyNote = el('p', { class: 'hint', role: 'status', text: 'It connects the repo, installs Heresay and verifies it. This page ticks over by itself when it’s done.' });
+    var promptText = null;
+    function makePrompt() {
+      if (promptText) return Promise.resolve(promptText);
       // No repo yet: the token binds to whichever repo the agent runs it in.
-      api('POST', '/agent-tokens', { app_ids: [p.id] }).then(function (b) {
-        getPrompt.remove();
-        promptBox.appendChild(codeBlock(onePrompt(p, b.token)));
-        promptBox.appendChild(el('p', { class: 'hint', html: 'It carries a token for this app that works only in the first repo that uses it. You can revoke it under <a href="#/connect">Connected repos</a>.' }));
+      return api('POST', '/agent-tokens', { app_ids: [p.id] }).then(function (b) { return (promptText = onePrompt(p, b.token)); });
+    }
+    copyBtn.onclick = function () {
+      copyBtn.disabled = true;
+      var text = makePrompt();
+      // Safari only allows a copy inside the click, so hand the clipboard a promise of the text.
+      var copied = window.ClipboardItem && navigator.clipboard.write
+        ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': text.then(function (t) { return new Blob([t], { type: 'text/plain' }); }) })])
+        : text.then(function (t) { return navigator.clipboard.writeText(t); });
+      Promise.all([text, copied]).then(function () {
+        copyBtn.disabled = false;
+        copyBtn.textContent = 'Copied ✓';
+        copyNote.className = 'ok-msg';
+        copyNote.innerHTML = '';
+        copyNote.appendChild(document.createTextNode('Copied. Paste it into your coding agent and send it. It carries a token for this app that works only in the first repo that uses it; you can revoke it under '));
+        copyNote.appendChild(el('a', { href: '#/connect', text: 'Connected repos' }));
+        copyNote.appendChild(document.createTextNode('.'));
+        setTimeout(function () { copyBtn.textContent = 'Copy prompt'; }, 2500);
       }).catch(function (x) {
-        getPrompt.disabled = false;
-        getPrompt.textContent = 'Get the prompt';
-        promptBox.appendChild(el('p', { class: 'err', text: x.message }));
+        copyBtn.disabled = false;
+        copyNote.className = 'err';
+        copyNote.textContent = x && x.message ? x.message : 'Couldn’t copy. Try again.';
       });
     };
-    promptBox.appendChild(getPrompt);
+    promptBox.appendChild(copyBtn);
+    promptBox.appendChild(copyNote);
 
     var agentFirst = !apple && (!p.framework || p.framework === 'other');
     var panes = { hand: el('div', { hidden: agentFirst }, byHand(p)), agent: el('div', { hidden: !agentFirst }, [
-      el('p', { text: 'Paste one prompt into your coding agent (Claude Code, Cursor, Codex, …), opened in your app’s repo. It connects the repo, installs Heresay, and verifies it.' }),
+      el('p', { html: 'Open your coding agent (Claude Code, Cursor, Codex, …) in your app’s repo, then paste in this prompt.' }),
       promptBox,
-      el('details', { class: 'where' }, [el('summary', { text: 'Or do it in two steps' }),
+      el('details', { class: 'alt' }, [el('summary', { text: 'Prefer to run the command yourself?' }),
         el('ol', { class: 'agent-steps' }, [
           el('li', {}, [el('b', { text: 'In your app’s repo, run:' }), codeBlock('npx heresay connect --url ' + location.origin),
             el('p', { class: 'hint', text: 'It opens this dashboard to make a token for the repo, and adds the Heresay skill and MCP server for your agent. The token stays on your computer, not in the repo.' })]),
