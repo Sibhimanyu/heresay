@@ -37,9 +37,12 @@ struct ReportButtonModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay(alignment: alignment) {
-                if showsButton { ReportButton(heresay: heresay).padding(16) }
+                if showsButton && !heresay.isDisabled { ReportButton(heresay: heresay).padding(16) }
             }
-            .sheet(isPresented: $heresay.isPresented) {
+            .sheet(isPresented: Binding(
+                get: { heresay.isPresented && !heresay.isDisabled },
+                set: { heresay.isPresented = $0 }
+            )) {
                 ReportSheet(heresay: heresay)
             }
     }
@@ -49,7 +52,7 @@ struct ReportButton: View {
     @ObservedObject var heresay: Heresay
 
     var body: some View {
-        Button { heresay.isPresented = true } label: {
+        Button { heresay.present() } label: {
             HStack(spacing: 6) {
                 Image(systemName: "quote.bubble.fill")
                 Text("Report").fontWeight(.semibold)

@@ -19,9 +19,11 @@ sees the outcome in the app, including the note you write when you mark it fixed
 
 - Adding Heresay to an app: `install-web` for web apps, `install-apple` for iOS and macOS.
 - Fixing reports: `fix-brief`, then `write-note`.
+- Removing Heresay from an app: `uninstall`.
 
 ## Tools
 
-`list_apps`, `create_app`, `install_guide`, `check_install` for installing.
+`list_apps`, `create_app`, `install_guide`, `check_install` for installing. `check_install`
+verifies by itself: it finds the key in this repo's code and says if the SDK has been seen running.
 `list_briefs`, `get_brief`, `claim_brief`, `add_note`, `handoff`, `mark_fixed` for fixing.
 Without MCP, the same actions exist as `npx heresay <command>`; run `npx heresay help`.

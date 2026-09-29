@@ -135,8 +135,22 @@
 
   // ---- network ---------------------------------------------------------------------------
 
+  // A 404 means the key is unknown: the app was deleted from the dashboard, or the key is
+  // wrong. Nothing will ever work, so take the widget off the page once rather than keep
+  // offering a button that fails.
+  var dead = false;
+  function unknownKey() {
+    if (dead) return;
+    dead = true;
+    close();
+    host.remove();
+    console.warn('[heresay] this key isn\'t known to ' + new URL(API).origin +
+      '; the app may have been deleted. Remove the Heresay script tag.');
+  }
+
   function body(res) {
     return res.json().catch(function () { return {}; }).then(function (b) {
+      if (res.status === 404) unknownKey();
       if (!res.ok) throw new Error(b.error || ('HTTP ' + res.status));
       return b;
     });
@@ -147,7 +161,7 @@
     return fetch(API + '/reports', {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ key: KEY, device_id: deviceId(), type: type, text: text, context: context() }),
+      body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web', type: type, text: text, context: context() }),
     }).then(body);
   }
 
@@ -155,7 +169,8 @@
     return fetch(API + '/reports/mine', {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ key: KEY, device_id: deviceId() }),
+      // sdk tells the dashboard the widget is live in this app (install check).
+      body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web' }),
     }).then(body).then(function (b) {
       state.reports = b.reports || [];
       renderBadge();
@@ -267,7 +282,7 @@
   renderBadge();
 
   function open(which) {
-    if (scrim) return;
+    if (scrim || dead) return;
     lastFocus = document.activeElement;
     view = which || (unseen() ? 'mine' : 'new');
     scrim = el('div', { class: 'scrim', onclick: function (e) { if (e.target === scrim) close(); } });
@@ -386,6 +401,7 @@
   }
 
   function mount() {
+    if (dead) return;
     if (!host.isConnected) document.body.appendChild(host);
     refresh();
   }

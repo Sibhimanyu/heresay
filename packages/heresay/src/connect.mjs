@@ -8,9 +8,9 @@
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { HOME, SKILL_VERSION, client, connection, repoAt, saveConnection } from './client.mjs';
+import { HOME, SKILL_VERSION, client, connection, removeConnection, repoAt, saveConnection } from './client.mjs';
 
 const peacock = (s) => `\x1b[38;2;15;118;110m${s}\x1b[39m`;
 
@@ -151,11 +151,14 @@ export async function connect(args) {
     })).trim();
   }
 
-  const s = p.spinner();
+  // Agents run this without a terminal; a spinner there is just noise.
+  const s = process.stdout.isTTY ? p.spinner() : { start: (m) => p.log.step(m), stop: (m) => p.log.success(m), error: (m) => p.log.error(m) };
   s.start('Checking the token');
   let me;
   try {
     me = await client({ url, token, repo: repo.name }).me();
+    // A token from a copy-paste prompt has no repo yet: this one becomes its repo.
+    if (!me.repo) me = await client({ url, token, repo: repo.name }).bind(repo.name);
   } catch (e) {
     s.error('That didn’t work');
     p.log.error(e.status === 401 ? 'The token isn’t valid (revoked, or mistyped). Create a new one in the dashboard.' : e.message);
@@ -187,4 +190,78 @@ export async function connect(args) {
     pc.dim('once to get their own token.'),
   ].join('\n'), 'Ready');
   p.outro('Every report gets a hearing.');
+}
+
+// ---- disconnect ------------------------------------------------------------------------------
+
+/** Drop our MCP entry; delete the file if nothing of anyone else's is left in it. */
+function removeMcpEntry(file) {
+  if (!existsSync(file)) return false;
+  let cur;
+  try { cur = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Error(`${file} isn't valid JSON; fix it and run this again.`); }
+  if (!cur?.mcpServers?.heresay) return false;
+  delete cur.mcpServers.heresay;
+  const empty = Object.keys(cur).length === 1 && Object.keys(cur.mcpServers).length === 0;
+  if (empty) rmSync(file);
+  else writeFileSync(file, JSON.stringify(cur, null, 2) + '\n');
+  return true;
+}
+
+const rmdirIfEmpty = (dir) => {
+  try { if (readdirSync(dir).length === 0) rmdirSync(dir); } catch { /* not there */ }
+};
+
+/** Undo writeRepoFiles. Returns what it removed; running it twice removes nothing the second time. */
+export function removeRepoFiles(root) {
+  const done = [];
+  if (removeMcpEntry(join(root, '.mcp.json'))) done.push(['.mcp.json', 'Heresay MCP server']);
+  if (removeMcpEntry(join(root, '.cursor', 'mcp.json'))) done.push(['.cursor/mcp.json', 'the same, for Cursor']);
+  const skillDir = join(root, '.claude', 'skills', 'heresay');
+  if (existsSync(skillDir)) {
+    rmSync(skillDir, { recursive: true, force: true });
+    rmdirIfEmpty(join(root, '.claude', 'skills'));
+    rmdirIfEmpty(join(root, '.claude'));
+    done.push(['.claude/skills/heresay/', 'skill']);
+  }
+  const agents = join(root, 'AGENTS.md');
+  const cur = existsSync(agents) ? readFileSync(agents, 'utf8') : '';
+  if (cur.includes(AGENTS_START)) {
+    const next = cur.replace(new RegExp(`\\n*${AGENTS_START}[\\s\\S]*?${AGENTS_END}\\n*`), '\n\n').replace(/^\n+/, '');
+    if (next.trim()) writeFileSync(agents, next.replace(/\n*$/, '\n'));
+    else rmSync(agents);
+    done.push(['AGENTS.md', next.trim() ? 'Heresay section' : 'Heresay section (the file had nothing else)']);
+  }
+  return done;
+}
+
+export async function disconnect(args) {
+  const repo = repoAt();
+  p.intro(`${peacock(pc.bold('heresay'))} disconnect`);
+  p.log.info(`Repo: ${pc.bold(repo.name)}  ${pc.dim(repo.root)}`);
+  if (!args.yes && !process.stdin.isTTY) {
+    p.log.error('Run it with --yes to disconnect without a terminal.');
+    process.exit(2);
+  }
+  if (!args.yes) {
+    const go = bail(await p.confirm({ message: 'Remove the Heresay MCP server, skill, AGENTS.md section and saved token from this repo?', initialValue: true }));
+    if (!go) { p.outro('Nothing changed.'); return; }
+  }
+
+  // Read before the token goes: the uninstall guide lives on this repo's Heresay.
+  const url = connection()?.url;
+  const done = removeRepoFiles(repo.root);
+  if (removeConnection(repo.root)) done.push(['~/.heresay/connections.json', 'the token for this repo']);
+  if (done.length) for (const [f, what] of done) p.log.success(`${f.padEnd(34)} ${pc.dim(`removed ${what}`)}`);
+  else p.log.info('Nothing to remove: this repo is not connected.');
+
+  p.note([
+    'Your app\'s code is untouched: the script tag, or the Swift package and',
+    'Heresay.configure, are still there. To remove those too:',
+    '',
+    `  ${peacock(url ? `${url}/guides/uninstall.md` : 'the "uninstall" guide on your Heresay (/guides/uninstall.md)')}`,
+    '',
+    pc.dim('The app and its reports stay in your Heresay until an owner deletes the'),
+    pc.dim('app in the dashboard.'),
+  ].join('\n'), 'Not removed');
+  p.outro(done.length ? 'Disconnected. Commit the changes so teammates get them.' : 'Done.');
 }

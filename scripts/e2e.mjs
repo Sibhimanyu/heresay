@@ -6,6 +6,7 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { createServer } from 'node:http';
 
 const BASE = 'http://127.0.0.1:5055';
 const AUTH = 'http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1';
@@ -13,6 +14,14 @@ const SHOTS = new URL('../.context/', import.meta.url).pathname;
 mkdirSync(SHOTS, { recursive: true });
 
 const step = (s) => console.log(`\n== ${s}`);
+
+// A stand-in for the customer's own site, on a different origin from Heresay, carrying the tag.
+const CUSTOMER = 'http://127.0.0.1:5077';
+let customerKey = '';
+const customer = createServer((req, res) => {
+  res.writeHead(200, { 'content-type': 'text/html' });
+  res.end(`<!doctype html><title>Acme Notes</title><h1>Acme Notes</h1><script src="${BASE}/sdk/v1.js" data-key="${customerKey}" defer></script>`);
+}).listen(5077, '127.0.0.1');
 const PROJECT = 'demo-feedback-sdk';
 const OWNER = `owner${Date.now()}@example.com`;
 
@@ -57,7 +66,7 @@ try {
   await dash.getByRole('heading', { name: 'Add your first app' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-0-empty.png` });
 
-  step('add an app: platform, details, install, first report');
+  step('add an app: platform, details, install; verified automatically when the app loads it');
   await dash.getByRole('link', { name: 'Add an app' }).click();
   await dash.getByRole('heading', { name: 'What are you adding Heresay to?' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-1a-platform.png` });
@@ -66,52 +75,83 @@ try {
   await dash.fill('input[name=name]', 'Acme Notes');
   assert.equal(await dash.getByRole('radio', { name: 'Not sure' }).getAttribute('aria-checked'), 'true', 'framework is optional');
   await dash.getByRole('radio', { name: 'Next.js' }).click();
-  await dash.fill('textarea[name=origins]', `${BASE}\nhttp://localhost:3000`);
+  await dash.fill('textarea[name=origins]', `${CUSTOMER}\nhttp://localhost:3000`);
   await dash.screenshot({ path: `${SHOTS}e2e-1b-details.png` });
   await dash.getByRole('button', { name: 'Create app' }).click();
-  await dash.getByText('Waiting for your first report').waitFor();
+  await dash.getByText('Checking automatically…').waitFor();
+  assert.equal(await dash.getByRole('button', { name: 'Continue to reports' }).isDisabled(), true, 'no moving on before it is verified');
   const snippet = await dash.locator('.code pre').first().textContent();
   assert.match(snippet, /next\/script/);
   const key = /data-key="([^"]+)"/.exec(snippet)[1];
   console.log('snippet:', snippet);
+
+  step('the steps before this one are links: going back edits the same app, and the key stays');
+  await dash.getByRole('link', { name: 'Back to Details' }).click();
+  assert.equal(await dash.inputValue('input[name=name]'), 'Acme Notes');
+  assert.match(await dash.inputValue('textarea[name=origins]'), /localhost:3000/);
+  assert.equal(await dash.getByRole('radio', { name: 'Next.js' }).getAttribute('aria-checked'), 'true');
+  await dash.getByRole('button', { name: 'Save and continue' }).click();
+  await dash.getByText('Checking automatically…').waitFor();
+  assert.ok((await dash.locator('.code pre').first().textContent()).includes(key), 'same key after editing');
+  const apps = (await (await fetch(`${BASE}/v1/projects`, { headers: { authorization: `Bearer ${await dash.evaluate(() => firebase.auth().currentUser.getIdToken())}` } })).json()).projects;
+  assert.equal(apps.length, 1, 'going back did not create a second app');
+
+  step('one prompt for the coding agent: connect, install, verify');
   await dash.getByRole('tab', { name: 'Ask your coding agent' }).click();
+  assert.equal(await dash.getByText('No MCP?').count(), 0);
+  await dash.getByRole('button', { name: 'Get the prompt' }).click();
+  const onePrompt = await dash.locator('.code pre').filter({ hasText: 'Set up Heresay' }).textContent();
+  assert.match(onePrompt, /heresay@0 connect --url .+ --token hst_[A-Za-z0-9_-]+ --yes/);
+  assert.match(onePrompt, new RegExp(`heresay@0 install ${apps[0].id}`));
+  assert.match(onePrompt, new RegExp(`heresay@0 check ${apps[0].id}`));
+  await dash.getByText('Or do it in two steps').click();
   await dash.getByText(`npx heresay connect --url ${BASE}`).waitFor();
-  await dash.getByText('No MCP? Paste a one-off prompt instead').click();
-  assert.match(await dash.locator('.where .code pre').last().textContent(), /identify/);
   await dash.screenshot({ path: `${SHOTS}e2e-1c-install.png`, fullPage: true });
 
-  // A different browser, so this test device's report doesn't show as an update later on.
-  const tryHref = await dash.getByRole('link', { name: 'Send a test report' }).getAttribute('href');
-  const trialCtx = await browser.newContext();
-  const trial = await trialCtx.newPage();
-  await trial.goto(`${BASE}${tryHref}`);
-  const tw = trial.locator('[data-feedback-sdk]');
-  await tw.getByRole('button', { name: /Report a problem/ }).click();
-  await tw.getByRole('button', { name: /Idea/ }).click();
-  await tw.getByLabel('What happened?').fill('Testing, testing.');
-  await tw.getByRole('button', { name: 'Send' }).click();
-  await tw.getByText('Waiting for the developer').waitFor();
-  await trialCtx.close();
-  await dash.getByText('It works.').waitFor({ timeout: 10000 });
-  await dash.screenshot({ path: `${SHOTS}e2e-1d-first-report.png`, fullPage: true });
+  step('the customer\'s app loads Heresay: the dashboard sees it running, and Continue unlocks');
+  customerKey = key;
+  const custCtx = await browser.newContext();
+  const cust = await custCtx.newPage();
+  await cust.goto(`${CUSTOMER}/`);
+  await cust.locator('[data-feedback-sdk]').getByRole('button', { name: /Report a problem/ }).waitFor();
+  await dash.getByText(`Seen on ${CUSTOMER}`).waitFor({ timeout: 15000 });
+  await dash.getByText('Installed.').waitFor();
+  assert.equal(await dash.getByRole('button', { name: 'Continue to reports' }).isDisabled(), false);
+  await dash.screenshot({ path: `${SHOTS}e2e-1d-verified.png`, fullPage: true });
+  await custCtx.close();
+
   step('an app whose framework nobody knows gets the agent prompt first, and the tag that works anywhere');
   await dash.goto(`${BASE}/app/#/new/web`);
   await dash.fill('input[name=name]', 'Mystery app');
   await dash.getByRole('button', { name: 'Create app' }).click();
-  await dash.getByText('Waiting for your first report').waitFor();
+  await dash.getByText('Checking automatically…').waitFor();
   assert.equal(await dash.getByRole('tab', { name: 'Ask your coding agent' }).getAttribute('aria-selected'), 'true');
   await dash.getByRole('tab', { name: 'Add it yourself' }).click();
   await dash.getByText('Where does this go in my project?').click();
   await dash.locator('.where-item', { hasText: 'Next.js' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-1e-not-sure.png`, fullPage: true });
+
+  step('the apps list sends an unverified app back to finish setup');
   await dash.goto(`${BASE}/app/#/`);
-  await dash.locator('.app-card', { hasText: 'Acme Notes' }).click();
-  await dash.locator('article.report').first().waitFor();
-  await dash.locator('article.report').first().waitFor();
-  await dash.locator('article.report').first().getByRole('button', { name: /Decline/ }).click();
-  await dash.getByLabel('Reason for declining').fill('Just a test.');
-  await dash.getByRole('button', { name: 'Decline', exact: true }).click();
-  await dash.locator('.filters button', { hasText: 'Declined 1' }).waitFor();
+  await dash.locator('.app-card', { hasText: 'Mystery app' }).getByText('Setup not finished').waitFor();
+  await dash.locator('.app-card', { hasText: 'Mystery app' }).click();
+  await dash.getByText('Checking automatically…').waitFor();
+
+  step('deleting an app: removal steps for the repo first, then type the name');
+  const mysteryId = /#\/apps\/([^/]+)\/setup/.exec(dash.url())[1];
+  await dash.goto(`${BASE}/app/#/apps/${mysteryId}/delete`);
+  await dash.getByRole('heading', { name: 'Delete Mystery app' }).waitFor();
+  const removal = await dash.locator('.code pre').first().textContent();
+  assert.match(removal, /heresay@0 disconnect --yes/);
+  assert.match(removal, /guide uninstall/);
+  const del = dash.getByRole('button', { name: 'Delete Mystery app' });
+  assert.equal(await del.isDisabled(), true);
+  await dash.fill('input[name=confirm]', 'Mystery app');
+  await dash.screenshot({ path: `${SHOTS}e2e-1g-delete.png`, fullPage: true });
+  await del.click();
+  await dash.getByRole('heading', { name: 'Apps' }).waitFor();
+  assert.equal(await dash.locator('.app-card', { hasText: 'Mystery app' }).count(), 0);
+  await dash.locator('.app-card', { hasText: 'Acme Notes' }).waitFor();
 
   step('reporter taps Report, picks Confusing, sends a sentence');
   const app = await ctx.newPage();
@@ -126,7 +166,8 @@ try {
   await sdk.getByText('Waiting for the developer').waitFor();
 
   step('developer sees it with screen and version, declines with a reason');
-  await dash.reload();
+  await dash.goto(`${BASE}/app/#/`);
+  await dash.locator('.app-card', { hasText: 'Acme Notes' }).click();
   await dash.locator('.filters button', { hasText: 'Open' }).click();
   const row = dash.locator('article.report').first();
   await row.waitFor();
@@ -246,6 +287,13 @@ try {
   await ctx2.close();
 
   console.log('\nE2E PASSED');
+  customer.close();
+} catch (e) {
+  for (const [i, pg] of browser.contexts().flatMap((c) => c.pages()).entries()) {
+    await pg.screenshot({ path: `${SHOTS}e2e-FAILED-${i}.png`, fullPage: true }).catch(() => {});
+  }
+  throw e;
 } finally {
   await browser.close();
+  customer.close();
 }

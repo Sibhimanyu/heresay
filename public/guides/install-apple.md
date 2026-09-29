@@ -52,5 +52,6 @@ Change nothing else in the app.
 
 ## 5. Prove it
 
-Build and run on a simulator or device, open the Report sheet and send a test. `check_install`
-should then show `reports: 1`. The key is public by design; it is fine in source control.
+Call `check_install`: it finds the key in this repo's code by itself (`found_in_code`). Build and
+run on a simulator or device and `seen_running` shows the SDK loaded. To test the whole path,
+open the Report sheet and send a test; `reports` goes up. The key is public by design; it is fine in source control.

@@ -6,9 +6,9 @@
  * HERESAY_URL and HERESAY_TOKEN override it (CI, tests).
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, extname, join, relative, sep } from 'node:path';
 
 export const HOME = process.env.HERESAY_HOME || join(homedir(), '.heresay');
 const CONNECTIONS = join(HOME, 'connections.json');
@@ -36,6 +36,15 @@ export function normaliseRepo(v) {
 export function loadConnections() {
   if (!existsSync(CONNECTIONS)) return {};
   try { return JSON.parse(readFileSync(CONNECTIONS, 'utf8')); } catch { return {}; }
+}
+
+/** Forget this repo's token. Returns whether there was one. */
+export function removeConnection(root) {
+  const all = loadConnections();
+  if (!(root in all)) return false;
+  delete all[root];
+  writeFileSync(CONNECTIONS, JSON.stringify(all, null, 2) + '\n', { mode: 0o600 });
+  return true;
 }
 
 export function saveConnection(root, conn) {
@@ -82,9 +91,11 @@ export function client(conn) {
   return {
     conn,
     me: () => call('GET', '/me'),
+    bind: (repo) => call('POST', '/bind', { repo }),
     apps: () => call('GET', '/apps'),
     createApp: (a) => call('POST', '/apps', a),
     check: (app) => call('GET', `/apps/${enc(app)}/check`),
+    verify: (app, file) => call('POST', `/apps/${enc(app)}/verify`, { file }),
     briefs: () => call('GET', '/briefs'),
     brief: (id) => call('GET', `/briefs/${enc(id)}`),
     claim: (id) => call('POST', `/briefs/${enc(id)}/claim`),
@@ -172,4 +183,91 @@ export async function installGuide(conn, app) {
     '',
     g.text.replaceAll('SDK_URL', sdk).replaceAll('KEY', app.key),
   ].join('\n');
+}
+
+// ---- install verification ------------------------------------------------------------------
+
+// Build output, dependencies and caches: never where someone wrote the tag.
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'DerivedData', 'Pods', 'vendor', 'coverage']);
+const BINARY = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.icns', '.pdf', '.zip', '.gz', '.tgz',
+  '.woff', '.woff2', '.ttf', '.otf', '.mp4', '.mov', '.mp3', '.wav', '.a', '.o', '.dylib', '.so', '.exe',
+  '.jar', '.class', '.wasm', '.car', '.sqlite', '.db', '.lock']);
+const MAX_FILE = 1024 * 1024;
+const MAX_FILES = 20_000;
+
+/**
+ * The first file in the repo that contains the app's key, relative to the root, or null.
+ * Skips dot-folders, dependencies and build output, and gives up after MAX_FILES so a huge
+ * repo can't hang the agent.
+ */
+export function findKeyInRepo(root, key) {
+  if (!key) return null;
+  const needle = Buffer.from(key);
+  let scanned = 0;
+  const stack = [root];
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries;
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue;
+      const full = join(dir, e.name);
+      if (e.isDirectory()) { stack.push(full); continue; }
+      if (!e.isFile() || BINARY.has(extname(e.name).toLowerCase())) continue;
+      if (++scanned > MAX_FILES) return null;
+      let buf;
+      try {
+        if (statSync(full).size > MAX_FILE) continue;
+        buf = readFileSync(full);
+      } catch { continue; }
+      if (buf.includes(0)) continue; // binary
+      if (buf.includes(needle)) return relative(root, full).split(sep).join('/');
+    }
+  }
+  return null;
+}
+
+/** An app connected to this repo, by id or name. `how` says where to look them up. */
+export async function findApp(api, id, how = 'Run: heresay apps') {
+  const app = (await api.apps()).apps.find((a) => a.id === id || a.name.toLowerCase() === String(id).toLowerCase());
+  if (!app) throw new HeresayError(`No app "${id}" is connected to this repo. ${how}`, 404);
+  return app;
+}
+
+const apple = (app) => app.platform === 'ios' || app.platform === 'macos';
+
+/**
+ * Is Heresay installed in this app? Two separate proofs: the key is in this repo's code
+ * (found here, and recorded on the server), and the SDK has been seen running. Used by both
+ * `heresay check` and the check_install tool. Never returns report text.
+ */
+export async function verifyInstall(api, app, { wait = 0, root = repoAt().root } = {}) {
+  const file = findKeyInRepo(root, app.key);
+  if (file) await api.verify(app.id, file);
+  const until = Date.now() + Number(wait || 0) * 1000;
+  let r = await api.check(app.id);
+  while (!r.installed && Date.now() < until) {
+    await new Promise((res) => setTimeout(res, 4000));
+    r = await api.check(app.id);
+  }
+  const out = {
+    installed: Boolean(r.installed),
+    found_in_code: file,               // in this repo, just now
+    seen_running: r.sdk_seen ?? null,  // the SDK loaded in the running app
+    code_found: r.code_found ?? null,  // the last time any connected repo proved it
+    reports: r.reports,
+    first: r.first,
+    framework: r.framework,
+    framework_detected: r.framework_detected,
+  };
+  if (!file && !out.seen_running) {
+    out.hint = apple(app)
+      ? `The key isn't in this repo's code yet. Add the Swift package and call Heresay.configure(key: "${app.key}", url: …) once in the App's init; see \`heresay install ${app.id}\`.`
+      : `The key isn't in this repo's code yet; add the tag from \`heresay install ${app.id}\`.`;
+  } else if (!out.seen_running) {
+    out.hint = apple(app)
+      ? 'The key is in the code. Build and run the app once so the SDK is seen running, then check again.'
+      : 'The key is in the code. Open the app in a browser once so the SDK is seen running, then check again.';
+  }
+  return out;
 }

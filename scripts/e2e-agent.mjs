@@ -6,7 +6,7 @@
 // Run with `npm run e2e:agent` (it starts and stops the emulators).
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -86,7 +86,17 @@ const app = (await call('create_app', { name: 'Notes', platform: 'web', sites: [
 const guide = await call('install_guide', { app: app.id });
 assert.ok(guide.includes(`data-key="${app.key}"`), 'the guide carries this app\'s tag');
 assert.ok(guide.includes(`${BASE}/sdk/v1.js`));
-assert.equal((await call('check_install', { app: app.id })).installed, false);
+const before = await call('check_install', { app: app.id });
+assert.equal(before.installed, false);
+assert.equal(before.found_in_code, null);
+// The agent edits the app: now the key is in the code, and check finds it with no report sent.
+writeFileSync(join(dir, 'index.html'), `<!doctype html><body><h1>Notes</h1>\n<script src="${BASE}/sdk/v1.js" data-key="${app.key}" defer></script></body>`);
+const found = await call('check_install', { app: app.id });
+assert.equal(found.installed, true, 'verified from the code alone');
+assert.equal(found.found_in_code, 'index.html');
+const seenByTeam = await person('GET', `/projects/${app.id}`);
+assert.equal(seenByTeam.body.project.code_found.file, 'index.html', 'the dashboard sees where it was found');
+assert.equal(seenByTeam.body.project.code_found.repo, repoName);
 const device = 'agent_e2e_device_00001';
 const send = (text, framework) => fetch(`${BASE}/v1/reports`, { method: 'POST', headers: { 'content-type': 'text/plain', origin: 'http://localhost:3000' },
   body: JSON.stringify({ key: app.key, device_id: device, type: 'broken', text, context: { route: '/notes', framework } }) }).then((r) => r.json());
@@ -127,10 +137,23 @@ const cli = (...a) => execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs
 assert.match(cli('guide', 'write-note'), /The fix note/);
 assert.equal(JSON.parse(cli('briefs')).briefs.length, 0);
 
+step('disconnect takes the agent files back out, and leaves the app code alone');
+const bye = execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs'), 'disconnect', '--yes'], { cwd: dir, env }).toString();
+console.log(bye.replace(/\x1b\[[0-9;]*m/g, '').split('\n').filter((l) => /✓|◆|◇|Removed|removed/.test(l)).join('\n'));
+assert.ok(!existsSync(join(dir, '.mcp.json')), '.mcp.json only had Heresay, so it is gone');
+assert.ok(!existsSync(join(dir, '.claude/skills/heresay')));
+assert.ok(!existsSync(join(dir, 'AGENTS.md')));
+assert.ok(existsSync(join(dir, 'index.html')), 'app code is removed separately (guide uninstall)');
+assert.ok(!readFileSync(join(home, 'connections.json'), 'utf8').includes(token));
+const guideUrl = await fetch(`${BASE}/guides/uninstall.md`);
+assert.equal(guideUrl.status, 200);
+assert.match(await guideUrl.text(), /disconnect/);
+
 step('a revoked token stops working');
 const tid = (await person('GET', '/agent-tokens')).body.tokens.find((t) => t.repo === repoName).id;
 await person('DELETE', `/agent-tokens/${tid}`);
-await assert.rejects(call('list_briefs'), /not valid/);
+const revoked = await fetch(`${BASE}/v1/agent/me`, { headers: { authorization: `Bearer ${token}` } });
+assert.equal(revoked.status, 401);
 await mcp.close();
 assert.ok(existsSync(join(home, 'guides')), 'guides are cached for offline use');
 

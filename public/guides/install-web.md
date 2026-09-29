@@ -39,8 +39,9 @@ Change nothing else in the app.
 
 ## 4. Prove it
 
-Run the app, open it in a browser, tap **Report** in the bottom corner and send a test. Then
-`check_install` should show `reports: 1` and the screen you sent it from. If the button doesn't
+Call `check_install`. It finds the key in this repo's code by itself (`found_in_code`). Then run
+the app and open it in a browser: `seen_running` shows the SDK loaded there. To test the whole
+path, tap **Report** in the bottom corner and send a test; `reports` goes up. If the button doesn't
 appear: the tag isn't on that page, or a CSP blocked it (check the browser console). If sending
 fails with "this site is not allowed": that origin isn't in the app's sites.
 

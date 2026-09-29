@@ -15,6 +15,7 @@ struct Client: Sendable {
     private struct SubmitBody: Encodable {
         let key: String
         let device_id: String
+        let sdk: String
         let type: ReportType
         let text: String
         let context: ReportContext
@@ -23,19 +24,24 @@ struct Client: Sendable {
     private struct MineBody: Encodable {
         let key: String
         let device_id: String
+        let sdk: String
     }
+
+    /// "ios" or "macos". The server records it on every call, which is how the dashboard knows
+    /// the SDK is installed and running.
+    var sdk: String { Heresay.platform }
 
     private struct ReportEnvelope: Decodable { let report: SentReport }
     private struct ReportsEnvelope: Decodable { let reports: [SentReport] }
     private struct ErrorEnvelope: Decodable { let error: String? }
 
     func submit(deviceId: String, type: ReportType, text: String, context: ReportContext) async throws -> SentReport {
-        let body = SubmitBody(key: key, device_id: deviceId, type: type, text: text, context: context)
+        let body = SubmitBody(key: key, device_id: deviceId, sdk: sdk, type: type, text: text, context: context)
         return try await post("reports", body, as: ReportEnvelope.self).report
     }
 
     func mine(deviceId: String) async throws -> [SentReport] {
-        try await post("reports/mine", MineBody(key: key, device_id: deviceId), as: ReportsEnvelope.self).reports
+        try await post("reports/mine", MineBody(key: key, device_id: deviceId, sdk: sdk), as: ReportsEnvelope.self).reports
     }
 
     private func post<B: Encodable, R: Decodable>(_ path: String, _ body: B, as: R.Type) async throws -> R {

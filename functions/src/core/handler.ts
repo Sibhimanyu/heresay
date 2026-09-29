@@ -41,6 +41,27 @@ export interface Deps {
  * defence: the device id is chosen by the client and can be rotated, the IP limit catches that,
  * and the key limit caps what any one project can be flooded with whatever else gets through.
  */
+/** Reading your own reports: generous, but not unlimited. Per network. */
+export const MINE_LIMIT = { limit: 240, windowMs: 3600_000 } as const;
+
+/** How often "seen running" is written, at most, per app. */
+const SEEN_EVERY_MS = 10 * 60_000;
+
+/**
+ * Every SDK call proves the SDK is loaded in the app. Remember when and where, so the dashboard
+ * can say "installed" without anyone sending a test report. Not from this Heresay's own pages.
+ */
+async function markSeen(project: Project, req: Req, body: Record<string, unknown>, deps: Deps) {
+  const now = deps.now();
+  if (project.sdk_seen && now - Date.parse(project.sdk_seen.at) < SEEN_EVERY_MS) return;
+  const origin = req.headers['origin'] ? normaliseOrigin(req.headers['origin']) : null;
+  if (origin && (deps.selfOrigins ?? []).includes(origin)) return;
+  const sdk = typeof body.sdk === 'string' && ['web', 'ios', 'macos'].includes(body.sdk) ? body.sdk : (origin ? 'web' : null);
+  await deps.store.updateProject(project.id, {
+    sdk_seen: { at: new Date(now).toISOString(), where: origin ?? (sdk === 'ios' ? 'the iOS app' : sdk === 'macos' ? 'the Mac app' : 'the app'), sdk },
+  });
+}
+
 export const RATE_LIMITS = [
   { scope: 'device', limit: 5, windowMs: 10 * 60_000 },
   { scope: 'device', limit: 20, windowMs: 24 * 3600_000 },
@@ -162,6 +183,8 @@ async function route(req: Req, deps: Deps): Promise<Res> {
     const project = await deps.store.getProject(p[1]);
     if (!project) return json(404, { error: 'no such app' });
     if (p.length === 2 && req.method === 'GET') return json(200, { project });
+    if (p.length === 2 && req.method === 'PATCH') return updateProject(project, member, req, deps);
+    if (p.length === 2 && req.method === 'DELETE') return deleteProject(project, member, req, deps);
     if (p[2] === 'reports' && p.length === 3 && req.method === 'GET') {
       // Alongside each accepted report: where its fix is going, and whether an agent has it.
       const now = deps.now();
@@ -310,6 +333,7 @@ async function submit(req: Req, deps: Deps): Promise<Res> {
     fix_note: null, created_at: at, updated_at: at, triaged_by: null,
   };
   await deps.store.createReport(report);
+  await markSeen(project, req, body, deps);
   // Nobody said what the app is built with, and the SDK could tell: remember it. Not from
   // this Heresay's own test page, which isn't the app.
   const fromSelf = (deps.selfOrigins ?? []).includes(normaliseOrigin(req.headers['origin'] ?? ''));
@@ -331,6 +355,13 @@ async function mine(req: Req, deps: Deps): Promise<Res> {
   const { project, headers } = got;
   // The device id is random and long, so knowing it is what proves these are yours.
   if (!validDeviceId(body.device_id)) return json(400, { error: 'bad device_id' }, headers);
+  const now = deps.now();
+  const start = Math.floor(now / MINE_LIMIT.windowMs) * MINE_LIMIT.windowMs;
+  if (!(await deps.store.hit(`mine:${sha(req.ip)}:${start}`, MINE_LIMIT.limit, start + MINE_LIMIT.windowMs))) {
+    return json(429, { error: 'too many requests, try again later' },
+      { ...headers, 'retry-after': String(Math.ceil((start + MINE_LIMIT.windowMs - now) / 1000)) });
+  }
+  await markSeen(project, req, body, deps);
   const rs = await deps.store.listReportsForDevice(project.id, body.device_id);
   rs.sort((a, b) => b.created_at.localeCompare(a.created_at));
   return json(200, { reports: rs.map(toReporterView) }, headers);
@@ -377,6 +408,58 @@ async function createProject(me: Member, req: Req, deps: Deps): Promise<Res> {
   await deps.store.createProject(project);
   deps.log('api.project_created', { project_id: project.id, by: me.email, platform });
   return json(201, { project });
+}
+
+/** Going back in the add-app wizard edits the app rather than making another. The key stays. */
+async function updateProject(project: Project, me: Member, req: Req, deps: Deps): Promise<Res> {
+  const body = parseBody(req.body);
+  const patch: Partial<Project> = {};
+  if (body.name !== undefined) {
+    const name = str(body.name, 80);
+    if (!name) return json(400, { error: 'an app needs a name' });
+    patch.name = name;
+  }
+  if (body.platform !== undefined) {
+    if (!isPlatform(body.platform)) return json(400, { error: `platform must be one of ${PLATFORMS.join(', ')}` });
+    patch.platform = body.platform;
+  }
+  if (body.framework !== undefined) {
+    const f = str(body.framework, 40);
+    patch.framework = f ? f.toLowerCase() : null;
+    patch.framework_detected = false;
+  }
+  if (body.allowed_origins !== undefined) {
+    const origins: string[] = [];
+    for (const o of Array.isArray(body.allowed_origins) ? body.allowed_origins : []) {
+      if (typeof o !== 'string' || !o.trim()) continue;
+      let u: URL;
+      try { u = new URL(o.trim()); } catch { return json(400, { error: `not a URL: ${o}` }); }
+      origins.push(normaliseOrigin(u.origin));
+    }
+    patch.allowed_origins = [...new Set(origins)];
+  }
+  await deps.store.updateProject(project.id, patch);
+  deps.log('api.project_updated', { project_id: project.id, by: me.email, fields: Object.keys(patch) });
+  return json(200, { project: { ...project, ...patch } });
+}
+
+/**
+ * Gone for good: the app, its reports and briefs. Its key stops working at once. Connected
+ * repos keep their tokens (they may serve other apps) but lose this app.
+ */
+async function deleteProject(project: Project, me: Member, req: Req, deps: Deps): Promise<Res> {
+  if (me.role !== 'owner') return json(403, { error: 'only an owner can delete an app' });
+  const body = parseBody(req.body);
+  // Typed, not clicked: this can't be undone.
+  if (body.confirm !== project.name) return json(400, { error: 'type the app\'s name to confirm' });
+  await deps.store.deleteProject(project.id);
+  for (const t of await deps.store.listAgentTokens()) {
+    if (t.app_ids.includes(project.id)) {
+      await deps.store.updateAgentToken(t.id, { app_ids: t.app_ids.filter((id) => id !== project.id) });
+    }
+  }
+  deps.log('api.project_deleted', { project_id: project.id, by: me.email });
+  return json(200, { ok: true });
 }
 
 function transitionRes(t: Transition): Res {

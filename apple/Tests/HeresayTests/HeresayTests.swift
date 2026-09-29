@@ -3,6 +3,7 @@ import XCTest
 @testable import Heresay
 
 /// Answers requests from a closure instead of the network, and records what was sent.
+/// A negative status fails the request the way being offline does (a thrown URLError).
 final class StubProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var handler: ((URLRequest, Data) -> (Int, Data))?
     nonisolated(unsafe) static var sent: [(URLRequest, Data)] = []
@@ -18,6 +19,7 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         }
         Self.sent.append((request, body))
         let (status, data) = Self.handler?(request, body) ?? (500, Data())
+        if status < 0 { client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet)); return }
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data)
         client?.urlProtocolDidFinishLoading(self)
@@ -82,6 +84,7 @@ final class ClientTests: XCTestCase {
         XCTAssertEqual(json["device_id"] as? String, "ios_0123456789abcdef")
         XCTAssertEqual(json["type"] as? String, "confusing")
         XCTAssertEqual((json["context"] as? [String: Any])?["route"] as? String, "Home")
+        XCTAssertEqual(json["sdk"] as? String, Heresay.platform)
     }
 
     func testMineAsksForThisDevicesReports() async throws {
@@ -90,6 +93,8 @@ final class ClientTests: XCTestCase {
         let rs = try await c.mine(deviceId: "ios_0123456789abcdef")
         XCTAssertEqual(rs.count, 1)
         XCTAssertEqual(StubProtocol.sent[0].0.url?.path, "/v1/reports/mine")
+        let json = try JSONSerialization.jsonObject(with: StubProtocol.sent[0].1) as! [String: Any]
+        XCTAssertEqual(json["sdk"] as? String, Heresay.platform, "lets the dashboard see the SDK is installed")
     }
 
     func testErrorsAreSentencesNotCodes() async {
@@ -133,6 +138,34 @@ final class HeresayTests: XCTestCase {
         XCTAssertEqual(h.unseen, 0)
         await h.refresh()
         XCTAssertEqual(h.unseen, 0, "stays read")
+    }
+
+    func testAnUnknownKeyHidesHeresay() async {
+        let (h, _) = fresh()
+        StubProtocol.handler = { _, _ in (404, Data(#"{"error":"unknown key"}"#.utf8)) }
+        h.configure(key: "pk_gone", url: URL(string: "https://x.web.app")!, version: "1.0", accent: nil, session: StubProtocol.session())
+        await h.refresh()
+        XCTAssertTrue(h.isDisabled)
+        h.present()
+        XCTAssertFalse(h.isPresented, "the sheet doesn't open for a deleted app")
+    }
+
+    func testBeingOfflineDoesNotHideHeresay() async {
+        let (h, _) = fresh()
+        StubProtocol.handler = { _, _ in (-1, Data()) }
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1.0", accent: nil, session: StubProtocol.session())
+        await h.refresh()
+        XCTAssertFalse(h.isDisabled)
+        h.present()
+        XCTAssertTrue(h.isPresented)
+    }
+
+    func testOtherServerErrorsDoNotHideHeresay() async {
+        let (h, _) = fresh()
+        StubProtocol.handler = { _, _ in (500, Data()) }
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1.0", accent: nil, session: StubProtocol.session())
+        await h.refresh()
+        XCTAssertFalse(h.isDisabled)
     }
 
     func testContextCarriesScreenVersionAndWhoIsSignedIn() {

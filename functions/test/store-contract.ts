@@ -97,6 +97,25 @@ export function storeContract(name: string, make: () => Store | Promise<Store>) 
     assert.equal(got?.key, p.key, 'the rest is untouched');
   });
 
+  test(`${name}: deleting a project removes it, its reports and its tasks, and nothing else`, async () => {
+    const s = await make(); const p = project(uid('u_')), q = project(uid('u_'));
+    await s.createProject(p); await s.createProject(q);
+    const r1 = report(p), r2 = report(p), r3 = report(q);
+    for (const r of [r1, r2, r3]) await s.createReport(r);
+    await s.accept(p.id, r1.id, task(r1), AT);
+    await s.accept(q.id, r3.id, task(r3), AT);
+    await s.deleteProject(p.id);
+    assert.equal(await s.getProject(p.id), null);
+    assert.equal(await s.getProjectByKey(p.key), null);
+    assert.deepEqual(await s.listReports(p.id), []);
+    assert.deepEqual(await s.listTasks(p.id), []);
+    assert.equal(await s.getReport(p.id, r1.id), null);
+    assert.equal(await s.getTask(p.id, r1.id), null);
+    assert.equal((await s.getProjectByKey(q.key))?.id, q.id, 'the other project is untouched');
+    assert.deepEqual((await s.listReports(q.id)).map((r) => r.id), [r3.id]);
+    assert.equal((await s.getTask(q.id, r3.id))?.report_id, r3.id);
+  });
+
   test(`${name}: tasks are listed per project and updated atomically`, async () => {
     const s = await make(); const p = project(uid('u_')), q = project(uid('u_'));
     await s.createProject(p); await s.createProject(q);

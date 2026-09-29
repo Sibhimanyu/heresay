@@ -5,7 +5,7 @@
  */
 import pc from 'picocolors';
 import { spawn } from 'node:child_process';
-import { client, connection, guide, installGuide, HeresayError } from './client.mjs';
+import { client, connection, findApp, guide, installGuide, verifyInstall, HeresayError } from './client.mjs';
 
 const HELP = `
   heresay  every report gets a hearing
@@ -13,13 +13,14 @@ const HELP = `
   Set up
     npx heresay connect [--url <heresay>] [--token <hst_…>]   link this repo to its apps
     npx heresay connect --update                              refresh the skill and config files
+    npx heresay disconnect [--yes]                            undo connect in this repo
 
   For agents (the same actions as the MCP tools)
-    heresay guide [topic]                  start | install-web | install-apple | fix-brief | write-note
+    heresay guide [topic]                  start | install-web | install-apple | fix-brief | write-note | uninstall
     heresay apps                           apps connected to this repo
     heresay create-app <name> [--site <origin>]… [--platform web]
     heresay install <app>                  install steps with this app's tag
-    heresay check <app> [--wait <seconds>] has a first report arrived?
+    heresay check <app> [--wait <seconds>] is it installed? (key in this repo's code, SDK seen running)
     heresay briefs                         accepted reports routed to this repo
     heresay brief <id>                     one brief, with its prompt and notes
     heresay claim <id>                     start working on it
@@ -51,6 +52,7 @@ export async function main(argv) {
   const [cmd, ...rest] = args._;
   if (!cmd || cmd === 'help' || args.help) { console.log(HELP); return; }
   if (cmd === 'connect') return (await import('./connect.mjs')).connect(args);
+  if (cmd === 'disconnect') return (await import('./connect.mjs')).disconnect(args);
   if (cmd === 'mcp') return (await import('./mcp.mjs')).serve();
   if (['update', 'status', 'open', 'remove', 'setup'].includes(cmd)) {
     // Managing the Heresay itself lives in create-heresay, which carries the Firebase tools.
@@ -69,21 +71,8 @@ export async function main(argv) {
         name: need(rest[0], 'the app name'), platform: args.platform ?? 'web',
         sites: [].concat(args.site ?? []), framework: args.framework,
       }));
-      case 'install': {
-        const id = need(rest[0], 'the app id');
-        const app = (await api.apps()).apps.find((a) => a.id === id || a.name.toLowerCase() === id.toLowerCase());
-        if (!app) throw new HeresayError(`No app "${id}" is connected to this repo. Run: heresay apps`, 404);
-        return print(await installGuide(conn, app));
-      }
-      case 'check': {
-        const id = need(rest[0], 'the app id');
-        const until = Date.now() + Number(args.wait ?? 0) * 1000;
-        for (;;) {
-          const r = await api.check(id);
-          if (r.reports > 0 || Date.now() >= until) return print({ installed: r.reports > 0, ...r });
-          await new Promise((res) => setTimeout(res, 4000));
-        }
-      }
+      case 'install': return print(await installGuide(conn, await findApp(api, need(rest[0], 'the app id'))));
+      case 'check': return print(await verifyInstall(api, await findApp(api, need(rest[0], 'the app id')), { wait: args.wait ?? 0 }));
       case 'briefs': return print(await api.briefs());
       case 'brief': {
         const b = await api.brief(need(rest[0], 'the brief id'));

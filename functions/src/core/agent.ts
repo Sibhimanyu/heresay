@@ -57,8 +57,9 @@ export async function tokens(p: string[], me: Member, req: Req, deps: Deps, body
     return json(200, { tokens: all.map(publicToken) });
   }
   if (p.length === 1 && req.method === 'POST') {
-    const repo = normaliseRepo(body.repo);
-    if (!repo) return json(400, { error: 'name the repo, for example github.com/acme/web' });
+    // No repo: the token is for a prompt, and binds to the repo that first connects with it.
+    const repo = body.repo === undefined || body.repo === null || body.repo === '' ? null : normaliseRepo(body.repo);
+    if (repo === null && body.repo) return json(400, { error: 'name the repo, for example github.com/acme/web' });
     const ids = Array.isArray(body.app_ids) ? body.app_ids.filter((x): x is string => typeof x === 'string') : [];
     for (const id of ids) if (!(await deps.store.getProject(id))) return json(400, { error: `no such app: ${id}` });
     const id = randomBytes(9).toString('base64url').replace(/_/g, '-');
@@ -84,9 +85,9 @@ export async function tokens(p: string[], me: Member, req: Req, deps: Deps, body
 
 /** The repos connected to an app: where a brief for it can be routed. */
 export async function reposFor(project_id: string, deps: Deps): Promise<string[]> {
-  const ts = (await deps.store.listAgentTokens()).filter((t) => !t.revoked_at && t.app_ids.includes(project_id));
+  const ts = (await deps.store.listAgentTokens()).filter((t) => !t.revoked_at && t.repo && t.app_ids.includes(project_id));
   ts.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  return [...new Set(ts.map((t) => t.repo))];
+  return [...new Set(ts.map((t) => t.repo as string))];
 }
 
 // ---- briefs as an agent sees them ---------------------------------------------------------
@@ -121,12 +122,25 @@ export async function agent(
   if (!token.last_used_at || now - Date.parse(token.last_used_at) > 3600_000) {
     await deps.store.updateAgentToken(token.id, { last_used_at: at });
   }
-  const me = `agent:${token.repo}`;
   const apps = (await Promise.all(token.app_ids.map((id) => deps.store.getProject(id)))).filter((x): x is Project => !!x);
 
   if (p[0] === 'me' && req.method === 'GET') {
     return json(200, { repo: token.repo, version: deps.version, apps: apps.map(appView) });
   }
+  if (p[0] === 'bind' && req.method === 'POST') {
+    const repo = normaliseRepo(body.repo);
+    if (!repo) return json(400, { error: 'name the repo, for example github.com/acme/web' });
+    if (token.repo && token.repo !== repo) return json(409, { error: `this token belongs to ${token.repo}`, repo: token.repo });
+    if (!token.repo) {
+      await deps.store.updateAgentToken(token.id, { repo });
+      deps.log('api.agent_token_bound', { repo, by: token.created_by });
+    }
+    return json(200, { repo, version: deps.version, apps: apps.map(appView) });
+  }
+  // Everything else needs to know which repo it is working in.
+  if (!token.repo) return json(409, { error: 'this token isn\'t connected to a repo yet. Run npx heresay connect with it in the repo first.' });
+  const repoName: string = token.repo;
+  const me = `agent:${repoName}`;
 
   if (p[0] === 'apps') {
     if (p.length === 1 && req.method === 'GET') return json(200, { apps: apps.map(appView) });
@@ -139,11 +153,20 @@ export async function agent(
       const project = (res.body as { project: Project }).project;
       // An app created from a repo belongs to that repo's token from then on.
       await deps.store.updateAgentToken(token.id, { app_ids: [...token.app_ids, project.id] });
-      deps.log('api.agent_app_created', { repo: token.repo, project_id: project.id });
+      deps.log('api.agent_app_created', { repo: repoName, project_id: project.id });
       return json(201, { app: appView(project) });
     }
     const app = apps.find((a) => a.id === p[1]);
     if (!app) return json(404, { error: 'this repo is not connected to that app' });
+    if (p[2] === 'verify' && req.method === 'POST') {
+      // What `heresay check` found in this repo: the file holding the app's key.
+      const file = str(body.file, 300);
+      if (!file) return json(400, { error: 'say which file has the key' });
+      const code_found = { at, repo: repoName, file };
+      await deps.store.updateProject(app.id, { code_found });
+      deps.log('api.install_verified', { project_id: app.id, repo: repoName });
+      return json(200, { code_found });
+    }
     if (p[2] === 'check' && req.method === 'GET') {
       // Counts and screens only. Report text is untrusted, and an install check doesn't need it.
       const rs = await deps.store.listReports(app.id);
@@ -152,6 +175,8 @@ export async function agent(
         reports: rs.length,
         first: first ? { route: first.context.route, app_version: first.context.app_version, created_at: first.created_at } : null,
         framework: app.framework, framework_detected: !!app.framework_detected,
+        sdk_seen: app.sdk_seen ?? null, code_found: app.code_found ?? null,
+        installed: !!(app.sdk_seen || app.code_found),
       });
     }
     return json(404, { error: 'not found' });
@@ -168,9 +193,9 @@ export async function agent(
         out.push(summary(t, app, now));
       }
     }
-    out.sort((a, b) => Number(!!a.claimed_by && a.claimed_by !== token.repo) - Number(!!b.claimed_by && b.claimed_by !== token.repo)
+    out.sort((a, b) => Number(!!a.claimed_by && a.claimed_by !== repoName) - Number(!!b.claimed_by && b.claimed_by !== repoName)
       || a.accepted_at.localeCompare(b.accepted_at));
-    return json(200, { repo: token.repo, briefs: out });
+    return json(200, { repo: repoName, briefs: out });
   }
 
   // One brief. Found by id within this token's apps only.
@@ -194,7 +219,7 @@ export async function agent(
   if (req.method !== 'POST') return json(404, { error: 'not found' });
   if (done) return json(409, { error: `this brief is already ${report?.status}`, status: report?.status });
 
-  const takenByOther = (t: Task) => claimLive(t, now) && t.claim!.repo !== token.repo;
+  const takenByOther = (t: Task) => claimLive(t, now) && t.claim!.repo !== repoName;
   const addNote = (t: Task, text: string, kind: TaskNote['kind']): Task =>
     ({ ...t, notes: [...(t.notes ?? []), { by: me, at, text, kind }] });
 
@@ -202,10 +227,10 @@ export async function agent(
     let refused = '';
     const t = await deps.store.updateTask(app.id, found.task.id, (cur) => {
       if (takenByOther(cur)) { refused = cur.claim!.repo; return cur; }
-      return { ...cur, claim: { repo: token.repo, at } };
+      return { ...cur, claim: { repo: repoName, at } };
     });
     if (refused) return json(409, { error: `already in progress in ${refused}`, claimed_by: refused });
-    deps.log('api.brief_claimed', { repo: token.repo, report_id: t!.id });
+    deps.log('api.brief_claimed', { repo: repoName, report_id: t!.id });
     return json(200, { brief: summary(t!, app, now) });
   }
 
@@ -215,7 +240,7 @@ export async function agent(
     const t = await deps.store.updateTask(app.id, found.task.id, (cur) => {
       const next = addNote(cur, text, 'note');
       // Working on it keeps the claim fresh.
-      return cur.claim?.repo === token.repo ? { ...next, claim: { repo: token.repo, at } } : next;
+      return cur.claim?.repo === repoName ? { ...next, claim: { repo: repoName, at } } : next;
     });
     return json(200, { brief: summary(t!, app, now) });
   }
@@ -228,14 +253,14 @@ export async function agent(
     if (!to || !repos.includes(to)) {
       return json(400, { error: `hand off to a repo connected to ${app.name}: ${repos.join(', ') || 'none yet'}`, repos });
     }
-    if (to === token.repo) return json(400, { error: 'that is this repo' });
+    if (to === repoName) return json(400, { error: 'that is this repo' });
     let refused = '';
     const t = await deps.store.updateTask(app.id, found.task.id, (cur) => {
       if (takenByOther(cur)) { refused = cur.claim!.repo; return cur; }
       return { ...addNote(cur, `Handed to ${to}: ${text}`, 'handoff'), repo: to, claim: null };
     });
     if (refused) return json(409, { error: `in progress in ${refused}`, claimed_by: refused });
-    deps.log('api.brief_handed_off', { from: token.repo, to, report_id: t!.id });
+    deps.log('api.brief_handed_off', { from: repoName, to, report_id: t!.id });
     return json(200, { brief: summary(t!, app, now) });
   }
 

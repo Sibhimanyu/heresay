@@ -18,6 +18,8 @@ export interface Store {
   /** Every app in this install. The whole team sees all of them. */
   listProjects(): Promise<Project[]>;
   updateProject(id: string, patch: Partial<Project>): Promise<void>;
+  /** The app and everything under it: its reports and tasks. Agent tokens are not touched. */
+  deleteProject(id: string): Promise<void>;
 
   createReport(r: Report): Promise<void>;
   getReport(project_id: string, id: string): Promise<Report | null>;
@@ -73,6 +75,11 @@ export class MemoryStore implements Store {
   async updateProject(id: string, patch: Partial<Project>) {
     const p = this.projects.get(id);
     if (p) this.projects.set(id, { ...p, ...patch, id });
+  }
+  async deleteProject(id: string) {
+    this.projects.delete(id);
+    for (const [k, r] of this.reports) if (r.project_id === id) this.reports.delete(k);
+    for (const [k, t] of this.tasks) if (t.project_id === id) this.tasks.delete(k);
   }
 
   async createReport(r: Report) { this.reports.set(r.id, { ...r }); }

@@ -51,6 +51,10 @@ export class FirestoreStore implements Store {
     const { id: _ignored, ...rest } = patch;
     await this.projects().doc(id).update(rest);
   }
+  /** recursiveDelete, because deleting a document leaves its subcollections behind. */
+  async deleteProject(id: string) {
+    await this.db.recursiveDelete(this.projects().doc(id));
+  }
 
   async createReport(r: Report) { await this.reports(r.project_id).doc(r.id).create(r); }
   async getReport(project_id: string, id: string) {

@@ -79,6 +79,10 @@ export interface Project {
   framework: string | null;
   /** True when the framework came from the SDK rather than from a person. */
   framework_detected?: boolean;
+  /** The SDK was last seen running in the app: proof the install works, with no test report. */
+  sdk_seen?: { at: string; where: string; sdk: string | null } | null;
+  /** A coding agent found the app's key in a repo's code (`heresay check`). */
+  code_found?: { at: string; repo: string; file: string } | null;
   /** Public. It goes in the host app's HTML. It identifies, it does not authorise triage. */
   key: string;
   /** Where the SDK may be embedded. Empty means any origin. Web only. */
@@ -135,7 +139,11 @@ export const CLAIM_TTL_MS = 24 * 3600_000;
 export interface AgentToken {
   id: string;             // the public half: hst_<id>_<secret>
   secret_hash: string;
-  repo: string;           // e.g. 'github.com/acme/web'
+  /**
+   * e.g. 'github.com/acme/web'. null until first used: a token made for a copy-paste prompt
+   * binds to whichever repo runs `heresay connect` with it first, and only that one after.
+   */
+  repo: string | null;
   app_ids: string[];
   created_by: string;
   created_at: string;

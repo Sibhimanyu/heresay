@@ -213,3 +213,110 @@ test('marking fixed from the dashboard can carry a note for the reporter', async
   await w.call({ method: 'POST', path: `/v1/projects/${w.web.id}/reports/${id}/fixed`, headers: w.alice, body: { note: 'Fixed in 1.5' } });
   assert.equal(w.store.reports.get(id)!.fix_note, 'Fixed in 1.5');
 });
+
+test('a prompt token has no repo until the first repo connects with it, then only that repo', async () => {
+  const w = await world();
+  const r = await w.call({ method: 'POST', path: '/v1/agent-tokens', headers: w.alice, body: { app_ids: [w.web.id] } });
+  assert.equal(r.status, 201);
+  const tok = (r.body as { token: string }).token;
+  assert.equal((r.body as { agent: { repo: null } }).agent.repo, null);
+  assert.equal((await w.call({ path: '/v1/agent/briefs', headers: w.as(tok) })).status, 409, 'unbound tokens do nothing yet');
+  assert.deepEqual((await w.call({ path: `/v1/projects/${w.web.id}/repos`, headers: w.alice })).body, { repos: [] });
+  const bind = (repo: string) => w.call({ method: 'POST', path: '/v1/agent/bind', headers: w.as(tok), body: { repo } });
+  assert.equal((await bind('git@github.com:Acme/Web.git')).status, 200);
+  assert.equal((await bind('github.com/acme/web')).status, 200, 'binding again to the same repo is fine');
+  assert.equal((await bind('github.com/acme/other')).status, 409, 'but never to another');
+  assert.equal((await w.call({ path: '/v1/agent/briefs', headers: w.as(tok) })).status, 200);
+  assert.deepEqual((await w.call({ path: `/v1/projects/${w.web.id}/repos`, headers: w.alice })).body, { repos: ['github.com/acme/web'] });
+});
+
+test('going back in the wizard edits the app and keeps its key', async () => {
+  const w = await world();
+  const patch = (body: Record<string, unknown>) => w.call({ method: 'PATCH', path: `/v1/projects/${w.web.id}`, headers: w.alice, body });
+  assert.equal((await patch({ name: ' ' })).status, 400);
+  assert.equal((await patch({ platform: 'amiga' })).status, 400);
+  assert.equal((await patch({ allowed_origins: ['nope'] })).status, 400);
+  const r = await patch({ name: 'Web app', framework: 'Next', allowed_origins: ['https://app.example.com/', 'http://localhost:3000'] });
+  assert.equal(r.status, 200);
+  const p = (await w.store.getProject(w.web.id))!;
+  assert.equal(p.name, 'Web app');
+  assert.equal(p.framework, 'next');
+  assert.deepEqual(p.allowed_origins, ['https://app.example.com', 'http://localhost:3000']);
+  assert.equal(p.key, w.web.key);
+});
+
+test('any SDK call marks the app as seen running, at most every 10 minutes, never from Heresay itself', async () => {
+  const w = await world();
+  const mine = (p: Project, headers: Record<string, string>, sdk: string) => w.call({ method: 'POST', path: '/v1/reports/mine', headers,
+    body: JSON.stringify({ key: p.key, device_id: DEVICE, sdk }) });
+  assert.equal((await mine(w.other, { origin: 'https://heresay.example' }, 'web')).status, 200);
+  assert.equal((await w.store.getProject(w.other.id))!.sdk_seen ?? null, null, 'the dashboard\'s own test page is not the app');
+  await mine(w.web, { origin: ORIGIN }, 'web');
+  const first = (await w.store.getProject(w.web.id))!.sdk_seen!;
+  assert.equal(first.where, ORIGIN);
+  assert.equal(first.sdk, 'web');
+  w.tick(5 * 60_000);
+  await mine(w.web, { origin: ORIGIN }, 'web');
+  assert.equal((await w.store.getProject(w.web.id))!.sdk_seen!.at, first.at, 'not rewritten within 10 minutes');
+  w.tick(6 * 60_000);
+  await mine(w.web, { origin: ORIGIN }, 'web');
+  assert.notEqual((await w.store.getProject(w.web.id))!.sdk_seen!.at, first.at);
+  // A native app sends no Origin.
+  const ios = ((await w.call({ method: 'POST', path: '/v1/projects', headers: w.alice, body: { name: 'Phone', platform: 'ios' } })).body as { project: Project }).project;
+  assert.equal((await mine(ios, {}, 'ios')).status, 200);
+  const seen = (await w.store.getProject(ios.id))!.sdk_seen!;
+  assert.equal(seen.where, 'the iOS app');
+  assert.equal(seen.sdk, 'ios');
+});
+
+test('reading your own reports is rate-limited per network', async () => {
+  const w = await world();
+  const ios = ((await w.call({ method: 'POST', path: '/v1/projects', headers: w.alice, body: { name: 'Phone', platform: 'ios' } })).body as { project: Project }).project;
+  const mine = () => w.call({ method: 'POST', path: '/v1/reports/mine', body: JSON.stringify({ key: ios.key, device_id: DEVICE }) });
+  for (let i = 0; i < 240; i++) assert.equal((await mine()).status, 200, `call ${i + 1}`);
+  const over = await mine();
+  assert.equal(over.status, 429);
+  assert.ok(Number(over.headers?.['retry-after']) > 0);
+});
+
+test('verify records where the key was found in the repo, and check reports it installed', async () => {
+  const w = await world();
+  const tok = await w.token('github.com/acme/web', [w.web.id]);
+  const verify = (id: string, body: Record<string, unknown>) => w.call({ method: 'POST', path: `/v1/agent/apps/${id}/verify`, headers: w.as(tok), body });
+  const check = async () => (await w.call({ path: `/v1/agent/apps/${w.web.id}/check`, headers: w.as(tok) })).body as Record<string, unknown>;
+  assert.equal((await check()).installed, false);
+  assert.equal((await verify(w.web.id, {})).status, 400, 'a file is required');
+  assert.equal((await verify(w.other.id, { file: 'app/layout.tsx' })).status, 404, 'not this token\'s app');
+  assert.equal((await verify(w.web.id, { file: 'app/layout.tsx' })).status, 200);
+  const c = await check();
+  const found = c.code_found as { repo: string; file: string };
+  assert.equal(found.repo, 'github.com/acme/web');
+  assert.equal(found.file, 'app/layout.tsx');
+  assert.equal(c.installed, true);
+});
+
+test('deleting an app: owners only, typed name, and everything goes with it', async () => {
+  const w = await world();
+  const tok = await w.token('github.com/acme/web', [w.web.id, w.other.id]);
+  const id = await w.report(w.web);
+  await w.accept(w.web, id);
+  assert.equal((await w.call({ method: 'POST', path: '/v1/team', headers: w.alice, body: { email: 'bob@example.com' } })).status, 201);
+  const del = (headers: Record<string, string>, body: unknown) => w.call({ method: 'DELETE', path: `/v1/projects/${w.web.id}`, headers, body });
+  const bob = await del({ authorization: 'Bearer uid:bob' }, { confirm: 'Web' });
+  assert.equal(bob.status, 403);
+  assert.equal((bob.body as { error: string }).error, 'only an owner can delete an app');
+  assert.equal((await del(w.alice, { confirm: 'web' })).status, 400, 'the name exactly');
+  assert.equal((await del(w.alice, undefined)).status, 400);
+  const ok = await del(w.alice, { confirm: 'Web' });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(ok.body, { ok: true });
+  assert.equal((await w.call({ path: `/v1/projects/${w.web.id}`, headers: w.alice })).status, 404);
+  assert.equal(w.store.reports.size, 0);
+  assert.equal(w.store.tasks.size, 0);
+  const sent = await w.call({ method: 'POST', path: '/v1/reports', headers: { origin: ORIGIN },
+    body: JSON.stringify({ key: w.web.key, device_id: DEVICE, type: 'broken', text: 'x' }) });
+  assert.equal(sent.status, 404);
+  assert.equal((sent.body as { error: string }).error, 'unknown key');
+  const me = (await w.call({ path: '/v1/agent/me', headers: w.as(tok) })).body as { apps: { id: string }[] };
+  assert.deepEqual(me.apps.map((a) => a.id), [w.other.id], 'the token stays, without the app');
+});

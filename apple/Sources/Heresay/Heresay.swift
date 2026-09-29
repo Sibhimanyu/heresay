@@ -27,6 +27,9 @@ public final class Heresay: ObservableObject {
     @Published public var isPresented = false
     /// Reports whose outcome this device hasn't looked at yet. Drives the dot on the button.
     @Published public private(set) var unseen = 0
+    /// The server doesn't know this key (a 404): the app was deleted from the dashboard, or the
+    /// key is wrong. The button and sheet stay hidden until `configure` is called again.
+    @Published public private(set) var isDisabled = false
 
     var client: Client?
     var accent: Color = .heresayPeacock
@@ -55,6 +58,7 @@ public final class Heresay: ObservableObject {
 
     func configure(key: String, url: URL, version: String?, accent: Color?, session: URLSession) {
         client = Client(base: url, key: key, session: session)
+        isDisabled = false
         self.version = version ?? Self.bundleVersion()
         if let accent { self.accent = accent }
         Task { await refresh() }
@@ -72,7 +76,12 @@ public final class Heresay: ObservableObject {
     public static func setScreen(_ name: String?) { shared.screen = name }
 
     /// Open the report sheet from your own button or menu item.
-    public static func present() { shared.isPresented = true }
+    public static func present() { shared.present() }
+
+    func present() {
+        guard !isDisabled else { return }
+        isPresented = true
+    }
 
     /// Send a report from your own UI instead of the sheet.
     @discardableResult
@@ -84,17 +93,35 @@ public final class Heresay: ObservableObject {
 
     func send(type: ReportType, text: String) async throws -> SentReport {
         guard let client else { throw Client.Failure(status: 0, message: "Heresay isn’t configured. Call Heresay.configure(key:url:) first.") }
-        let r = try await client.submit(deviceId: deviceId, type: type, text: text, context: context())
-        reports.insert(r, at: 0)
-        return r
+        do {
+            let r = try await client.submit(deviceId: deviceId, type: type, text: text, context: context())
+            reports.insert(r, at: 0)
+            return r
+        } catch let f as Client.Failure where f.status == 404 {
+            disable(client)
+            throw f
+        }
     }
 
     /// Fetch what happened to this device's reports.
     public func refresh() async {
         guard let client else { return }
-        guard let rs = try? await client.mine(deviceId: deviceId) else { return }
-        reports = rs
-        recount()
+        do {
+            reports = try await client.mine(deviceId: deviceId)
+            recount()
+        } catch let f as Client.Failure where f.status == 404 {
+            disable(client)
+        } catch {
+            // Offline or a server hiccup: keep the button; the next refresh may work.
+        }
+    }
+
+    /// Only an HTTP 404 gets here, never a network failure, so being offline can't hide the button.
+    private func disable(_ client: Client) {
+        guard !isDisabled else { return }
+        isDisabled = true
+        isPresented = false
+        print("Heresay: this key isn't known to \(client.base.absoluteString); the app may have been deleted. Remove Heresay.configure(…)")
     }
 
     /// The outcomes on screen now count as read.
@@ -132,7 +159,7 @@ public final class Heresay: ObservableObject {
         )
     }
 
-    static var platform: String {
+    nonisolated static var platform: String {
         #if os(macOS)
         "macos"
         #else
