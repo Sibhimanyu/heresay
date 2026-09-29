@@ -1,0 +1,24 @@
+{
+  "about": "Features added to Heresay since apps were first installed. An agent in a connected repo checks these with whats_new, tells the person what's new, and asks before adding any. `detect` is what the code contains once a feature is in; `platforms` limits it to those apps; `sign_in` limits it to apps that answered that.",
+  "changes": [
+    {
+      "id": "introduce",
+      "since": "0.2.7",
+      "title": "Tell people Heresay is there",
+      "summary": "A one-time introduction, so the people using the app know they can report things. On macOS it names Help › Report a Problem… (⌥⌘R), on iOS the Report button, on the web a bubble over the button. Shown once per device.",
+      "platforms": ["web", "ios", "macos"],
+      "detect": ["introduce(", "data-intro"],
+      "how": { "web": "guide install-web, step 4", "ios": "guide install-apple, step 5", "macos": "guide install-apple, step 5" }
+    },
+    {
+      "id": "identify-email",
+      "since": "0.2.6",
+      "title": "Signed-in people are never asked who they are",
+      "summary": "When the app tells Heresay who is signed in (id, name, email), the report form stops asking for a name and email, and the team can reply to them.",
+      "platforms": ["web", "ios", "macos"],
+      "sign_in": "yes",
+      "detect": ["identify("],
+      "how": { "web": "guide install-web, step 3", "ios": "guide install-apple, step 4", "macos": "guide install-apple, step 4" }
+    }
+  ]
+}

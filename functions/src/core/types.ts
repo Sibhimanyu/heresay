@@ -108,6 +108,12 @@ export interface Project {
    * they say it. null: nobody said, and the coding agent looks at the code.
    */
   sign_in?: SignIn | null;
+  /**
+   * The product this app is one platform of: Greenroom on the web, on iOS and on the Mac share
+   * one inbox in the dashboard. It's the id of the product's first app; null or absent means the
+   * app is its own product. Keys, sites and install checks stay per app, since they differ.
+   */
+  product_id?: string | null;
   /** True when the framework came from the SDK rather than from a person. */
   framework_detected?: boolean;
   /** The SDK was last seen running in the app: proof the install works, with no test report. */

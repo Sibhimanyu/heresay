@@ -185,6 +185,19 @@ test('the host app can pass the signed-in email; junk is dropped', async () => {
   assert.equal(await send('not-an-email'), null);
 });
 
+test('products: another platform joins an existing product; a made-up product is refused', async () => {
+  const { call, asOwner } = setup();
+  const make = (body: Record<string, unknown>) => call({ method: 'POST', path: '/v1/projects', headers: asOwner(), body });
+  const web = ((await make({ name: 'Greenroom', platform: 'web' })).body as { project: Project }).project;
+  assert.equal(web.product_id, null, 'a new app is its own product');
+  const ios = ((await make({ name: 'Greenroom', platform: 'ios', product_id: web.id })).body as { project: Project }).project;
+  assert.equal(ios.product_id, web.id);
+  assert.notEqual(ios.key, web.key, 'each platform keeps its own key');
+  const mac = ((await make({ name: 'Greenroom', platform: 'macos', product_id: ios.product_id })).body as { project: Project }).project;
+  assert.equal(mac.product_id, web.id);
+  assert.equal((await make({ name: 'X', platform: 'ios', product_id: 'p_nope' })).status, 400);
+});
+
 test('someone who is not on the team cannot see or triage anything', async () => {
   const { call, asOwner, project, submit } = await withProject();
   const id = ((await submit({ type: 'idea', text: 'dark mode' })).body as { report: { id: string } }).report.id;

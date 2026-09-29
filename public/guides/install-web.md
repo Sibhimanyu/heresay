@@ -42,7 +42,22 @@ Then the person is never asked their name to send a report, and the team can rep
 follows whoever is signed in on that device, so apps with many users and many logins need
 nothing else. Use the fields the app already has; leave out any it doesn't.
 
-## 4. Optional, when the app has them
+## 4. Tell people it's there (required)
+
+People who have never seen the Report button won't go looking for it. Heresay has a one-time
+introduction: a small bubble over the button saying what it's for, shown once per device.
+
+- Most apps: add `data-intro="auto"` to the tag. It appears a few seconds after the first page
+  load.
+- Apps with sign-in, onboarding or a first-run tour: leave the attribute off and call
+  `window.Heresay?.introduce()` once the person reaches the main screen, so it never covers a
+  login form or competes with the tour. Calling it again later does nothing.
+- If the app already has a "What's new" or announcements area, add a line there too, e.g.
+  "New: tell us what's broken or could be better with the Report button."
+
+Don't build a custom dialog for this; `introduce()` is the one.
+
+## 5. Optional, when the app has them
 
 - A version: add `data-version="<version>"` to the tag (from package.json, a build env var, ...).
 - Screens that change without the URL changing: `window.Heresay?.setScreen("<name>")` on each change.
@@ -50,7 +65,7 @@ nothing else. Use the fields the app already has; leave out any it doesn't.
 
 Change nothing else in the app.
 
-## 5. Prove it
+## 6. Prove it
 
 Call `check_install`. It finds the key in this repo's code by itself (`found_in_code`). Then run
 the app and open it in a browser: `seen_running` shows the SDK loaded there. To test the whole

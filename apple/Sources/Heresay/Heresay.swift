@@ -37,6 +37,11 @@ public final class Heresay: ObservableObject {
     @Published public private(set) var prefs = ReporterPrefs()
     /// The tab the sheet opens on next; `present()` picks one if nil.
     @Published var requestedTab: SheetTab?
+    /// The one-time introduction is waiting to be shown.
+    @Published var introPending = false
+    /// How people reach it, so the introduction can say where to look.
+    var hasButton = false
+    nonisolated(unsafe) static var hasMenuCommand = false
 
     var client: Client?
     var accent: Color = .heresayPeacock
@@ -107,6 +112,30 @@ public final class Heresay: ObservableObject {
         guard !isDisabled else { return }
         requestedTab = tab
         isPresented = true
+    }
+
+    /// Once per install: tell people Heresay is there and how to reach it. Call it where the app
+    /// is settled, e.g. `.onAppear` of the main screen after sign-in or onboarding. Later calls do
+    /// nothing, so it's safe on every launch. Returns whether it showed.
+    @discardableResult
+    public static func introduce() -> Bool { shared.introduce() }
+
+    func introduce() -> Bool {
+        guard !isDisabled, !defaults.bool(forKey: Keys.introduced) else { return false }
+        defaults.set(true, forKey: Keys.introduced)
+        introPending = true
+        return true
+    }
+
+    /// Where to find it, in this app.
+    var introMessage: String {
+        let reach: String
+        #if os(macOS)
+        reach = Self.hasMenuCommand ? "Choose Help › Report a Problem… (⌥⌘R) any time" : (hasButton ? "Click Report any time" : "Use Report any time")
+        #else
+        reach = hasButton ? "Tap Report in the corner any time" : "Use Report any time"
+        #endif
+        return "\(reach) to tell the team what’s broken, confusing or could be better. A person reads every report, and you’ll see what happens to yours."
     }
 
     /// Open straight to Preferences: name, email for replies, a note about their setup.
@@ -244,6 +273,7 @@ public final class Heresay: ObservableObject {
         static let device = "heresay.device_id"
         static let seen = "heresay.seen"
         static let prefs = "heresay.prefs"
+        static let introduced = "heresay.introduced"
     }
 }
 

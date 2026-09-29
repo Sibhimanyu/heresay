@@ -57,7 +57,8 @@ test('tokens: the secret is shown once, never listed, and a revoked one stops wo
   const list = (await w.call({ path: '/v1/agent-tokens', headers: w.alice })).body as { tokens: Record<string, unknown>[] };
   assert.equal(list.tokens.length, 1);
   assert.equal(list.tokens[0].secret_hash, undefined);
-  assert.ok(!JSON.stringify(list).includes(tok.split('_')[2]));
+  // hst_<id>_<secret>: the id has no underscores, the secret may.
+  assert.ok(!JSON.stringify(list).includes(tok.slice(tok.indexOf('_', 4) + 1)));
   assert.equal((await w.call({ path: '/v1/agent/me', headers: w.as(tok) })).status, 200);
   assert.equal((await w.call({ path: '/v1/agent/me', headers: w.as(tok.slice(0, -2) + 'xx') })).status, 401, 'wrong secret');
   await w.call({ method: 'DELETE', path: `/v1/agent-tokens/${list.tokens[0].id}`, headers: w.alice });

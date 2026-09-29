@@ -255,6 +255,22 @@ try {
   assert.equal(await sRow.getByText('Asha').count(), 0, 'what this device typed while signed out is not sent');
   await signed.close();
 
+  step('the one-time introduction: a bubble says the button is there, once per device');
+  const intro = await (await browser.newContext()).newPage();
+  await intro.goto(`${BASE}/demo.html?key=${key}`);
+  await intro.waitForFunction(() => window.Heresay && window.Heresay.introduce);
+  assert.equal(await intro.evaluate(() => window.Heresay.introduce()), true);
+  const iw = intro.locator('[data-feedback-sdk]');
+  await iw.getByText('Something not right? Tell the team.').waitFor();
+  await intro.waitForTimeout(400); // past the fade-in
+  await intro.screenshot({ path: `${SHOTS}e2e-2d-introduce.png` });
+  await iw.getByRole('button', { name: 'Try it' }).click();
+  await iw.getByRole('button', { name: /Confusing/ }).waitFor();
+  await intro.reload();
+  await intro.waitForFunction(() => window.Heresay && window.Heresay.introduce);
+  assert.equal(await intro.evaluate(() => window.Heresay.introduce()), false, 'never twice on a device');
+  await intro.context().close();
+
   step('the default accent is peacock; a host accent replaces it; junk is ignored');
   const sendBg = async (q) => {
     const pg = await ctx.newPage();
@@ -321,6 +337,42 @@ try {
   assert.equal(await dash.getByRole('link', { name: 'Send a test report' }).count(), 0, 'no web test page for native apps');
   await dash.screenshot({ path: `${SHOTS}e2e-1f-ios-install.png`, fullPage: true });
 
+  step('one product on two platforms: add iOS to Acme Notes; one card, one inbox, each report marked');
+  await dash.goto(`${BASE}/app/#/`);
+  await dash.locator('.app-card', { hasText: 'Acme Notes' }).click();
+  await dash.getByRole('heading', { name: 'Acme Notes' }).waitFor();
+  await dash.locator('.head').getByRole('link', { name: '+ Add a platform' }).click();
+  await dash.getByRole('heading', { name: 'Add a platform to Acme Notes' }).waitFor();
+  assert.equal(await dash.locator('.platform.added', { hasText: 'Web' }).count(), 1, 'the platform it already has is marked');
+  await dash.locator('a.platform', { hasText: 'iOS' }).click();
+  assert.equal(await dash.inputValue('input[name=name]'), 'Acme Notes', 'the product name carries over');
+  await dash.getByRole('button', { name: 'Create app' }).click();
+  await dash.getByText('Checking automatically…').waitFor();
+  const all = (await (await api('GET', '/projects')).json()).projects;
+  const webApp = all.find((x) => x.name === 'Acme Notes' && x.platform === 'web');
+  const iosApp = all.find((x) => x.name === 'Acme Notes' && x.platform === 'ios');
+  assert.equal(iosApp.product_id, webApp.id, 'joined the web app\'s product');
+  assert.notEqual(iosApp.key, webApp.key);
+  await fetch(`${BASE}/v1/reports`, { method: 'POST', headers: { 'content-type': 'text/plain' },
+    body: JSON.stringify({ key: iosApp.key, device_id: 'ios_device_000000000001', sdk: 'ios', type: 'broken', text: 'The iPhone share sheet is empty', context: { platform: 'ios', route: 'Share' } }) });
+  await dash.goto(`${BASE}/app/#/`);
+  const product = dash.locator('.product-card', { hasText: 'Acme Notes' });
+  await product.locator('.platform-line', { hasText: 'Web' }).waitFor();
+  await product.locator('.platform-line', { hasText: 'iOS' }).waitFor();
+  await dash.screenshot({ path: `${SHOTS}e2e-5a-product-card.png`, fullPage: true });
+  await product.locator('.platform-line', { hasText: 'Web' }).click();
+  await dash.getByRole('heading', { name: 'Acme Notes' }).waitFor();
+  await dash.locator('.platforms-filter button', { hasText: 'iOS' }).waitFor();
+  await dash.locator('.filters button', { hasText: 'All' }).last().click();
+  const iosRow = dash.locator('article.report', { hasText: 'The iPhone share sheet is empty' });
+  await iosRow.locator('.platform-pill', { hasText: 'iOS' }).waitFor();
+  await dash.locator('article.report .platform-pill', { hasText: 'Web' }).first().waitFor();
+  await dash.screenshot({ path: `${SHOTS}e2e-5b-product-inbox.png`, fullPage: true });
+  await dash.locator('.platforms-filter button', { hasText: 'iOS' }).click();
+  assert.equal(await dash.locator('article.report .platform-pill', { hasText: 'Web' }).count(), 0, 'the platform filter narrows it');
+  await iosRow.getByRole('button', { name: 'Accept' }).click();
+  await dash.locator('.filters button', { hasText: 'Accepted 1' }).waitFor();
+
   step('connect a repo for coding agents from the dashboard: the token is shown once');
   await dash.goto(`${BASE}/app/#/connect?repo=github.com/acme/notes&app=${project.id}`);
   await dash.getByRole('heading', { name: 'Connect a repo for your coding agent' }).waitFor();
@@ -332,7 +384,7 @@ try {
   await dash.locator('.members li', { hasText: 'github.com/acme/notes' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-7-connect.png`, fullPage: true });
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
-  await dash.getByText('Agents fix these in: github.com/acme/notes').waitFor();
+  await dash.getByText(/Agents fix these in github.com\/acme\/notes/).waitFor();
 
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;

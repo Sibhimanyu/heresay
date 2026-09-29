@@ -4,12 +4,14 @@
  *   <script src="https://<sdk-host>/sdk.js" data-key="pk_..." defer></script>
  *
  * Optional attributes: data-version, data-user-id, data-user-label, data-position ("left"),
+ *   data-intro ("auto": introduce the button a few seconds after the first page load),
  *   data-accent ("#0f766e"; a hex colour, to match the host app. Defaults to Heresay peacock).
  * Optional calls, any time after the script runs:
  *   Feedback.identify({ id, label, email })   who is signed in; then nobody is asked their name
  *   Feedback.setVersion("1.4.0")
  *   Feedback.setScreen("Checkout")    for apps whose URL does not change per screen
  *   Feedback.open()
+ *   Feedback.introduce()              once per device: a bubble saying the Report button is there
  *   Feedback.openPreferences()        a note about their setup, and a name and email if not signed in
  *
  * No account, no cookies. The reporter is a random per-device id kept in localStorage, and
@@ -224,6 +226,17 @@
     'padding:9px 14px;border-radius:999px;border:1px solid var(--fb-line);background:var(--fb-bg);color:var(--fb-fg);',
     'box-shadow:0 4px 14px rgba(0,0,0,.18);cursor:pointer;font-weight:600}',
     '.fab.left{right:auto;left:20px}',
+    '.intro{position:fixed;bottom:72px;right:20px;z-index:2147483000;width:min(300px,calc(100vw - 40px));padding:14px 16px;',
+    'background:var(--fb-bg);border:1px solid var(--fb-line);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.22);animation:fb-in .25s ease-out}',
+    '.intro.left{right:auto;left:20px}',
+    '.intro:after{content:"";position:absolute;bottom:-7px;right:36px;width:12px;height:12px;background:var(--fb-bg);',
+    'border-right:1px solid var(--fb-line);border-bottom:1px solid var(--fb-line);transform:rotate(45deg)}',
+    '.intro.left:after{right:auto;left:36px}',
+    '.intro b{display:block;margin-bottom:4px;font-weight:700}',
+    '.intro p{margin:0 0 12px;color:var(--fb-mute);font-size:13px}',
+    '.intro .row{margin-top:0;justify-content:flex-end}',
+    '@keyframes fb-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}',
+    '@media (prefers-reduced-motion:reduce){.intro{animation:none}}',
     '.mark{display:inline-flex;color:var(--fb-mark)}.mark svg{display:block}',
     '.dot{width:8px;height:8px;border-radius:50%;background:var(--fb-acc)}',
     '.scrim{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:flex-end;padding:16px}',
@@ -329,6 +342,7 @@
 
   function open(which) {
     if (scrim || dead) return;
+    if (bubble) { bubble.remove(); bubble = null; }
     lastFocus = document.activeElement;
     view = which || (unseen() ? 'mine' : 'new');
     scrim = el('div', { class: 'scrim' + (LEFT ? ' left' : ''), onclick: function (e) { if (e.target === scrim) close(); } });
@@ -509,10 +523,34 @@
     });
   }
 
+  // ---- introduction ----------------------------------------------------------------------
+
+  // People can't use a button they never noticed. Once per device and app, a bubble says what it
+  // is for. The host app picks the moment (introduce()), or data-intro="auto" does it on load.
+  var INTRO_KEY = 'fbsdk.introduced.' + KEY;
+  var bubble = null;
+  function introduce() {
+    if (dead || bubble || scrim || load(INTRO_KEY)) return false;
+    save(INTRO_KEY, new Date().toISOString());
+    var done = function () { if (bubble) { bubble.remove(); bubble = null; } };
+    bubble = el('div', { class: 'intro' + (LEFT ? ' left' : ''), role: 'dialog', 'aria-label': 'About the Report button' }, [
+      el('b', { text: 'Something not right? Tell the team.' }),
+      el('p', { text: 'Use Report to say what is broken, confusing or could be better. A person reads every report, and you will see what happens to yours right here.' }),
+      el('div', { class: 'row' }, [
+        el('button', { class: 'link', type: 'button', text: 'Got it', onclick: done }),
+        el('button', { class: 'send', type: 'button', text: 'Try it', onclick: function () { done(); open('new'); } }),
+      ]),
+    ]);
+    bubble.addEventListener('keydown', function (e) { if (e.key === 'Escape') done(); });
+    root.appendChild(bubble);
+    return true;
+  }
+
   function mount() {
     if (dead) return;
     if (!host.isConnected) document.body.appendChild(host);
     refresh();
+    if (script.getAttribute('data-intro') === 'auto') setTimeout(introduce, 3000);
   }
   if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
 
@@ -529,6 +567,8 @@
     setScreen: function (s) { state.screen = s != null ? String(s) : null; },
     open: function () { open('new'); },
     openPreferences: function () { open('prefs'); },
+    /** Show the one-time introduction now. False if it was already shown on this device. */
+    introduce: function () { return introduce(); },
     close: close,
   };
 })();

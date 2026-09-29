@@ -65,6 +65,22 @@ input:focus, textarea:focus, select:focus { outline:2px solid var(--acc); outlin
 .app-card .mute { font-size:13px; }
 .app-card .count { grid-column:1 / -1; margin-top:10px; font-size:13px; color:var(--mute); }
 .app-card .count.on { color:var(--deep); font-weight:700; }
+.product-card { display:flex; flex-direction:column; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+.product-card .app-card { border:0; border-radius:0; }
+.product-card .app-card:hover { background:var(--soft); }
+.product-card.single .app-card { padding-bottom:10px; }
+.product-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:16px 18px 6px; }
+.product-head b { font-size:17px; }
+.platform-line { padding:12px 18px; border-top:1px solid var(--line) !important; grid-template-columns:auto 1fr auto; }
+.platform-line .count { grid-column:auto; margin:0; }
+.add-platform { font-size:13px; font-weight:600; text-decoration:none; }
+.product-card.single .add-platform { padding:0 18px 14px; }
+.add-platform:hover { text-decoration:underline; }
+.platform.added { color:var(--mute); background:var(--soft); border-color:transparent; }
+.pill.platform-pill { color:var(--mute); border:1px solid var(--line); border-radius:999px; padding:0 8px; font-weight:600; }
+.product-platforms .repos-line { margin:0 0 6px; }
+.product-platforms { margin:-10px 0 18px; }
+.platforms-filter { margin-bottom:8px; }
 .picon { width:40px; height:40px; border-radius:12px; background:var(--mist); display:inline-flex; align-items:center; justify-content:center; flex:none; }
 .picon svg { width:22px; height:22px; fill:none; stroke:var(--deep); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 

@@ -84,6 +84,7 @@
         <tr><td><code>Heresay.setVersion("1.4.0")</code></td><td>Set or change the app version.</td></tr>
         <tr><td><code>Heresay.setScreen("Checkout")</code></td><td>Name the current screen, for apps whose URL doesn't change between screens.</td></tr>
         <tr><td><code>Heresay.open()</code></td><td>Open the report form from your own button or menu item.</td></tr>
+        <tr><td><code>Heresay.introduce()</code></td><td>Once per device, a small bubble over the button says what it's for, so people know it exists. Call it when your main screen is up (after sign-in or onboarding), or add <code>data-intro="auto"</code> to the tag. Later calls do nothing.</td></tr>
         <tr><td><code>Heresay.openPreferences()</code></td><td>Open the Preferences tab: a note about their setup, sent with every report. People who aren't signed in can also add a name and an email for replies. It's all optional and saved on their device. Where the button sits is yours to choose, with <code>data-position</code>.</td></tr>
         <tr><td><code>Heresay.close()</code></td><td>Close the panel.</td></tr></table>
       <p>Each report also carries the page it came from: its title, its address without the query string, and the window size.</p>
@@ -156,7 +157,7 @@ connect-src ORIGIN;</code></pre>
         WindowGroup { ContentView().heresayReportButton() }   <span class="k">// iOS: a Report button in the corner</span>
     }
 }</code></pre>
-      <p>On macOS, use <code>ContentView().heresay()</code> and add <code>.commands { HeresayCommands() }</code> for <b>Help › Report a Problem…</b> (⌥⌘R). The same calls as the web SDK exist: <code>Heresay.identify(id:label:email:)</code>, <code>Heresay.presentPreferences()</code>, <code>Heresay.setScreen(_:)</code>, <code>Heresay.present()</code>, and <code>Heresay.send(_:text:)</code> for your own UI. The app version comes from the bundle. Native apps have no web origin to lock the key to; the rate limits still apply.</p>
+      <p>On macOS, use <code>ContentView().heresay()</code> and add <code>.commands { HeresayCommands() }</code> for <b>Help › Report a Problem…</b> (⌥⌘R). The same calls as the web SDK exist: <code>Heresay.identify(id:label:email:)</code>, <code>Heresay.presentPreferences()</code>, <code>Heresay.introduce()</code> (once per install, an alert saying where to find it; call it when the main screen appears), <code>Heresay.setScreen(_:)</code>, <code>Heresay.present()</code>, and <code>Heresay.send(_:text:)</code> for your own UI. The app version comes from the bundle. Native apps have no web origin to lock the key to; the rate limits still apply.</p>
 
       <h2 id="rest">Other platforms</h2>
       <p>Android, React Native and Flutter SDKs are on the way. Until then, any app can talk to the same API. Both calls take a JSON body.</p>

@@ -1,6 +1,6 @@
 {
   "name": "create-heresay",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Set up your own Heresay: in-app feedback that every report gets a hearing. Creates a Firebase project in your Google account and deploys the dashboard, API and SDK to it.",
   "type": "module",
   "license": "MIT",

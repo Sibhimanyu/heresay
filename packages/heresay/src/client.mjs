@@ -107,7 +107,7 @@ export function client(conn) {
 
 // ---- guides, fetched from the Heresay itself ----------------------------------------------
 
-export const SKILL_VERSION = 1;
+export const SKILL_VERSION = 3;
 
 /** The bootstrap skill version installed in this repo, or null. */
 export function repoSkillVersion(root) {
@@ -152,7 +152,7 @@ export async function guide(conn, topic) {
   const latest = index?.skill_version ?? SKILL_VERSION;
   const have = repoSkillVersion(repoAt().root);
   if (have !== null && have < latest) {
-    notes.push(`The Heresay skill in this repo is version ${have}; version ${latest} is out. Run \`npx heresay connect --update\` and commit the change.`);
+    notes.push(`The Heresay skill in this repo is version ${have}; version ${latest} is out. Run \`npx -y heresay@latest connect --update\` and commit the change.`);
   }
   return { text: [...notes, text].join('\n\n'), skill_version: latest, stale };
 }
@@ -210,8 +210,18 @@ const MAX_FILES = 20_000;
  * repo can't hang the agent.
  */
 export function findKeyInRepo(root, key) {
-  if (!key) return null;
-  const needle = Buffer.from(key);
+  return key ? findInRepo(root, [key]) : null;
+}
+
+// Where a call is written about rather than made, including the notes `connect` adds.
+const PROSE = new Set(['.md', '.mdx', '.markdown', '.txt', '.rst']);
+
+/**
+ * The first file containing any of these strings, the same way findKeyInRepo looks. With
+ * `code`, prose files don't count: a README mentioning introduce() isn't a call to it.
+ */
+export function findInRepo(root, strings, { code = false } = {}) {
+  const needles = strings.map((x) => Buffer.from(x));
   let scanned = 0;
   const stack = [root];
   while (stack.length) {
@@ -223,6 +233,7 @@ export function findKeyInRepo(root, key) {
       const full = join(dir, e.name);
       if (e.isDirectory()) { stack.push(full); continue; }
       if (!e.isFile() || BINARY.has(extname(e.name).toLowerCase())) continue;
+      if (code && PROSE.has(extname(e.name).toLowerCase())) continue;
       if (++scanned > MAX_FILES) return null;
       let buf;
       try {
@@ -230,10 +241,71 @@ export function findKeyInRepo(root, key) {
         buf = readFileSync(full);
       } catch { continue; }
       if (buf.includes(0)) continue; // binary
-      if (buf.includes(needle)) return relative(root, full).split(sep).join('/');
+      if (needles.some((n) => buf.includes(n))) return relative(root, full).split(sep).join('/');
     }
   }
   return null;
+}
+
+// ---- what's new ------------------------------------------------------------------------------
+
+/** Where a repo records the features it said no to, next to the skill, so it's committed with it. */
+export const DECISIONS = '.claude/skills/heresay/decisions.json';
+
+function readDecisions(root) {
+  try { return JSON.parse(readFileSync(join(root, DECISIONS), 'utf8')); } catch { return { skipped: {} }; }
+}
+
+/**
+ * Features this Heresay has that this repo's apps don't use yet and nobody skipped. The list
+ * comes from the Heresay itself, so a new feature reaches every connected repo without a new
+ * package. Detection is by what the code contains, the same way `check` finds the key.
+ */
+export async function whatsNew(conn, apps, { root = repoAt().root } = {}) {
+  const res = await fetch(`${conn.url}/guides/changes.json`, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) return { updates: [], note: 'This Heresay has no feature list yet; nothing to offer.' };
+  const { changes = [] } = await res.json();
+  const skipped = readDecisions(root).skipped ?? {};
+  const updates = [];
+  for (const c of changes) {
+    if (skipped[c.id]) continue;
+    const mine = apps.filter((a) => (!c.platforms || c.platforms.includes(a.platform)) && (!c.sign_in || a.sign_in === c.sign_in));
+    if (!mine.length || !findKeyInRepo(root, mine[0].key)) continue; // not installed here: install covers it
+    if (findInRepo(root, c.detect ?? [], { code: true })) continue;
+    updates.push({
+      id: c.id, since: c.since, title: c.title, summary: c.summary,
+      apps: mine.map((a) => `${a.name} (${a.platform})`),
+      how: [...new Set(mine.map((a) => c.how?.[a.platform]).filter(Boolean))].join('; '),
+    });
+  }
+  return {
+    updates,
+    ...(updates.length ? { ask_first: 'Tell the person what each update does in a sentence and ask whether to add it. Do not add any without a yes. If they say no, call skip_update with its id.' } : {}),
+  };
+}
+
+/** Remember a no, so the next agent doesn't ask again. */
+export function skipUpdate(id, { root = repoAt().root, by = 'the team' } = {}) {
+  const d = readDecisions(root);
+  d.skipped = { ...(d.skipped ?? {}), [id]: { at: new Date().toISOString(), by } };
+  mkdirSync(join(root, DECISIONS, '..'), { recursive: true });
+  writeFileSync(join(root, DECISIONS), JSON.stringify(d, null, 2) + '\n');
+  return { skipped: id, recorded_in: DECISIONS, commit: 'Commit this file so the answer holds in every checkout.' };
+}
+
+/** The files `heresay connect` writes, if they exist here but aren't committed. */
+export const AGENT_FILES = ['.mcp.json', '.claude/skills/heresay/SKILL.md', DECISIONS, 'AGENTS.md', 'CLAUDE.md'];
+export function uncommittedAgentFiles(root) {
+  const loose = [];
+  for (const f of AGENT_FILES) {
+    if (!existsSync(join(root, f))) continue;
+    try {
+      execFileSync('git', ['ls-files', '--error-unmatch', f], { cwd: root, stdio: 'ignore' });
+      // Tracked, but with our section changed and not committed yet?
+      execFileSync('git', ['diff', '--quiet', 'HEAD', '--', f], { cwd: root, stdio: 'ignore' });
+    } catch { loose.push(f); }
+  }
+  return loose;
 }
 
 /** An app connected to this repo, by id or name. `how` says where to look them up. */
@@ -269,6 +341,23 @@ export async function verifyInstall(api, app, { wait = 0, root = repoAt().root }
     framework: r.framework,
     framework_detected: r.framework_detected,
   };
+  // What the install still owes the people using the app, beyond the key being there.
+  const todo = [];
+  if (file && !findInRepo(root, ['introduce(', 'data-intro'], { code: true })) {
+    todo.push(apple(app)
+      ? 'Tell people Heresay is there: call Heresay.introduce() once the main screen appears (after sign-in and onboarding). It shows a one-time alert saying where to find it. Required; see guide install-apple, step 5.'
+      : 'Tell people Heresay is there: add data-intro="auto" to the tag, or call window.Heresay?.introduce() once the main screen appears (after sign-in and onboarding). Required; see guide install-web, step 4.');
+  }
+  if (file && app.sign_in === 'yes' && !findInRepo(root, ['identify('], { code: true })) {
+    todo.push(apple(app)
+      ? 'People sign in to this app: call Heresay.identify(id:label:email:) after sign-in and Heresay.identify() after sign-out, so nobody is asked their name.'
+      : 'People sign in to this app: call window.Heresay?.identify({ id, label, email }) after sign-in and identify() after sign-out, so nobody is asked their name.');
+  }
+  const loose = uncommittedAgentFiles(root);
+  if (loose.length) {
+    todo.push(`Commit Heresay's agent files (${loose.join(', ')}) in their own commit. New checkouts, worktrees and teammates only get what's committed, so without it the /heresay skill and MCP server are missing there.`);
+  }
+  out.todo = todo;
   if (!file && !out.seen_running) {
     out.hint = apple(app)
       ? `The key isn't in this repo's code yet. Add the Swift package and call Heresay.configure(key: "${app.key}", url: …) once in the App's init; see \`heresay install ${app.id}\`.`

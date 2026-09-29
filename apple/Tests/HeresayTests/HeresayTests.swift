@@ -258,3 +258,17 @@ final class SavedPreferencesTests: XCTestCase {
         XCTAssertFalse(h.isSignedIn)
     }
 }
+
+@MainActor
+final class IntroductionTests: XCTestCase {
+    func testShowsOncePerInstallAndSaysWhereToLook() {
+        let d = UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!
+        let h = Heresay(defaults: d)
+        XCTAssertTrue(h.introduce())
+        XCTAssertTrue(h.introPending)
+        h.introPending = false
+        XCTAssertFalse(h.introduce(), "never twice")
+        XCTAssertFalse(Heresay(defaults: d).introduce(), "not after a relaunch either")
+        XCTAssertTrue(h.introMessage.contains("A person reads every report"))
+    }
+}

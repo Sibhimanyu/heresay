@@ -430,9 +430,18 @@ async function createProject(me: Member, req: Req, deps: Deps): Promise<Res> {
     origins.push(normaliseOrigin(u.origin));
   }
   if (body.sign_in != null && !isSignIn(body.sign_in)) return json(400, { error: 'sign_in must be yes, no or null' });
+  // Another platform of an existing product: it has to be one.
+  let product_id: string | null = null;
+  if (body.product_id != null) {
+    const want = str(body.product_id, 40);
+    const all = await deps.store.listProjects();
+    if (!want || !all.some((x) => (x.product_id ?? x.id) === want)) return json(400, { error: 'no such product to add a platform to' });
+    product_id = want;
+  }
   const project: Project = {
     id: newId('p_', 9), name, platform, framework: framework ? framework.toLowerCase() : null,
     sign_in: isSignIn(body.sign_in) ? body.sign_in : null,
+    product_id,
     key: newId('pk_', 18), allowed_origins: [...new Set(origins)], created_by: me.email,
     created_at: new Date(deps.now()).toISOString(),
   };
