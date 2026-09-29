@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heresay</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+
+<!-- Signed out -->
+<div id="gate" class="gate" hidden>
+  <img src="/mark.svg" alt="" width="64" height="64">
+  <h1>Sign in to your Heresay</h1>
+  <p class="mute">Use the account your team owner added.</p>
+  <button id="google" class="btn primary wide"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#fff" d="M21.35 11.1H12v2.98h5.35c-.23 1.38-1.64 4.05-5.35 4.05a5.93 5.93 0 0 1 0-11.86c1.83 0 3.06.78 3.76 1.45l2.57-2.47C16.68 3.7 14.55 2.7 12 2.7a9.3 9.3 0 1 0 0 18.6c5.37 0 8.93-3.77 8.93-9.09 0-.61-.07-1.08-.16-1.54z"/></svg>Continue with Google</button>
+  <div class="or"><span>or</span></div>
+  <form id="link-form" class="link-form">
+    <label class="sr" for="link-email">Email</label>
+    <input id="link-email" type="email" required placeholder="you@company.com" autocomplete="email">
+    <button class="btn wide">Email me a sign-in link</button>
+  </form>
+  <p id="gate-msg" class="gate-msg" role="status"></p>
+</div>
+
+<!-- Signed in, but this Heresay can't let them in -->
+<div id="blocked" class="gate" hidden>
+  <img src="/mark.svg" alt="" width="64" height="64">
+  <h1 id="blocked-title"></h1>
+  <p id="blocked-text" class="mute"></p>
+  <button id="blocked-out" class="btn wide">Use another account</button>
+</div>
+
+<div id="app" hidden>
+  <header class="top">
+    <a href="#/" aria-label="Your apps"><img src="/logo.svg" alt="Heresay" height="28" style="display:block"></a>
+    <nav class="tabs" aria-label="Main">
+      <a href="#/" data-nav="apps">Apps</a>
+      <a href="#/team" data-nav="team">Team</a>
+    </nav>
+    <span class="spacer"></span>
+    <span id="who" class="who"></span>
+    <button id="signout" class="btn ghost">Sign out</button>
+  </header>
+  <main id="view"></main>
+</div>
+
+<script src="/__/firebase/10.14.1/firebase-app-compat.js"></script>
+<script src="/__/firebase/10.14.1/firebase-auth-compat.js"></script>
+<script src="/__/firebase/init.js"></script>
+<script src="/dashboard.js"></script>
+</body>
+</html>

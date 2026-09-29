@@ -1,0 +1,38 @@
+{
+  "name": "create-heresay",
+  "version": "0.1.0",
+  "description": "Set up your own Heresay: in-app feedback that every report gets a hearing. Creates a Firebase project in your Google account and deploys the dashboard, API and SDK to it.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "create-heresay": "bin/create-heresay.mjs",
+    "heresay": "bin/create-heresay.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "release",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "firebase-tools": "15.31.0",
+    "picocolors": "^1.1.1"
+  },
+  "scripts": {
+    "prepublishOnly": "node ../../scripts/build-release.mjs"
+  },
+  "keywords": [
+    "feedback",
+    "bug-report",
+    "sdk",
+    "firebase",
+    "self-hosted",
+    "heresay"
+  ],
+  "author": "Sibhimanyu"
+}

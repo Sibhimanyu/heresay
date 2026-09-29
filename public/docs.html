@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heresay docs</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav" aria-label="Main">
+    <a href="/" aria-label="Heresay home"><img src="/logo.svg" alt="Heresay" height="34"></a>
+    <div class="links"><a href="/#how">How it works</a><a href="/docs.html">Docs</a><a class="keep" href="/app/">Sign in</a></div>
+    <a class="btn btn-p btn-sm" href="#self-host">Set up</a>
+  </nav>
+
+  <div class="docs">
+    <aside class="toc">
+      <b>START</b><a href="#self-host">Set up Heresay</a><a href="#quick-start">Add it to an app</a><a href="#what-users-see">What your users see</a><a href="#dashboard">The dashboard</a>
+      <b>REFERENCE</b><a href="#options">Script tag options</a><a href="#api">JavaScript API</a><a href="#statuses">Report types and statuses</a><a href="#agents">Coding agents</a>
+      <b>MORE</b><a href="#security">Security and limits</a><a href="#privacy">Privacy</a><a href="#csp">Content Security Policy</a><a href="#rest">Other platforms</a><a href="#trouble">Troubleshooting</a>
+    </aside>
+
+    <main class="doc" data-origin>
+      <h1>Heresay docs</h1>
+      <p class="lede">Everything you need to add a Report button to your app, read what people say, and answer them.</p>
+
+      <h2 id="self-host">Set up Heresay</h2>
+      <p>Each team runs its own Heresay, in its own Google account, so your reports never sit on anyone else's servers. One command sets it up:</p>
+<pre><code>npx create-heresay</code></pre>
+      <p>It signs you in to Google, creates a Firebase project, links a billing account, deploys the dashboard, API and SDK, and makes you the owner. It takes about five minutes, and you can run it again if anything stops partway. Firebase's pay-as-you-go plan is needed for the API; a small app stays inside its free tier.</p>
+      <p>Later, <code>npx create-heresay update</code> deploys new versions and <code>npx create-heresay status</code> shows what's running.</p>
+
+      <h2 id="quick-start">Add it to an app</h2>
+      <ol>
+        <li><a href="/app/">Sign in</a> to your dashboard and choose <b>Add an app</b>. Pick the platform, give it a name, and list the websites it runs on, for example <code>https://app.example.com</code> and <code>http://localhost:3000</code>.</li>
+        <li>Copy the line the dashboard shows you (it has steps for Next.js, Nuxt and others too) and paste it before <code>&lt;/body&gt;</code> on every page:</li>
+      </ol>
+<pre><code><span class="k">&lt;script</span> src="ORIGIN/sdk/v1.js" data-key="pk_your_key" defer<span class="k">&gt;&lt;/script&gt;</span></code></pre>
+      <ol start="3"><li>Reload your app. A <b>Report</b> button appears in the bottom corner. Send yourself a test report and the dashboard shows it within a few seconds.</li></ol>
+      <p class="note">That's the whole setup. Everything below is optional.</p>
+
+      <h2 id="what-users-see">What your users see</h2>
+      <p>A small Report button in the corner. Tapping it opens a panel with two tabs:</p>
+      <ul>
+        <li><b>Report:</b> pick what it is (Broken, Confusing, Could be better, Idea), write a sentence, and send. The current page and app version are attached automatically.</li>
+        <li><b>Your reports:</b> everything they've sent from this device and what happened to it. When you answer, a dot appears on the button until they've seen it.</li>
+      </ul>
+      <p>Nobody signs up. Each browser gets a random device id, which is how people see their own reports and nobody else's.</p>
+
+      <h2 id="dashboard">The dashboard</h2>
+      <p>Reports arrive sorted by urgency: open reports first, then Broken, Confusing, Could be better and Idea, oldest first within each. For each report you can:</p>
+      <table><tr><th>Action</th><th>What happens</th></tr>
+        <tr><td><b>Accept</b></td><td>The reporter sees "Accepted, being worked on". The report becomes available as a coding-agent prompt.</td></tr>
+        <tr><td><b>Decline…</b></td><td>You must write a reason. The reporter reads it, so write it for them.</td></tr>
+        <tr><td><b>Mark fixed</b></td><td>For accepted reports. The reporter sees "Fixed".</td></tr>
+        <tr><td><b>Copy prompt for agent</b></td><td>For accepted reports. See <a href="#agents">Coding agents</a>.</td></tr></table>
+      <p>Open an app and choose <b>Install</b> to see its line again. Everyone on the <b>Team</b> page can read and answer reports for every app; owners can add and remove people. People sign in with Google or an email link, using the address an owner added.</p>
+
+      <h2 id="options">Script tag options</h2>
+      <p>Add any of these attributes to the script tag.</p>
+      <table><tr><th>Attribute</th><th>Example</th><th>What it does</th></tr>
+        <tr><td><code>data-key</code></td><td><code>pk_…</code></td><td>Required. Your app's key from the dashboard.</td></tr>
+        <tr><td><code>data-version</code></td><td><code>1.4.0</code></td><td>Your app's version, attached to every report.</td></tr>
+        <tr><td><code>data-user-id</code></td><td><code>u_1842</code></td><td>Who the user is, in your system.</td></tr>
+        <tr><td><code>data-user-label</code></td><td><code>Asha K.</code></td><td>A name to show in your dashboard.</td></tr>
+        <tr><td><code>data-accent</code></td><td><code>#6d28d9</code></td><td>Your brand colour for the Send button and selected states. Hex only. Text on it switches to white or black automatically.</td></tr>
+        <tr><td><code>data-position</code></td><td><code>left</code></td><td>Put the button in the bottom-left corner instead of the right.</td></tr>
+        <tr><td><code>data-api</code></td><td><code>https://…/v1</code></td><td>Rarely needed. Where your Heresay API lives, if it is not at the same address as <code>sdk.js</code>.</td></tr></table>
+<pre><code><span class="k">&lt;script</span> src="ORIGIN/sdk/v1.js"
+        data-key="pk_your_key"
+        data-version="1.4.0"
+        data-accent="#6d28d9"
+        defer<span class="k">&gt;&lt;/script&gt;</span></code></pre>
+
+      <h2 id="api">JavaScript API</h2>
+      <p>The script creates <code>window.Heresay</code> (also available as <code>window.Feedback</code>). Call these any time after it loads.</p>
+      <table><tr><th>Call</th><th>What it does</th></tr>
+        <tr><td><code>Heresay.identify({ id, label })</code></td><td>Tell Heresay who is signed in. Call it after login; pass nothing to clear it.</td></tr>
+        <tr><td><code>Heresay.setVersion("1.4.0")</code></td><td>Set or change the app version.</td></tr>
+        <tr><td><code>Heresay.setScreen("Checkout")</code></td><td>Name the current screen, for apps whose URL doesn't change between screens.</td></tr>
+        <tr><td><code>Heresay.open()</code></td><td>Open the report form from your own button or menu item.</td></tr>
+        <tr><td><code>Heresay.close()</code></td><td>Close the panel.</td></tr></table>
+<pre><code><span class="k">// after your user signs in</span>
+Heresay.identify({ id: user.id, label: user.name });
+
+<span class="k">// single-page apps: name screens as the user moves</span>
+router.afterEach((to) =&gt; Heresay.setScreen(to.name));</code></pre>
+
+      <h2 id="statuses">Report types and statuses</h2>
+      <h3>Types, picked by the reporter</h3>
+      <table><tr><th>Type</th><th>Means</th><th>Priority</th></tr>
+        <tr><td>Broken</td><td>Something doesn't work</td><td>1 · first</td></tr>
+        <tr><td>Confusing</td><td>It works, but they couldn't tell how</td><td>2</td></tr>
+        <tr><td>Could be better</td><td>It works, and could be better</td><td>3</td></tr>
+        <tr><td>Idea</td><td>Something that doesn't exist yet</td><td>4</td></tr></table>
+      <p>Reporters never pick a priority. It comes from the type. Confusing ranks above Could be better on purpose: a feature nobody can operate is closer to broken.</p>
+      <h3>Statuses</h3>
+      <table><tr><th>Dashboard</th><th>What the reporter sees</th></tr>
+        <tr><td>Open</td><td>Waiting for the developer</td></tr>
+        <tr><td>Accepted</td><td>Accepted, being worked on</td></tr>
+        <tr><td>Fixed</td><td>Fixed</td></tr>
+        <tr><td>Declined</td><td>Declined, with your reason</td></tr></table>
+
+      <h2 id="agents">Coding agents</h2>
+      <p>When you accept a report, <b>Copy prompt for agent</b> gives you a ready-made task for Claude Code, Cursor or any other coding agent: the type, the screen and version, the user's words, and your note.</p>
+      <p class="note">Only accepted reports can become prompts, and they're stored separately from everything else. The user's words are fenced off and labelled as a description, not instructions, so a report can't take over your agent.</p>
+
+      <h2 id="security">Security and limits</h2>
+      <ul>
+        <li><b>Your key is public, and that's fine.</b> It's in your page's HTML. It only identifies your project; it can't read or change anything.</li>
+        <li><b>Your key only works on your site.</b> Reports from any other website are refused. Leave the list empty when adding an app to allow any site (useful for testing). Your Heresay's own address is always allowed, so its test page works.</li>
+        <li><b>Rate limits.</b> Per device: 5 reports per 10 minutes and 20 per day. Per network: 30 per hour. Per app: 500 per day.</li>
+        <li><b>Size.</b> Reports are up to 2,000 characters. Context fields are trimmed to 200.</li>
+      </ul>
+
+      <h2 id="privacy">Privacy</h2>
+      <p>Heresay stores what the user typed, the type they chose, the page or screen, your app version, browser and OS, and the user id or label only if you pass one. It sets no cookies and takes no screenshots. A random device id lives in the browser's local storage so people can see their own reports.</p>
+
+      <h2 id="csp">Content Security Policy</h2>
+      <p>If your site sends a Content Security Policy, allow Heresay in two places:</p>
+<pre><code>script-src  ORIGIN;
+connect-src ORIGIN;</code></pre>
+
+      <h2 id="rest">Other platforms</h2>
+      <p>The web SDK is the first. Until the iOS SDK ships, any app can talk to the same API. Both calls take a JSON body sent as <code>text/plain</code>.</p>
+<pre><code><span class="k">POST</span> ORIGIN/v1/reports
+{ "key": "pk_…", "device_id": "a-random-id-16-to-64-chars",
+  "type": "confusing", "text": "I can't find where to cancel my plan.",
+  "context": { "route": "Settings", "app_version": "1.4.0", "platform": "ios", "os": "iOS 18" } }
+
+<span class="k">POST</span> ORIGIN/v1/reports/mine
+{ "key": "pk_…", "device_id": "the-same-id" }   <span class="k">// this device's reports and their statuses</span></code></pre>
+
+      <h2 id="trouble">Troubleshooting</h2>
+      <table><tr><th>You see</th><th>Why, and the fix</th></tr>
+        <tr><td>No Report button</td><td>Check the script tag has <code>data-key</code>, and look for a CSP error in the browser console.</td></tr>
+        <tr><td>"This site is not allowed to use this key"</td><td>The page's address doesn't match the website on your project. Use the exact origin, including <code>https://</code> and any port.</td></tr>
+        <tr><td>"Too many reports, try again later"</td><td>A rate limit was hit. It resets on its own; the response says when.</td></tr>
+        <tr><td>Reports show no version</td><td>Add <code>data-version</code> or call <code>Heresay.setVersion()</code>.</td></tr></table>
+    </main>
+  </div>
+</div>
+<footer class="site"><div class="wrap"><span>© 2026 Heresay</span><span><a href="/">Home</a> · <a href="/app/">Sign in</a></span></div></footer>
+<script>
+  document.querySelectorAll('[data-origin]').forEach(function (el) { el.innerHTML = el.innerHTML.replace(/ORIGIN/g, location.origin); });
+</script>
+</body>
+</html>

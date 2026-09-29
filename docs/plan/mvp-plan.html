@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heresay · MVP plan</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --deep:#0b5e57; --peacock:#0f766e; --turq:#2dd4bf; --mist:#e6f4f2; --ink:#15171c; --slate:#5b6472; --line:#e3e6ea; --paper:#f5f6f7;
+    --head:"Bricolage Grotesque", system-ui, sans-serif; --body:Figtree, system-ui, sans-serif; --mono:"JetBrains Mono", monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:17px/1.6 var(--body); color:var(--ink); background:#fff; }
+  main { max-width:1120px; margin:0 auto; padding:56px 32px 96px; }
+  h1, h2, h3 { font-family:var(--head); letter-spacing:-.03em; margin:0; }
+  h1 { font-size:54px; line-height:1.05; font-weight:800; }
+  h2 { font-size:32px; font-weight:800; margin-bottom:20px; }
+  h3 { font-size:19px; font-weight:700; letter-spacing:-.01em; }
+  .lede { font-size:20px; color:var(--slate); max-width:46ch; margin:14px 0 0; }
+  section { margin-top:80px; }
+  .card { background:var(--paper); border-radius:18px; padding:24px; min-width:0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  .muted { color:var(--slate); }
+  code { font:14px var(--mono); background:var(--mist); color:var(--deep); padding:2px 6px; border-radius:5px; }
+
+  /* the loop */
+  .loop { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px; align-items:stretch; }
+  .node { border-radius:16px; padding:16px; background:var(--paper); position:relative; }
+  .node .n { font:700 12px var(--mono); color:var(--peacock); }
+  .node b { display:block; font:700 17px/1.3 var(--head); margin:6px 0 4px; }
+  .node p { margin:0; font-size:14px; color:var(--slate); line-height:1.45; }
+  .node.new { background:var(--mist); box-shadow:inset 0 0 0 2px var(--peacock); }
+  .node.new .tag { position:absolute; top:12px; right:12px; font:700 11px var(--body); background:var(--peacock); color:#fff; border-radius:999px; padding:2px 8px; }
+  .back { margin-top:10px; text-align:center; font-size:14px; color:var(--deep); background:var(--mist); border-radius:999px; padding:8px; font-weight:600; }
+
+  /* status */
+  .have li, .need li { margin:6px 0; }
+  .have { list-style:none; padding:0; margin:0; }
+  .have li::before { content:"✓  "; color:var(--peacock); font-weight:800; }
+  .need { list-style:none; padding:0; margin:0; }
+  .need li::before { content:"○  "; color:#855309; font-weight:800; }
+
+  /* bridge */
+  .bridge { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+  .opt { border:1px solid var(--line); border-radius:18px; padding:22px; }
+  .opt.rec { border:2px solid var(--peacock); }
+  .opt .t { display:flex; justify-content:space-between; align-items:baseline; }
+  .opt .badge { font:700 11px var(--body); background:var(--peacock); color:#fff; border-radius:999px; padding:2px 9px; }
+  .opt p { color:var(--slate); font-size:15px; margin:8px 0 0; }
+  pre { background:var(--ink); color:#e8ecf1; border-radius:12px; padding:16px 18px; font:14px/1.65 var(--mono); overflow:auto; margin:12px 0 0; }
+  pre .k { color:var(--turq); }
+  pre .c { color:#8b93a1; }
+
+  /* milestones */
+  .ms { display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
+  .m { border-radius:18px; padding:22px; border:1px solid var(--line); }
+  .m .n { width:36px; height:36px; border-radius:11px; background:var(--mist); color:var(--deep); display:flex; align-items:center; justify-content:center; font:800 17px/1 var(--head); }
+  .m h3 { margin:14px 0 8px; }
+  .m ul { margin:0; padding-left:18px; font-size:15px; color:#2f343d; }
+  .m li { margin:4px 0; }
+  .m .done { margin-top:12px; font-size:14px; color:var(--deep); background:var(--mist); border-radius:10px; padding:8px 10px; }
+
+  .asks { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .ask { border-radius:18px; padding:22px; background:var(--paper); }
+  .ask .q { font:700 19px/1.3 var(--head); }
+  .ask .r { margin-top:10px; font-size:15px; color:var(--deep); font-weight:600; }
+  .ask .r::before { content:"→ "; }
+  @media (max-width:900px) { .loop, .ms, .bridge, .grid2, .grid3, .asks { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Heresay MVP plan</h1>
+  <p class="lede">A web SDK anyone could adopt, used first on our own app, with a straight line from a user's report to our coding agent and back.</p>
+
+  <section>
+    <h2>The whole loop</h2>
+    <div class="loop">
+      <div class="node"><div class="n">1 · USER</div><b>Taps Report</b><p>In our app, with the screen and version attached.</p></div>
+      <div class="node"><div class="n">2 · US</div><b>Accept it</b><p>In the dashboard. A person always says yes first.</p></div>
+      <div class="node new"><span class="tag">new</span><div class="n">3 · BRIDGE</div><b>Agent picks it up</b><p>Claude Code sees accepted briefs through the Heresay MCP server.</p></div>
+      <div class="node new"><span class="tag">new</span><div class="n">4 · AGENT</div><b>Fixes the code</b><p>In our repo, on a branch, like any other task.</p></div>
+      <div class="node new"><span class="tag">new</span><div class="n">5 · AGENT</div><b>Marks it fixed</b><p>With a one-line note of what changed.</p></div>
+      <div class="node"><div class="n">6 · USER</div><b>Hears back</b><p>Sees "Fixed" and the note in the same app.</p></div>
+    </div>
+    <div class="back">Steps 1, 2 and 6 work today. The MVP adds 3, 4 and 5: the bridge to the agent.</div>
+  </section>
+
+  <section>
+    <h2>Where we are</h2>
+    <div class="grid2">
+      <div class="card"><h3>Working today</h3><ul class="have">
+        <li>Web SDK: one script tag, report form, "Your reports", answers shown in the app</li>
+        <li>API: accept, decline with reason, mark fixed; rate limits; site lock</li>
+        <li>Dashboard at <code>/app/</code>; "Copy prompt for agent" by hand</li>
+        <li>Brand, product site, docs, all live</li>
+        <li>End-to-end test of the report → answer loop</li></ul></div>
+      <div class="card"><h3>Missing for the MVP</h3><ul class="need">
+        <li>An agent token, so an agent can read briefs without a browser login</li>
+        <li>The MCP server and a tiny CLI, so Claude Code can fetch and close briefs</li>
+        <li>A fix note the reporter can read ("Fixed: the button now exports CSV")</li>
+        <li>SDK polish: SPA route tracking, a versioned script URL, error capture</li>
+        <li>Heresay installed in our own app, and a first real report fixed end to end</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Getting reports to our agent</h2>
+    <div class="bridge">
+      <div class="opt rec"><div class="t"><h3>MCP server</h3><span class="badge">recommended</span></div>
+        <p>Claude Code (and other agents) connect to Heresay as a tool. Ask "fix the next Heresay report" and it lists briefs, reads one, fixes it, and marks it fixed.</p></div>
+      <div class="opt"><div class="t"><h3>CLI</h3></div>
+        <p><code>npx heresay briefs</code>, <code>heresay fixed &lt;id&gt; "note"</code>. Same API, for scripts, CI, or agents without MCP. Nearly free once the API exists.</p></div>
+      <div class="opt"><div class="t"><h3>GitHub issues</h3></div>
+        <p>Accepting a report opens an issue. Good for teams, but slower and needs a GitHub app. Later.</p></div>
+    </div>
+    <div class="grid2" style="margin-top:20px">
+      <div class="card"><h3>What the agent can do (MCP tools)</h3>
+<pre><span class="k">list_briefs</span>()            <span class="c">// accepted, not fixed, most urgent first</span>
+<span class="k">get_brief</span>(id)            <span class="c">// the prompt: type, route, version, user's words</span>
+<span class="k">mark_fixed</span>(id, note)     <span class="c">// reporter sees "Fixed" + note</span>
+<span class="k">add_note</span>(id, note)       <span class="c">// optional progress, private to you</span></pre>
+        <p class="muted" style="font-size:15px;margin:12px 0 0">The agent can only see accepted reports. It cannot read open reports, accept, or decline. Those stay human.</p></div>
+      <div class="card"><h3>Setting it up in our repo</h3>
+<pre><span class="c"># 1. dashboard → project → "Agent token" → copy</span>
+<span class="c"># 2. once, in the repo:</span>
+claude mcp add heresay -- npx heresay-mcp
+<span class="c">#    with HERESAY_TOKEN=agt_… in the environment</span>
+<span class="c"># 3. then just ask:</span>
+<span class="k">&gt;</span> fix the most urgent Heresay report</pre>
+        <p class="muted" style="font-size:15px;margin:12px 0 0">Tokens are per project, shown once, stored hashed, and can be revoked from the dashboard.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Milestones</h2>
+    <div class="ms">
+      <div class="m"><div class="n">1</div><h3>Agent API</h3><ul>
+        <li>Agent tokens: create, list, revoke</li><li><code>GET /v1/agent/briefs</code>, <code>GET …/:id</code></li><li><code>POST …/:id/fixed</code> with a note</li><li>Fix note shown to the reporter</li><li>Tests: agent sees only accepted</li></ul>
+        <div class="done">Done when curl with a token lists and closes a brief.</div></div>
+      <div class="m"><div class="n">2</div><h3>MCP + CLI</h3><ul>
+        <li><code>heresay-mcp</code> package: 4 tools</li><li><code>heresay</code> CLI on the same client</li><li>Claude Code setup in the docs</li><li>Test against the emulators</li></ul>
+        <div class="done">Done when Claude Code fixes a seeded report and marks it fixed.</div></div>
+      <div class="m"><div class="n">3</div><h3>SDK ready to adopt</h3><ul>
+        <li>SPA route tracking (history, hash)</li><li>Optional JS error capture</li><li>Versioned URL <code>/sdk/v1.js</code>, size budget</li><li>Keyboard and screen-reader pass</li><li>Safari, Firefox, mobile checks</li></ul>
+        <div class="done">Done when it drops into any site with no surprises.</div></div>
+      <div class="m"><div class="n">4</div><h3>Dogfood</h3><ul>
+        <li>Install in our own app</li><li>Install on heresay's own site and dashboard</li><li>Report → accept → agent fix → user sees Fixed, for real</li><li>Write down every rough edge</li></ul>
+        <div class="done">Done when a real report is fixed by the agent end to end.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Your call</h2>
+    <div class="asks">
+      <div class="ask"><div class="q">Which app is "my project"?</div><div class="r">Tell me the repo. Heresay's own site and dashboard get it too.</div></div>
+      <div class="ask"><div class="q">Which agent do we target first?</div><div class="r">Claude Code via MCP, with the CLI as backup</div></div>
+      <div class="ask"><div class="q">Status words</div><div class="r">Keep plain words for now; court words later</div></div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

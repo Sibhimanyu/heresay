@@ -1,0 +1,9 @@
+node_modules/
+functions/lib/
+functions/lib-test/
+*.log
+.firebase/
+*.local
+.context/
+packages/create-heresay/node_modules/
+packages/create-heresay/release/
