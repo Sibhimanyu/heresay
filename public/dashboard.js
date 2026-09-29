@@ -193,6 +193,14 @@
       icon: '<path d="M14 3 5 12l3 3L20 3zM14 12l-5 5 5 5h6l-5-5 5-5z"/>' },
   ];
   var platformOf = function (id) { return PLATFORMS.filter(function (x) { return x.id === id; })[0] || PLATFORMS[0]; };
+  /** Apps that are platforms of one product share its id: the first app's. */
+  var productOf = function (p) { return p.product_id || p.id; };
+  var siblings = function (p) {
+    var mine = projects.filter(function (x) { return productOf(x) === productOf(p); });
+    if (!mine.some(function (x) { return x.id === p.id; })) mine.push(p);
+    return mine.sort(function (a, b) { return a.created_at.localeCompare(b.created_at); });
+  };
+  var productName = function (p) { return siblings(p)[0].name; };
   var icon = function (p) { return el('span', { class: 'picon', html: '<svg viewBox="0 0 24 24" aria-hidden="true">' + p.icon + '</svg>' }); };
 
   function appsView(view) {
@@ -211,21 +219,34 @@
         el('a', { class: 'btn primary', href: '#/new', text: 'Add an app' }),
       ]));
       var grid = el('div', { class: 'apps' });
-      projects.forEach(function (p) {
-        var count = el('span', { class: 'count', text: ' ' });
-        var card = el('a', { class: 'app-card', href: '#/apps/' + p.id }, [
-          icon(platformOf(p.platform)),
-          el('div', {}, [el('b', { text: p.name }), el('span', { class: 'mute', text: platformOf(p.platform).label + (p.framework ? ' · ' + frameworkLabel(p.framework) : '') })]),
-          count,
-        ]);
-        grid.appendChild(card);
-        api('GET', '/projects/' + p.id + '/reports').then(function (r) {
-          var open = r.reports.filter(function (x) { return x.status === 'open'; }).length;
-          // No report yet means setup isn't proven: send them back to finish it.
-          if (!r.reports.length && !p.sdk_seen && !p.code_found) { card.href = '#/apps/' + p.id + '/setup'; count.textContent = 'Setup not finished'; count.className = 'count todo'; return; }
-          count.textContent = !r.reports.length ? 'No reports yet' : open ? open + ' open' : 'All answered';
-          if (open) count.className = 'count on';
+      // One card per product; one line per platform in it, each with its own state.
+      var seen = {};
+      projects.forEach(function (first) {
+        if (seen[productOf(first)]) return;
+        seen[productOf(first)] = true;
+        var sibs = siblings(first);
+        var many = sibs.length > 1;
+        var rows = sibs.map(function (p) {
+          var count = el('span', { class: 'count', text: ' ' });
+          var line = el('a', { class: 'app-card' + (many ? ' platform-line' : ''), href: '#/apps/' + p.id }, [
+            icon(platformOf(p.platform)),
+            el('div', {}, [el('b', { text: many ? platformOf(p.platform).label : p.name }),
+              el('span', { class: 'mute', text: many ? (p.framework ? frameworkLabel(p.framework) : ' ') : platformOf(p.platform).label + (p.framework ? ' · ' + frameworkLabel(p.framework) : '') })]),
+            count,
+          ]);
+          api('GET', '/projects/' + p.id + '/reports').then(function (r) {
+            var open = r.reports.filter(function (x) { return x.status === 'open'; }).length;
+            // No report yet means setup isn't proven: send them back to finish it.
+            if (!r.reports.length && !p.sdk_seen && !p.code_found) { line.href = '#/apps/' + p.id + '/setup'; count.textContent = 'Setup not finished'; count.className = 'count todo'; return; }
+            count.textContent = !r.reports.length ? 'No reports yet' : open ? open + ' open' : 'All answered';
+            if (open) count.className = 'count on';
+          });
+          return line;
         });
+        var add = el('a', { class: 'add-platform', href: '#/new?product=' + productOf(first), text: '+ Add a platform' });
+        grid.appendChild(many
+          ? el('div', { class: 'product-card' }, [el('div', { class: 'product-head' }, [el('b', { text: first.name }), add])].concat(rows))
+          : el('div', { class: 'product-card single' }, [rows[0], add]));
       });
       view.appendChild(grid);
     });
@@ -238,14 +259,15 @@
     ['unknown', 'Not sure'], ['html', 'Plain HTML'], ['react', 'React'], ['next', 'Next.js'], ['vue', 'Vue'], ['nuxt', 'Nuxt'],
     ['svelte', 'SvelteKit'], ['angular', 'Angular'], ['other', 'Something else'],
   ];
-  function frameworkLabel(id) { var f = FRAMEWORKS.filter(function (x) { return x[0] === id; })[0]; return f ? f[1] : id; }
+  var NATIVE_LABELS = { swiftui: 'SwiftUI', uikit: 'UIKit', appkit: 'AppKit' };
+  function frameworkLabel(id) { var f = FRAMEWORKS.filter(function (x) { return x[0] === id; })[0]; return f ? f[1] : NATIVE_LABELS[id] || id; }
 
   /**
    * The four steps. Earlier ones are links, so you can go back and change things; later ones
    * aren't, because each step needs the one before it. `tested` marks the last step done.
    */
-  function stepper(active, p, tested) {
-    var q = p ? '?app=' + p.id : '';
+  function stepper(active, p, tested, query) {
+    var q = p ? '?app=' + p.id : (query || '');
     var links = ['#/new' + q, p ? '#/new/' + p.platform + q : null, p ? '#/apps/' + p.id + '/setup' : null, null];
     var names = ['Platform', 'Details', 'Install', 'Test'];
     return el('ol', { class: 'steps' }, names.map(function (s, i) {
@@ -260,28 +282,43 @@
   /** Adding an app, or with ?app=<id>, going back to change one that already exists. */
   function newAppView(view, platform, query) {
     var editId = query && query.get('app');
-    if (editId) return withProject(editId, function (p) { drawNewApp(view, platform, p); });
-    drawNewApp(view, platform, null);
+    var productId = query && query.get('product');
+    if (editId) return withProject(editId, function (p) { drawNewApp(view, platform, p, null); });
+    if (productId) {
+      return api('GET', '/projects').then(function (b) {
+        projects = b.projects;
+        var first = projects.filter(function (x) { return productOf(x) === productId; })[0];
+        if (!first) { location.hash = '#/'; return; }
+        drawNewApp(view, platform, null, first);
+      });
+    }
+    drawNewApp(view, platform, null, null);
   }
 
-  function drawNewApp(view, platform, editing) {
-    var q = editing ? '?app=' + editing.id : '';
+  /** `sibling`: adding another platform to that app's product, not a new product. */
+  function drawNewApp(view, platform, editing, sibling) {
+    var q = editing ? '?app=' + editing.id : sibling ? '?product=' + productOf(sibling) : '';
+    var has = sibling ? siblings(sibling) : [];
     if (!platform) {
-      view.appendChild(stepper(1, editing));
-      view.appendChild(el('h1', { text: 'What are you adding Heresay to?' }));
+      view.appendChild(stepper(1, editing, false, q));
+      view.appendChild(el('h1', { text: sibling ? 'Add a platform to ' + productName(sibling) : 'What are you adding Heresay to?' }));
+      if (sibling) view.appendChild(el('p', { class: 'mute', text: 'Its reports join the same inbox. Each platform gets its own key and install steps.' }));
       var grid = el('div', { class: 'platforms' });
       PLATFORMS.forEach(function (p) {
-        grid.appendChild(el(p.ready ? 'a' : 'div', {
-          class: 'platform' + (p.ready ? '' : ' soon') + (editing && editing.platform === p.id ? ' current' : ''), href: p.ready ? '#/new/' + p.id + q : null,
-          'aria-disabled': p.ready ? null : 'true',
-        }, [icon(p), el('b', { text: p.label }), el('span', { class: 'mute', text: p.note }), p.ready ? null : el('span', { class: 'tag', text: 'Soon' })]));
+        var there = has.filter(function (x) { return x.platform === p.id; })[0];
+        grid.appendChild(el(p.ready && !there ? 'a' : 'div', {
+          class: 'platform' + (p.ready ? '' : ' soon') + (there ? ' added' : '') + (editing && editing.platform === p.id ? ' current' : ''),
+          href: p.ready && !there ? '#/new/' + p.id + q : null,
+          'aria-disabled': p.ready && !there ? null : 'true',
+        }, [icon(p), el('b', { text: p.label }), el('span', { class: 'mute', text: p.note }),
+          there ? el('span', { class: 'tag', text: 'Added' }) : p.ready ? null : el('span', { class: 'tag', text: 'Soon' })]));
       });
       view.appendChild(grid);
       view.appendChild(el('p', { class: 'mute small', text: 'Other platforms can already send reports through the API. See the docs, under Other platforms.' }));
       return;
     }
 
-    view.appendChild(stepper(2, editing));
+    view.appendChild(stepper(2, editing, false, q));
     var native = !!platformOf(platform).apple;
     view.appendChild(el('h1', { text: 'About your ' + platformOf(platform).label + ' app' }));
     var err = el('p', { class: 'err', role: 'alert' });
@@ -297,7 +334,7 @@
       }));
     });
     // Signed-in apps pass who it is to Heresay, so the person reporting is never asked their name.
-    var signIn = editing && editing.sign_in ? editing.sign_in : 'unknown';
+    var signIn = editing && editing.sign_in ? editing.sign_in : sibling && sibling.sign_in ? sibling.sign_in : 'unknown';
     var signChips = el('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Do people sign in?' });
     [['yes', 'Yes, they sign in'], ['no', 'No, anyone can use it'], ['unknown', 'Not sure']].forEach(function (c) {
       signChips.appendChild(el('button', {
@@ -331,6 +368,7 @@
       err.textContent = '';
       var origins = native ? [] : form.origins.value.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
       var body = { name: form.name.value, platform: platform, framework: native ? 'swiftui' : (fw === 'unknown' ? null : fw), allowed_origins: origins, sign_in: signIn === 'unknown' ? null : signIn };
+      if (sibling) body.product_id = productOf(sibling);
       // Editing keeps the key, so a line already pasted into the app keeps working.
       (editing ? api('PATCH', '/projects/' + editing.id, body) : api('POST', '/projects', body))
         .then(function (b) {
@@ -343,6 +381,10 @@
     if (editing) {
       form.name.value = editing.name;
       if (!native) form.origins.value = editing.allowed_origins.join('\n');
+    } else if (sibling) {
+      form.name.value = productName(sibling);
+      var web = has.filter(function (x) { return x.allowed_origins.length; })[0];
+      if (!native && web) form.origins.value = web.allowed_origins.join('\n');
     }
     form.name.focus();
   }
@@ -411,8 +453,20 @@
       el('p', { text: 'Then tell Heresay who is signed in, so nobody types their name to send a report:' }), codeBlock(code)])];
   }
 
+  /** People who never noticed the button can't use it: a one-time introduction, shown by Heresay. */
+  function introStep(p) {
+    var apple = platformOf(p.platform).apple;
+    return apple ? [
+      el('p', { html: '<b>Last, tell people it’s there.</b> ' + (p.platform === 'macos' ? 'Under Help, nobody finds it by chance. ' : '') + 'Once the main screen appears, after sign-in and onboarding, show the one-time introduction. It says where to find Heresay and offers to open it:' }),
+      codeBlock('MainView()\n    .onAppear { Heresay.introduce() }   // once per install; later calls do nothing'),
+    ] : [
+      el('p', { html: '<b>Last, tell people it’s there.</b> Add <code>data-intro="auto"</code> to the tag for a one-time bubble over the button. Apps with sign-in or onboarding: call this once the main screen appears instead:' }),
+      codeBlock('window.Heresay?.introduce();   // once per device; later calls do nothing'),
+    ];
+  }
+
   function byHand(p) {
-    return byHandSteps(p).concat(identifyStep(p));
+    return byHandSteps(p).concat(identifyStep(p), introStep(p));
   }
 
   function byHandSteps(p) {
@@ -458,7 +512,7 @@
       '',
       '   npx -y heresay@latest connect --url ' + location.origin + ' --token ' + token + ' --yes',
       '',
-      '2. Print the install steps for this app and follow them. They include the app\'s key and exactly where the code goes' + (apple ? ' (a Swift package and one line of setup).' : ', for any framework.'),
+      '2. Print the install steps for this app and follow them. They include the app\'s key and exactly where the code goes' + (apple ? ' (a Swift package and one line of setup)' : ', for any framework') + '. Follow every required step, including telling the people who use the app that Heresay is there: call introduce() once the main screen appears, so it isn\'t hidden' + (apple ? ' under a menu' : ' in a corner') + '.',
       '',
       '   npx -y heresay@latest install ' + p.id,
       '',
@@ -466,7 +520,7 @@
       '',
       '   npx -y heresay@latest check ' + p.id,
       '',
-      '   You are done when it prints "installed": true. If it doesn\'t, fix what it says and run it again.',
+      '   You are done when it prints "installed": true and an empty "todo" list. If not, do what it says and run it again.',
       '',
       'Change nothing else in the app.',
     ].join('\n');
@@ -614,6 +668,7 @@
         rs.slice(0, 5).forEach(function (r) {
           feed.appendChild(el('li', { class: !first && !known[r.id] ? 'fresh' : '' }, [
             el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
+        showPlatform ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
             el('span', { class: 'feed-text', text: r.text }),
             el('span', { class: 'mute small', text: [r.context.route, r.context.platform, new Date(r.created_at).toLocaleTimeString()].filter(Boolean).join(' · ') }),
           ]));
@@ -630,59 +685,120 @@
 
   var filter = 'open';
 
+  /** Most urgent first, oldest first within a type, as the server sorts one app's reports. */
+  var TYPE_ORDER = { broken: 0, confusing: 1, improvement: 2, idea: 3 };
+  function triageSort(rs) {
+    return rs.slice().sort(function (a, b) {
+      return ((a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1))
+        || (TYPE_ORDER[a.type] - TYPE_ORDER[b.type])
+        || a.created_at.localeCompare(b.created_at);
+    });
+  }
+
+  /**
+   * One inbox for a product: every platform's reports together, each marked with where it came
+   * from. Install, delete and repos stay per platform, because keys and code differ.
+   */
   function reportsView(view, p) {
     var reports = [];
+    var sibs = [p];
+    var where = 'all';
     var filters = el('nav', { class: 'filters', 'aria-label': 'Filter' });
+    var platformBar = el('nav', { class: 'filters platforms-filter', 'aria-label': 'Platform' });
     var list = el('div', { class: 'reports' });
     var empty = el('p', { class: 'empty' });
-    var ctx = { repos: [], briefs: {} };
-    var repoLine = el('p', { class: 'repos-line' });
+    var ctxs = {};
+    var head = el('div', { class: 'head' });
+    var platformsBox = el('div', { class: 'product-platforms' });
     view.appendChild(el('a', { class: 'back', href: '#/', text: '← All apps' }));
-    view.appendChild(el('div', { class: 'head' }, [
-      el('div', { class: 'title' }, [icon(platformOf(p.platform)), el('div', {}, [el('h1', { text: p.name }),
-        p.framework ? el('span', { class: 'mute small', text: frameworkLabel(p.framework) + (p.framework_detected ? ' (detected)' : '') }) : null])]),
-      el('div', { class: 'row tight' }, [
-        el('a', { class: 'btn', href: '#/apps/' + p.id + '/setup', text: 'Install' }),
-        el('a', { class: 'btn ghost', href: '#/apps/' + p.id + '/delete', text: 'Delete…' }),
-      ]),
-    ]));
-    view.appendChild(repoLine);
+    view.appendChild(head);
+    view.appendChild(platformsBox);
+    view.appendChild(platformBar);
     view.appendChild(filters);
     view.appendChild(list);
     view.appendChild(empty);
 
+    function drawHead() {
+      head.textContent = '';
+      var many = sibs.length > 1;
+      head.appendChild(el('div', { class: 'title' }, [
+        many ? el('span', { class: 'picon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><path d="M17 13v8M13 17h8"/></svg>' }) : icon(platformOf(p.platform)),
+        el('div', {}, [el('h1', { text: productName(p) }),
+          el('span', { class: 'mute small', text: many ? sibs.map(function (x) { return platformOf(x.platform).label; }).join(' · ')
+            : (p.framework ? frameworkLabel(p.framework) + (p.framework_detected ? ' (detected)' : '') : platformOf(p.platform).label) })])]));
+      head.appendChild(el('div', { class: 'row tight' }, [
+        el('a', { class: 'btn ghost', href: '#/new?product=' + productOf(p), text: '+ Add a platform' }),
+        many ? null : el('a', { class: 'btn', href: '#/apps/' + p.id + '/setup', text: 'Install' }),
+        many ? null : el('a', { class: 'btn ghost', href: '#/apps/' + p.id + '/delete', text: 'Delete…' }),
+      ]));
+    }
+
+    /** Per platform: where agents fix it, and its own Install and Delete. */
+    function drawPlatforms() {
+      platformsBox.textContent = '';
+      var many = sibs.length > 1;
+      sibs.forEach(function (x) {
+        var repos = (ctxs[x.id] || {}).repos || [];
+        platformsBox.appendChild(el('p', { class: 'repos-line' }, [
+          many ? el('b', { text: platformOf(x.platform).label + ': ' }) : null,
+          document.createTextNode(repos.length ? 'Agents fix these in ' + repos.join(', ') + ' · ' : 'No repo connected for agents yet · '),
+          el('a', { href: '#/connect?app=' + x.id, text: 'Connect a repo' }),
+          many ? document.createTextNode(' · ') : null,
+          many ? el('a', { href: '#/apps/' + x.id + '/setup', text: 'Install' }) : null,
+          many ? document.createTextNode(' · ') : null,
+          many ? el('a', { href: '#/apps/' + x.id + '/delete', text: 'Delete…' }) : null,
+        ]));
+      });
+    }
+
     function load() {
-      return Promise.all([
-        api('GET', '/projects/' + p.id + '/reports'),
-        api('GET', '/projects/' + p.id + '/repos'),
-      ]).then(function (x) {
-        reports = x[0].reports; ctx.briefs = x[0].briefs || {}; ctx.repos = x[1].repos;
-        repoLine.textContent = '';
-        repoLine.appendChild(document.createTextNode(ctx.repos.length
-          ? 'Agents fix these in: ' + ctx.repos.join(', ') + ' · ' : 'No repo connected for agents yet · '));
-        repoLine.appendChild(el('a', { href: '#/connect?app=' + p.id, text: 'Connect a repo' }));
+      return api('GET', '/projects').then(function (b) {
+        projects = b.projects;
+        sibs = siblings(p);
+        drawHead();
+        return Promise.all(sibs.map(function (x) {
+          return Promise.all([api('GET', '/projects/' + x.id + '/reports'), api('GET', '/projects/' + x.id + '/repos')])
+            .then(function (r) { ctxs[x.id] = { briefs: r[0].briefs || {}, repos: r[1].repos, project: x, reports: r[0].reports }; });
+        }));
+      }).then(function () {
+        reports = triageSort([].concat.apply([], sibs.map(function (x) { return ctxs[x.id].reports; })));
+        drawPlatforms();
         render();
       });
     }
 
     function render() {
+      var many = sibs.length > 1;
+      platformBar.textContent = '';
+      platformBar.hidden = !many;
+      if (many) {
+        [{ id: 'all', label: 'All platforms' }].concat(sibs.map(function (x) { return { id: x.id, label: platformOf(x.platform).label }; })).forEach(function (f) {
+          var n = f.id === 'all' ? reports.length : reports.filter(function (r) { return r.project_id === f.id; }).length;
+          platformBar.appendChild(el('button', { 'aria-pressed': String(where === f.id), onclick: function () { where = f.id; render(); } },
+            [f.label + ' ', el('span', { class: 'n', text: String(n) })]));
+        });
+      }
+      var here = reports.filter(function (r) { return where === 'all' || r.project_id === where; });
       filters.textContent = '';
       ['open', 'accepted', 'fixed', 'declined', 'all'].forEach(function (f) {
-        var n = f === 'all' ? reports.length : reports.filter(function (r) { return r.status === f; }).length;
+        var n = f === 'all' ? here.length : here.filter(function (r) { return r.status === f; }).length;
         filters.appendChild(el('button', {
           'aria-pressed': String(filter === f),
           onclick: function () { filter = f; render(); },
         }, [(f === 'all' ? 'All' : STATUS_LABEL[f]) + ' ', el('span', { class: 'n', text: String(n) })]));
       });
       list.textContent = '';
-      var shown = reports.filter(function (r) { return filter === 'all' || r.status === filter; });
+      var shown = here.filter(function (r) { return filter === 'all' || r.status === filter; });
       empty.hidden = shown.length > 0;
       empty.textContent = '';
-      if (!reports.length) {
+      if (!here.length) {
         empty.appendChild(document.createTextNode('No reports yet. '));
-        empty.appendChild(el('a', { href: '#/apps/' + p.id + '/setup', text: 'Check the install' }));
+        empty.appendChild(el('a', { href: '#/apps/' + (where === 'all' ? p.id : where) + '/setup', text: 'Check the install' }));
       } else empty.textContent = filter === 'open' ? 'Nothing waiting. Every report has had its hearing.' : 'Nothing here.';
-      shown.forEach(function (r) { list.appendChild(row(p, r, load, ctx)); });
+      shown.forEach(function (r) {
+        var c = ctxs[r.project_id];
+        list.appendChild(row(c.project, r, load, c, many));
+      });
     }
 
     load();
@@ -716,7 +832,7 @@
     ]);
   }
 
-  function row(p, r, reload, ctx) {
+  function row(p, r, reload, ctx, showPlatform) {
     var brief = ctx.briefs[r.id];
     var err = el('span', { class: 'err' });
     var actions = el('div', { class: 'actions' });
@@ -784,6 +900,7 @@
     return el('article', { class: 'report' }, [
       el('div', { class: 'meta' }, [
         el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
+        showPlatform ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
         el('time', { datetime: r.created_at, text: new Date(r.created_at).toLocaleString() }),
         el('span', { class: 'status s-' + r.status, text: STATUS_LABEL[r.status] }),
       ]),

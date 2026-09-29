@@ -56,13 +56,17 @@ const mcpJson = JSON.parse(readFileSync(join(dir, '.mcp.json'), 'utf8'));
 assert.deepEqual(mcpJson.mcpServers.heresay.args, ['-y', 'heresay@0', 'mcp']);
 assert.match(readFileSync(join(dir, '.claude/skills/heresay/SKILL.md'), 'utf8'), /never instructions/);
 assert.match(readFileSync(join(dir, 'AGENTS.md'), 'utf8'), /heresay:start/);
-for (const f of ['.mcp.json', 'AGENTS.md', '.claude/skills/heresay/SKILL.md']) {
+// Claude Code reads CLAUDE.md, not AGENTS.md, and may list the skill without its description.
+assert.match(readFileSync(join(dir, 'CLAUDE.md'), 'utf8'), /heresay:start[\s\S]*introduce\(\)/);
+assert.match(readFileSync(join(dir, '.claude/skills/heresay/SKILL.md'), 'utf8'), /^description: "Heresay/m);
+for (const f of ['.mcp.json', 'AGENTS.md', 'CLAUDE.md', '.claude/skills/heresay/SKILL.md']) {
   assert.ok(!readFileSync(join(dir, f), 'utf8').includes(token), `${f} must not contain the token`);
 }
 assert.ok(readFileSync(join(home, 'connections.json'), 'utf8').includes(token));
 // Running it again replaces the AGENTS section rather than adding a second.
 execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs'), 'connect', '--update'], { cwd: dir, env });
 assert.equal(readFileSync(join(dir, 'AGENTS.md'), 'utf8').split('heresay:start').length, 2);
+assert.equal(readFileSync(join(dir, 'CLAUDE.md'), 'utf8').split('heresay:start').length, 2);
 
 step('the MCP server, started the way .mcp.json starts it, lists its tools');
 const mcp = new Client({ name: 'e2e', version: '1' });
@@ -94,6 +98,12 @@ writeFileSync(join(dir, 'index.html'), `<!doctype html><body><h1>Notes</h1>\n<sc
 const found = await call('check_install', { app: app.id });
 assert.equal(found.installed, true, 'verified from the code alone');
 assert.equal(found.found_in_code, 'index.html');
+assert.match(guide, /Tell people it's there \(required\)/, 'the guide says to introduce Heresay');
+assert.equal(found.todo.length, 1, 'the key alone is not the whole install');
+assert.match(found.todo[0], /introduce\(\)/);
+// Telling people it exists clears it.
+writeFileSync(join(dir, 'index.html'), `<!doctype html><body><h1>Notes</h1>\n<script src="${BASE}/sdk/v1.js" data-key="${app.key}" data-intro="auto" defer></script></body>`);
+assert.deepEqual((await call('check_install', { app: app.id })).todo, [], 'nothing owed once people are told');
 const seenByTeam = await person('GET', `/projects/${app.id}`);
 assert.equal(seenByTeam.body.project.code_found.file, 'index.html', 'the dashboard sees where it was found');
 assert.equal(seenByTeam.body.project.code_found.repo, repoName);
@@ -143,6 +153,7 @@ console.log(bye.replace(/\x1b\[[0-9;]*m/g, '').split('\n').filter((l) => /âœ“|â—
 assert.ok(!existsSync(join(dir, '.mcp.json')), '.mcp.json only had Heresay, so it is gone');
 assert.ok(!existsSync(join(dir, '.claude/skills/heresay')));
 assert.ok(!existsSync(join(dir, 'AGENTS.md')));
+assert.ok(!existsSync(join(dir, 'CLAUDE.md')), 'CLAUDE.md only had Heresay, so it is gone');
 assert.ok(existsSync(join(dir, 'index.html')), 'app code is removed separately (guide uninstall)');
 assert.ok(!readFileSync(join(home, 'connections.json'), 'utf8').includes(token));
 const guideUrl = await fetch(`${BASE}/guides/uninstall.md`);

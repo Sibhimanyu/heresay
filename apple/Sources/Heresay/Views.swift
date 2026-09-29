@@ -19,7 +19,7 @@ public extension View {
 /// Help › Report a Problem… (⌥⌘R). Add with `.commands { HeresayCommands() }`, and put
 /// `.heresay()` on the window's root view so the sheet has somewhere to open.
 public struct HeresayCommands: Commands {
-    public init() {}
+    public init() { Heresay.hasMenuCommand = true }
     public var body: some Commands {
         CommandGroup(after: .help) {
             Button("Report a Problem…") { Heresay.present() }
@@ -45,6 +45,13 @@ struct ReportButtonModifier: ViewModifier {
             )) {
                 ReportSheet(heresay: heresay)
             }
+            .alert("Something not right? Tell the team.", isPresented: $heresay.introPending) {
+                Button("Try it") { heresay.present(.report) }
+                Button("Got it", role: .cancel) {}
+            } message: {
+                Text(heresay.introMessage)
+            }
+            .onAppear { if showsButton { heresay.hasButton = true } }
     }
 }
 

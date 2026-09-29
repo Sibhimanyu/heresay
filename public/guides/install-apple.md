@@ -51,7 +51,23 @@ Heresay.identify()   // after sign-out
 
 Then nobody is asked their name to send a report, and the team can reply to them.
 
-## 5. Optional
+## 5. Tell people it's there (required)
+
+On macOS the report window lives under Help, and on iOS it's a small button; people who have never
+seen it won't go looking. Call `Heresay.introduce()` once the person reaches the app's main
+screen: after sign-in and after any onboarding, never over a login or first-run screen. It shows a
+native alert, once per install, that says where to find it (Help › Report a Problem… (⌥⌘R) on
+macOS, the Report button on iOS) and offers to open it. Later calls do nothing, so this is fine:
+
+```swift
+MainView()
+    .onAppear { Heresay.introduce() }
+```
+
+If the app already has a "What's new" or announcements screen, add a line there too. Don't
+build a custom dialog for this; `introduce()` is the one.
+
+## 6. Optional
 
 - Screens: `Heresay.setScreen("Checkout")` in `.onAppear` of the main screens.
 - The app version is read from the bundle (`CFBundleShortVersionString` and build).
@@ -59,7 +75,7 @@ Then nobody is asked their name to send a report, and the team can reply to them
 
 Change nothing else in the app.
 
-## 6. Prove it
+## 7. Prove it
 
 Call `check_install`: it finds the key in this repo's code by itself (`found_in_code`). Build and
 run on a simulator or device and `seen_running` shows the SDK loaded. To test the whole path,

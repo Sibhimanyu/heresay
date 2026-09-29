@@ -107,7 +107,7 @@ export function client(conn) {
 
 // ---- guides, fetched from the Heresay itself ----------------------------------------------
 
-export const SKILL_VERSION = 1;
+export const SKILL_VERSION = 2;
 
 /** The bootstrap skill version installed in this repo, or null. */
 export function repoSkillVersion(root) {
@@ -210,8 +210,18 @@ const MAX_FILES = 20_000;
  * repo can't hang the agent.
  */
 export function findKeyInRepo(root, key) {
-  if (!key) return null;
-  const needle = Buffer.from(key);
+  return key ? findInRepo(root, [key]) : null;
+}
+
+// Where a call is written about rather than made, including the notes `connect` adds.
+const PROSE = new Set(['.md', '.mdx', '.markdown', '.txt', '.rst']);
+
+/**
+ * The first file containing any of these strings, the same way findKeyInRepo looks. With
+ * `code`, prose files don't count: a README mentioning introduce() isn't a call to it.
+ */
+export function findInRepo(root, strings, { code = false } = {}) {
+  const needles = strings.map((x) => Buffer.from(x));
   let scanned = 0;
   const stack = [root];
   while (stack.length) {
@@ -223,6 +233,7 @@ export function findKeyInRepo(root, key) {
       const full = join(dir, e.name);
       if (e.isDirectory()) { stack.push(full); continue; }
       if (!e.isFile() || BINARY.has(extname(e.name).toLowerCase())) continue;
+      if (code && PROSE.has(extname(e.name).toLowerCase())) continue;
       if (++scanned > MAX_FILES) return null;
       let buf;
       try {
@@ -230,7 +241,7 @@ export function findKeyInRepo(root, key) {
         buf = readFileSync(full);
       } catch { continue; }
       if (buf.includes(0)) continue; // binary
-      if (buf.includes(needle)) return relative(root, full).split(sep).join('/');
+      if (needles.some((n) => buf.includes(n))) return relative(root, full).split(sep).join('/');
     }
   }
   return null;
@@ -269,6 +280,19 @@ export async function verifyInstall(api, app, { wait = 0, root = repoAt().root }
     framework: r.framework,
     framework_detected: r.framework_detected,
   };
+  // What the install still owes the people using the app, beyond the key being there.
+  const todo = [];
+  if (file && !findInRepo(root, ['introduce(', 'data-intro'], { code: true })) {
+    todo.push(apple(app)
+      ? 'Tell people Heresay is there: call Heresay.introduce() once the main screen appears (after sign-in and onboarding). It shows a one-time alert saying where to find it. Required; see guide install-apple, step 5.'
+      : 'Tell people Heresay is there: add data-intro="auto" to the tag, or call window.Heresay?.introduce() once the main screen appears (after sign-in and onboarding). Required; see guide install-web, step 4.');
+  }
+  if (file && app.sign_in === 'yes' && !findInRepo(root, ['identify('], { code: true })) {
+    todo.push(apple(app)
+      ? 'People sign in to this app: call Heresay.identify(id:label:email:) after sign-in and Heresay.identify() after sign-out, so nobody is asked their name.'
+      : 'People sign in to this app: call window.Heresay?.identify({ id, label, email }) after sign-in and identify() after sign-out, so nobody is asked their name.');
+  }
+  out.todo = todo;
   if (!file && !out.seen_running) {
     out.hint = apple(app)
       ? `The key isn't in this repo's code yet. Add the Swift package and call Heresay.configure(key: "${app.key}", url: …) once in the App's init; see \`heresay install ${app.id}\`.`
