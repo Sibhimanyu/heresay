@@ -1,18 +1,29 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Demo host app</title>
-<meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="font-family:system-ui;padding:40px">
-  <h1>A host app</h1>
-  <p>This page stands in for your app. Open it as <code>/demo.html?key=pk_...</code>.</p>
+<head><meta charset="utf-8"><title>Heresay test page</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  body { margin:0; font:16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color:#15171c; background:#f5f6f7; }
+  main { max-width:560px; margin:14vh auto; padding:0 24px; }
+  h1 { font-size:26px; margin:0 0 8px; }
+  p { color:#5b6472; }
+  .arrow { margin-top:32px; font-weight:600; color:#0b5e57; }
+</style></head>
+<body>
+  <main>
+    <h1>Stand-in app</h1>
+    <p>This page plays the part of your app, so you can try Heresay before it's in your code. Reports sent from here go to the app whose key is in the address.</p>
+    <p class="arrow">Tap <b>Report</b> in the bottom-right corner and send anything. ↘</p>
+  </main>
   <script>
-    // Only the demo reads the key from the URL. A real app hardcodes it in the tag.
+    // Only this page reads the key from the URL. A real app puts it in the tag.
+    var q = new URLSearchParams(location.search);
     var s = document.createElement('script');
-    s.src = '/sdk.js';
-    s.dataset.key = new URLSearchParams(location.search).get('key') || '';
+    s.src = '/sdk/v1.js';
+    s.dataset.key = q.get('key') || '';
     s.dataset.version = '0.0.1-demo';
-    var accent = new URLSearchParams(location.search).get('accent');
-    if (accent) s.dataset.accent = accent;
+    if (q.get('accent')) s.dataset.accent = q.get('accent');
     document.body.appendChild(s);
   </script>
 </body>

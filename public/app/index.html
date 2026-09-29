@@ -3,53 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Heresay · Reports</title>
+<title>Heresay</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/dashboard.css">
 </head>
 <body>
 
+<!-- Signed out -->
 <div id="gate" class="gate" hidden>
-  <img src="/logo.svg" alt="Heresay" height="56">
-  <p>Every report gets a hearing. Sign in to read yours.</p>
-  <button id="signin" class="btn primary">Sign in with Google</button>
+  <img src="/mark.svg" alt="" width="64" height="64">
+  <h1>Sign in to your Heresay</h1>
+  <p class="mute">Use the account your team owner added.</p>
+  <button id="google" class="btn primary wide"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#fff" d="M21.35 11.1H12v2.98h5.35c-.23 1.38-1.64 4.05-5.35 4.05a5.93 5.93 0 0 1 0-11.86c1.83 0 3.06.78 3.76 1.45l2.57-2.47C16.68 3.7 14.55 2.7 12 2.7a9.3 9.3 0 1 0 0 18.6c5.37 0 8.93-3.77 8.93-9.09 0-.61-.07-1.08-.16-1.54z"/></svg>Continue with Google</button>
+  <div class="or"><span>or</span></div>
+  <form id="link-form" class="link-form">
+    <label class="sr" for="link-email">Email</label>
+    <input id="link-email" type="email" required placeholder="you@company.com" autocomplete="email">
+    <button class="btn wide">Email me a sign-in link</button>
+  </form>
+  <p id="gate-msg" class="gate-msg" role="status"></p>
+</div>
+
+<!-- Signed in, but this Heresay can't let them in -->
+<div id="blocked" class="gate" hidden>
+  <img src="/mark.svg" alt="" width="64" height="64">
+  <h1 id="blocked-title"></h1>
+  <p id="blocked-text" class="mute"></p>
+  <button id="blocked-out" class="btn wide">Use another account</button>
 </div>
 
 <div id="app" hidden>
   <header class="top">
-    <a href="/" aria-label="Heresay home"><img src="/logo.svg" alt="Heresay" height="30" style="display:block"></a>
-    <select id="project" aria-label="Project"></select>
+    <a href="#/" aria-label="Your apps"><img src="/logo.svg" alt="Heresay" height="28" style="display:block"></a>
+    <nav class="tabs" aria-label="Main">
+      <a href="#/" data-nav="apps">Apps</a>
+      <a href="#/team" data-nav="team">Team</a>
+    </nav>
     <span class="spacer"></span>
-    <button id="setup-btn" class="btn ghost">Setup</button>
-    <button id="new-btn" class="btn ghost">New project</button>
+    <span id="who" class="who"></span>
     <button id="signout" class="btn ghost">Sign out</button>
   </header>
-
-  <section id="create" class="card" hidden>
-    <h2>New project</h2>
-    <form id="create-form">
-      <label>App name <input name="name" required placeholder="My app"></label>
-      <label>Where it runs <input name="origin" type="url" placeholder="https://app.example.com"></label>
-      <p class="hint">Only this site may send reports with the key. Leave it empty to allow any site.</p>
-      <button class="btn primary">Create</button>
-      <span id="create-err" class="err"></span>
-    </form>
-  </section>
-
-  <section id="setup" class="card" hidden>
-    <h2>Add this line to your app</h2>
-    <p class="hint">Put it before <code>&lt;/body&gt;</code>. A <b>Report</b> button appears in the corner.</p>
-    <pre id="snippet"></pre>
-    <button id="copy-snippet" class="btn">Copy</button>
-    <p class="hint">Optional: <code>Feedback.identify({ id, label })</code> once you know who is signed in,
-      and <code>data-version="1.4.0"</code> on the tag.</p>
-  </section>
-
-  <nav id="filters" class="filters" aria-label="Filter"></nav>
-  <main id="reports"></main>
-  <p id="empty" class="empty" hidden>No reports yet.</p>
+  <main id="view"></main>
 </div>
 
 <script src="/__/firebase/10.14.1/firebase-app-compat.js"></script>

@@ -19,7 +19,7 @@
   if (window.Feedback && window.Feedback.__loaded) return;
 
   var script = document.currentScript
-    || document.querySelector('script[src*="sdk.js"][data-key]');
+    || document.querySelector('script[data-key][src*="sdk"]');
   if (!script) return;
   var KEY = script.getAttribute('data-key');
   // The API normally sits beside sdk.js. data-api points elsewhere, for backends that serve
