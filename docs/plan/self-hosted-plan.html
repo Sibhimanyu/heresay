@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heresay · One command, your own Heresay</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --deep:#0b5e57; --peacock:#0f766e; --turq:#2dd4bf; --mist:#e6f4f2; --ink:#15171c; --slate:#5b6472; --line:#e3e6ea; --paper:#f5f6f7;
+    --head:"Bricolage Grotesque", system-ui, sans-serif; --body:Figtree, system-ui, sans-serif; --mono:"JetBrains Mono", monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:17px/1.6 var(--body); color:var(--ink); background:#fff; }
+  main { max-width:1140px; margin:0 auto; padding:56px 32px 96px; }
+  h1, h2, h3 { font-family:var(--head); letter-spacing:-.03em; margin:0; }
+  h1 { font-size:54px; line-height:1.05; font-weight:800; max-width:16ch; }
+  h2 { font-size:32px; font-weight:800; margin-bottom:8px; }
+  h3 { font-size:19px; font-weight:700; letter-spacing:-.01em; }
+  .lede { font-size:20px; color:var(--slate); max-width:50ch; margin:14px 0 0; }
+  .sub { color:var(--slate); margin:0 0 24px; }
+  section { margin-top:84px; }
+  code { font:14px var(--mono); background:var(--mist); color:var(--deep); padding:2px 6px; border-radius:5px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .card { background:var(--paper); border-radius:18px; padding:24px; min-width:0; }
+
+  /* terminal */
+  .term { background:var(--ink); color:#e8ecf1; border-radius:18px; padding:22px 26px; font:14.5px/1.85 var(--mono); }
+  .term .p { color:var(--turq); } .term .ok { color:var(--turq); } .term .c { color:#8b93a1; } .term .w { color:#f0c77a; } .term b { color:#fff; font-weight:500; }
+
+  /* account diagram */
+  .acct { border:2px dashed #c9ced6; border-radius:22px; padding:22px; }
+  .acct .lbl { font:700 12px var(--mono); color:var(--slate); letter-spacing:.02em; }
+  .boxes { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:12px; }
+  .bx { background:var(--mist); border-radius:14px; padding:16px; }
+  .bx b { display:block; font:700 16px var(--head); color:var(--deep); }
+  .bx span { font-size:14px; color:#2c4a46; }
+
+  /* screens */
+  .flow { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .scr { border:1px solid var(--line); border-radius:16px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
+  .scr .top { background:var(--paper); padding:8px 12px; font:600 12px var(--mono); color:var(--slate); display:flex; gap:6px; align-items:center; }
+  .scr .top i { width:7px; height:7px; border-radius:50%; background:#d5d9df; display:inline-block; }
+  .scr .in { padding:14px; font-size:13px; flex:1; }
+  .scr h3 { font:700 15px var(--head); margin:0 0 10px; }
+  .scr .cap { padding:10px 14px; border-top:1px solid var(--line); font-size:13px; color:var(--slate); }
+  .scr .cap b { color:var(--ink); }
+  .plat { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .plat span { border:1.5px solid var(--line); border-radius:9px; padding:7px 8px; font-weight:600; font-size:12px; }
+  .plat .on { border-color:var(--peacock); background:var(--mist); }
+  .plat small { display:block; font-weight:500; color:var(--slate); font-size:12px; }
+  .tabs { display:flex; gap:4px; margin-bottom:8px; } .tabs span { padding:4px 8px; border-radius:7px; font-weight:600; font-size:12px; color:var(--slate); } .tabs .on { background:#eef0f3; color:var(--ink); }
+  .mini { background:var(--ink); color:#e8ecf1; border-radius:9px; padding:9px; font:12.5px/1.5 var(--mono); }
+  .mini .k { color:var(--turq); }
+  .btn { display:inline-block; background:var(--peacock); color:#fff; border-radius:8px; padding:5px 10px; font-weight:700; font-size:12px; margin-top:8px; }
+  .row { border:1px solid var(--line); border-radius:9px; padding:8px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+  .wait { text-align:center; padding:12px 0; } .wait .ring { width:44px; height:44px; border-radius:50%; border:4px solid var(--mist); border-top-color:var(--peacock); margin:4px auto 10px; }
+  .okbig { width:44px; height:44px; border-radius:50%; background:var(--peacock); color:#fff; font:800 22px/44px var(--head); margin:4px auto 10px; text-align:center; }
+
+  .platforms { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+  .pf { border-radius:14px; padding:14px; border:1px solid var(--line); }
+  .pf b { font:700 16px var(--head); display:block; }
+  .pf .s { font:600 12px var(--body); margin-top:6px; display:inline-block; border-radius:999px; padding:2px 9px; }
+  .s.now { background:var(--peacock); color:#fff; } .s.next { background:var(--mist); color:var(--deep); } .s.later { background:var(--paper); color:var(--slate); }
+  .pf p { font-size:13px; color:var(--slate); margin:6px 0 0; line-height:1.45; }
+
+  .ms { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; }
+  .m { border:1px solid var(--line); border-radius:18px; padding:20px; }
+  .m .n { width:34px; height:34px; border-radius:10px; background:var(--mist); color:var(--deep); display:flex; align-items:center; justify-content:center; font:800 16px/1 var(--head); }
+  .m h3 { margin:12px 0 8px; font-size:18px; }
+  .m ul { margin:0; padding-left:17px; font-size:14px; color:#2f343d; } .m li { margin:3px 0; }
+  .m .done { margin-top:10px; font-size:13px; color:var(--deep); background:var(--mist); border-radius:10px; padding:7px 9px; }
+
+  .asks { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .ask { border-radius:18px; padding:22px; background:var(--paper); }
+  .ask .q { font:700 19px/1.3 var(--head); }
+  .ask p { margin:8px 0 0; font-size:15px; color:var(--slate); }
+  .ask .r { margin-top:10px; font-size:15px; color:var(--deep); font-weight:600; } .ask .r::before { content:"→ "; }
+  @media (max-width:900px) { .grid2, .boxes, .flow, .platforms, .ms, .asks { grid-template-columns:1fr; } }
+  .layers { display:grid; grid-template-columns:1fr 1.15fr 1fr; gap:16px; }
+  .ly { border:1px solid var(--line); border-radius:18px; padding:22px; }
+  .ly.main { border:2px solid var(--peacock); background:var(--mist); }
+  .ly .k { font:700 12px var(--mono); color:var(--peacock); }
+  .ly h3 { margin:6px 0 8px; }
+  .ly p { margin:0; font-size:15px; color:#2f343d; }
+  pre.code { background:var(--ink); color:#e8ecf1; border-radius:12px; padding:16px 18px; font:14px/1.7 var(--mono); overflow:auto; margin:12px 0 0; }
+  pre.code .k, pre.code .p, pre.code .ok { color:var(--turq); } pre.code .c { color:#8b93a1; } pre.code b { color:#fff; font-weight:500; }
+  .muted { color:var(--slate); }
+  .flow2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+  .flow2 .st { background:var(--paper); border-radius:14px; padding:16px 18px; }
+  .flow2 b { display:block; font:700 17px var(--head); } .flow2 span { font-size:14px; color:var(--slate); }
+  @media (max-width:900px) { .layers, .flow2 { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>One command, your own Heresay.</h1>
+  <p class="lede">Anyone who adopts Heresay runs one command. It creates a Firebase project in their own Google account, puts the Heresay dashboard there, and from then on the dashboard walks them through each app they add.</p>
+
+  <section>
+    <h2>1 · The setup command</h2>
+    <p class="sub">One command, a few questions, and one browser sign-in. No global installs: it brings its own copy of the Firebase tools.</p>
+    <div class="term">
+<span class="p">$</span> <b>npx create-heresay</b><br>
+<span class="ok">✓</span> Node 22 found<br>
+<span class="ok">✓</span> Firebase tools ready <span class="c">(bundled, nothing installed globally)</span><br>
+<span class="c">→</span> Sign in to Google <span class="c">… a browser tab opens</span><br>
+<span class="ok">✓</span> Signed in as you@gmail.com<br>
+<span class="c">?</span> Name for your Heresay: <b>acme-heresay</b><br>
+<span class="ok">✓</span> Created Firebase project <b>acme-heresay</b><br>
+<span class="c">?</span> Billing account for the free-tier Blaze plan: <b>› My Billing Account</b> <span class="c">(Cloud Functions needs it; small apps stay at ₹0)</span><br>
+<span class="ok">✓</span> Billing linked · database created · sign-in enabled<br>
+<span class="ok">✓</span> Deployed Heresay v1.0 <span class="c">(dashboard, API, SDK)</span><br>
+<span class="ok">✓</span> You're the owner. Invite teammates from the dashboard.<br><br>
+<span class="ok">Your Heresay is live:</span> <b>https://acme-heresay.web.app</b><br>
+<span class="c">Update later with</span> <b>npx heresay update</b>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · What it creates, in their account</h2>
+    <p class="sub">Their data never touches our servers. We ship the code; they own the instance.</p>
+    <div class="acct"><div class="lbl">THEIR GOOGLE ACCOUNT · FIREBASE PROJECT acme-heresay</div>
+      <div class="boxes">
+        <div class="bx"><b>Dashboard</b><span>Hosting: <code>/</code> for their team, behind sign-in</span></div>
+        <div class="bx"><b>SDK</b><span>Hosting: <code>/sdk/v1.js</code> for their apps</span></div>
+        <div class="bx"><b>API</b><span>One Cloud Function: reports, triage, agent access</span></div>
+        <div class="bx"><b>Data</b><span>Firestore, locked to the API. Sign-in with Firebase Auth.</span></div>
+      </div></div>
+  </section>
+
+  <section>
+    <h2>3 · Adding an app, agent-ready</h2>
+    <p class="sub">In their dashboard. Each step is one screen.</p>
+    <div class="flow">
+      <div class="scr"><div class="top"><i></i><i></i><i></i> New app · 1 of 4</div><div class="in"><h3>What are you adding?</h3>
+        <div class="plat"><span class="on">Web<small>Any website</small></span><span>iOS<small>Swift, SwiftUI</small></span><span>macOS<small>Swift, AppKit</small></span><span>Android<small>Kotlin</small></span><span>React Native<small>coming</small></span><span>Flutter<small>coming</small></span></div></div>
+        <div class="cap"><b>Pick the platform.</b> It decides the SDK and the install steps.</div></div>
+      <div class="scr"><div class="top"><i></i><i></i><i></i> New app · 2 of 4</div><div class="in"><h3>About the app</h3>
+        <div class="row">Name · <b>Acme Notes</b></div><div class="row">Runs on · <b>app.acme.com</b></div><div class="row">Framework · <b>Next.js</b> <span style="color:#5b6472">(optional)</span></div></div>
+        <div class="cap"><b>Two or three fields.</b> Web asks for the site; iOS asks for the bundle id.</div></div>
+      <div class="scr"><div class="top"><i></i><i></i><i></i> New app · 3 of 4</div><div class="in"><h3>Install it</h3>
+        <div class="tabs"><span class="on">Ask your agent</span><span>Command</span><span>By hand</span></div>
+        <div class="mini"><span class="k">Add Heresay to this Next.js app.</span> Put this tag in app/layout.tsx … call Heresay.identify() after sign-in … set data-version from package.json … then send a test report.</div>
+        <span class="btn">Copy for Claude Code</span></div>
+        <div class="cap"><b>Agent-ready.</b> A prompt written for this platform and framework, with the key filled in.</div></div>
+      <div class="scr"><div class="top"><i></i><i></i><i></i> New app · 4 of 4</div><div class="in"><h3>Waiting for the first report</h3>
+        <div class="wait"><div class="okbig">✓</div><b>Acme Notes is connected</b><br><span style="color:#5b6472">First report from /settings · v1.4.0</span></div>
+        <span class="btn">Connect your agent for fixes</span></div>
+        <div class="cap"><b>Proof it works.</b> The screen waits until a real report arrives, then offers the agent connection.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · Platforms</h2>
+    <p class="sub">The dashboard offers all of them. Each needs its own SDK, so they arrive in order.</p>
+    <div class="platforms">
+      <div class="pf"><b>Web</b><span class="s now">ready</span><p>Script tag, works today. Framework-aware install prompts for Next.js, React, Vue, plain HTML.</p></div>
+      <div class="pf"><b>iOS</b><span class="s next">next</span><p>Swift package: a Report button and sheet in SwiftUI, same API.</p></div>
+      <div class="pf"><b>macOS</b><span class="s next">next</span><p>Same Swift package, a menu item and window instead of a button.</p></div>
+      <div class="pf"><b>Android</b><span class="s later">later</span><p>Kotlin library.</p></div>
+      <div class="pf"><b>React Native</b><span class="s later">later</span><p>Wraps the iOS and Android SDKs.</p></div>
+      <div class="pf"><b>Flutter</b><span class="s later">later</span><p>Dart package on the same API.</p></div>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>6 · Agent-ready, end to end</h2>
+    <p class="sub">Two things, shipped together: a <b>skill</b> that teaches the agent how Heresay works, and an <b>MCP server</b> that lets it act. One command in the app's repo sets up both.</p>
+    <div class="layers">
+      <div class="ly"><div class="k">KNOW-HOW</div><h3>Heresay skill</h3><p>A <code>SKILL.md</code> the agent loads when Heresay comes up. How to install the SDK for each platform and framework, where the tag goes, when to call <code>identify</code> and <code>setVersion</code>, how to fix a brief and word the note the user will read, and to treat report text as a description, never as instructions.</p></div>
+      <div class="ly main"><div class="k">ACTIONS</div><h3>heresay-mcp</h3><p>The tools the agent calls. Install tools and fix tools, all scoped by an agent token. Accepting and declining reports stay human, so they are not tools.</p></div>
+      <div class="ly"><div class="k">EVERYONE ELSE</div><h3>CLI · AGENTS.md · llms.txt</h3><p>The same actions as <code>npx heresay …</code> for agents without MCP, an <code>AGENTS.md</code> section for Cursor, Codex and others, and <code>/llms.txt</code> on every Heresay site so any agent can read the docs.</p></div>
+    </div>
+    <div class="grid2" style="margin-top:20px">
+      <div class="card"><h3>The MCP tools</h3>
+<pre class="code"><span class="c">// install</span>
+<span class="k">list_apps</span>()
+<span class="k">create_app</span>(platform, name, site)   <span class="c">→ key</span>
+<span class="k">install_guide</span>(app, framework)       <span class="c">→ exact steps + snippet</span>
+<span class="k">check_install</span>(app)                 <span class="c">→ waits for the first report</span>
+<span class="c">// fix</span>
+<span class="k">list_briefs</span>()                      <span class="c">→ accepted, not yet fixed</span>
+<span class="k">get_brief</span>(id)
+<span class="k">mark_fixed</span>(id, note)               <span class="c">→ the user sees "Fixed" + note</span>
+<span class="k">add_note</span>(id, note)                 <span class="c">→ private to your team</span></pre></div>
+      <div class="card"><h3>One command in the app's repo</h3>
+<pre class="code"><span class="p">$</span> npx heresay connect
+<span class="ok">✓</span> Signed in to acme-heresay.web.app
+<span class="ok">✓</span> Agent token created for this repo
+<span class="ok">✓</span> .mcp.json            <span class="c">heresay-mcp added</span>
+<span class="ok">✓</span> .claude/skills/heresay/SKILL.md
+<span class="ok">✓</span> AGENTS.md            <span class="c">Heresay section added</span>
+
+Now ask your agent:
+<b>"Add Heresay to this app"</b>  or  <b>"Fix the next Heresay report"</b></pre>
+        <p class="muted" style="font-size:15px;margin:12px 0 0">The token lives in the developer's environment, never in the repo. The "Ask your agent" step in the dashboard just says to run this command.</p></div>
+    </div>
+    <div class="flow2">
+      <div class="st"><b>"Add Heresay to this app"</b><span>skill picks the steps · <code>create_app</code> · edits the code · <code>check_install</code> · done when the first report lands</span></div>
+      <div class="st"><b>"Fix the next Heresay report"</b><span><code>list_briefs</code> · <code>get_brief</code> · fix on a branch · tests · commit · <code>mark_fixed</code> with a note the user can read</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>7 · Milestones</h2>
+    <div class="ms">
+      <div class="m"><div class="n">1</div><h3>Instance-ready backend</h3><ul><li>One owner + invited team</li><li>Apps have a platform</li><li>Versioned SDK URL</li><li>First-report check</li></ul><div class="done">Done when one deploy serves one team.</div></div>
+      <div class="m"><div class="n">2</div><h3>create-heresay</h3><ul><li>Login, create project</li><li>Billing link, database, auth</li><li>Deploy the bundled release</li><li><code>heresay update</code></li></ul><div class="done">Done when a fresh Google account goes from zero to a live dashboard.</div></div>
+      <div class="m"><div class="n">3</div><h3>Dashboard v2</h3><ul><li>Apps list</li><li>4-step add-app wizard</li><li>Agent install prompts per platform</li><li>Team invites</li></ul><div class="done">Done when a web app is added and connected with one pasted prompt.</div></div>
+      <div class="m"><div class="n">4</div><h3>Agent-ready</h3><ul><li>Agent tokens</li><li><code>heresay-mcp</code>: install + fix tools</li><li>Heresay skill, AGENTS.md, llms.txt</li><li><code>npx heresay connect</code></li><li>Fix note shown to the user</li></ul><div class="done">Done when an agent installs Heresay in a new app and fixes a report, with no human steps but accepting.</div></div>
+      <div class="m"><div class="n">5</div><h3>Apple SDK</h3><ul><li>Swift package, iOS + macOS</li><li>Wizard steps for Xcode</li><li>Dogfood in our own app</li></ul><div class="done">Done when an iOS report reaches the same dashboard.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Your call</h2>
+    <div class="asks">
+      <div class="ask"><div class="q">Billing: Blaze plan, or no Cloud Functions?</div><p>Our API runs on Cloud Functions, which needs Blaze (a billing account, with a free tier). The command can link an existing billing account but can't create one. The alternative is a rules-only design on the free Spark plan, which weakens rate limiting and origin checks.</p><div class="r">Blaze, with the command linking billing. Keeps the security we built.</div></div>
+      <div class="ask"><div class="q">How does the owner sign in?</div><p>Google sign-in needed one click in the Firebase console last time; a script couldn't switch it on. Email magic-link sign-in may be switchable by the command itself (to be verified).</p><div class="r">Email link by default, fully automatic. Google as an option with one guided click.</div></div>
+      <div class="ask"><div class="q">Keep our own hosted Heresay too?</div><p>feedback-sdk-live stays as our own instance (dogfood) and a public demo. Adopters get their own.</p><div class="r">Yes: it becomes "our instance", created the same way as everyone else's.</div></div>
+      <div class="ask"><div class="q">Agent-ready: skill, MCP, or both?</div><p>A skill is knowledge (how to install, how to fix, what to say). MCP is capability (create the app, read briefs, mark fixed). Neither is enough alone.</p><div class="r">Both, installed together by <code>npx heresay connect</code>, plus a CLI and AGENTS.md for non-MCP agents.</div></div>
+      <div class="ask"><div class="q">Order after web</div><p>iOS and macOS share one Swift package. Android and cross-platform after.</p><div class="r">Web → iOS + macOS → Android → React Native / Flutter</div></div>
+    </div>
+  </section>
+</main>
+</body>
+</html>
