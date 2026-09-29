@@ -5,7 +5,7 @@
  */
 import pc from 'picocolors';
 import { spawn } from 'node:child_process';
-import { client, connection, findApp, guide, installGuide, verifyInstall, HeresayError } from './client.mjs';
+import { client, connection, skipUpdate, findApp, guide, installGuide, verifyInstall, whatsNew, HeresayError } from './client.mjs';
 
 const HELP = `
   heresay  every report gets a hearing
@@ -21,6 +21,7 @@ const HELP = `
     heresay create-app <name> [--site <origin>]… [--platform web]
     heresay install <app>                  install steps with this app's tag
     heresay check <app> [--wait <seconds>] is it installed? (key in this repo's code, SDK seen running)
+    heresay whats-new [--skip <id>]     features this app doesn't use yet; ask before adding
     heresay briefs                         accepted reports routed to this repo
     heresay brief <id>                     one brief, with its prompt and notes
     heresay claim <id>                     start working on it
@@ -73,6 +74,7 @@ export async function main(argv) {
       }));
       case 'install': return print(await installGuide(conn, await findApp(api, need(rest[0], 'the app id'))));
       case 'check': return print(await verifyInstall(api, await findApp(api, need(rest[0], 'the app id')), { wait: args.wait ?? 0 }));
+      case 'whats-new': return print(args.skip ? skipUpdate(String(args.skip)) : await whatsNew(conn, (await api.apps()).apps));
       case 'briefs': return print(await api.briefs());
       case 'brief': {
         const b = await api.brief(need(rest[0], 'the brief id'));

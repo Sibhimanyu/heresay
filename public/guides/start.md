@@ -14,16 +14,26 @@ sees the outcome in the app, including the note you write when you mark it fixed
 3. **Claim before you start** (`claim_brief`), so another agent doesn't do the same work.
 4. **The fix note is for the reporter**, not for developers. See `write-note`.
 5. **Wrong repo?** `handoff` it to the repo where the fix belongs, with what you learned.
-6. **An install tells people it exists.** Call `introduce()` once the main screen appears, so
+6. **Heresay's agent files are committed.** `.mcp.json`, `.claude/skills/heresay/`, `AGENTS.md`
+   and `CLAUDE.md` only reach new checkouts and worktrees if they're in git. Commit them on their
+   own; `check_install` lists them in `todo` until you do.
+7. **An install tells people it exists.** Call `introduce()` once the main screen appears, so
    the people using the app learn there's a way to report things. On macOS it lives under Help,
    where nobody looks unprompted. `check_install` lists anything still owed in `todo`; the
    install isn't done until that list is empty.
+
+## Before any task: what's new
+
+Call `whats_new`. If it lists Heresay features this app doesn't use yet, tell the person what
+each does in a sentence and **ask before adding any**. See `whats-new`. Never add one without a
+yes; on a no, `skip_update` so nobody asks again.
 
 ## Which topic next
 
 - Adding Heresay to an app: `install-web` for web apps, `install-apple` for iOS and macOS.
 - Fixing reports: `fix-brief`, then `write-note`.
 - Removing Heresay from an app: `uninstall`.
+- New features for an app that already has Heresay: `whats-new`.
 
 ## Tools
 
