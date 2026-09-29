@@ -1,6 +1,6 @@
 {
   "name": "heresay",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Connect a repo to your Heresay so coding agents can install it and fix the reports your team accepts. MCP server, skill and CLI.",
   "type": "module",
   "license": "MIT",
