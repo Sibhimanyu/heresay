@@ -6,29 +6,39 @@ decline it (a decline needs a reason), and the reporter sees the outcome in the 
 
 ## Setup
 
-1. Create a project in the dashboard (`/app/`), giving the site it runs on.
-2. Paste the line it shows you before `</body>`:
-   ```html
-   <script src="https://<sdk-host>/sdk.js" data-key="pk_..." defer></script>
-   ```
-3. Reports show up in the dashboard.
+Every team runs its own Heresay, in its own Google account:
 
-Optional: `data-version="1.4.0"` and `data-accent="#0f766e"` (your own brand colour; defaults to Heresay peacock) on the tag, `Feedback.identify({ id, label })` once you know who
-is signed in, `Feedback.setScreen("Checkout")` if your URL does not change per screen.
+```sh
+npx create-heresay
+```
+
+It signs you in to Google, creates a Firebase project, links billing (Cloud Functions needs the
+Blaze plan; a small app stays in the free tier), deploys the dashboard, API and SDK, and makes
+you the owner. About five minutes. Then open the dashboard, add an app, and paste the line it
+gives you:
+
+```html
+<script src="https://<your-heresay>.web.app/sdk/v1.js" data-key="pk_..." defer></script>
+```
+
+Later: `npx create-heresay update` deploys a new version, `status` shows what's where, `remove`
+deletes a Heresay. The setup UX is specified in `docs/plan/cli-ux.md`; the code is
+`packages/create-heresay/`.
 
 ## How it fits together
 
-One Firebase project, one origin:
+One Firebase project per team, one origin:
 
 | Path | What |
 | --- | --- |
-| `/sdk.js` | The web SDK. Plain JS, shadow DOM, no dependencies. `public/sdk.js` |
+| `/sdk/v1.js` | The web SDK (also at `/sdk.js`). Plain JS, shadow DOM, no dependencies. `public/sdk.js` |
 | `/` | The product page. `public/index.html`, `public/site.css` |
 | `/docs.html` | Developer docs |
 | `/app/` | The developer dashboard. `public/app/index.html`, `public/dashboard.js` |
-| `/v1/**` | The `api` Cloud Function. `functions/src/handler.ts` |
+| `/v1/**` | The `api` Cloud Function. Logic in `functions/src/core/`, Firebase adapter in `functions/src/providers/firebase/` |
 
-Firestore rules deny all client access; everything goes through the function.
+Firestore rules deny all client access; everything goes through the function. Dashboard access is
+by verified email: the team lives in `meta/instance`, and `create-heresay` writes the first owner.
 
 ## Develop
 
@@ -42,15 +52,12 @@ npm run dev     # emulators; site at http://127.0.0.1:5055, dashboard at /app/, 
 Emulator ports are non-default (auth 9199, firestore 8181, functions 5101, hosting 5055, UI 4100)
 so this can run next to other Firebase projects on the same machine.
 
-## Live
+## Release
 
-- Dashboard: https://feedback-sdk-live.web.app
-- SDK: `https://feedback-sdk-live.web.app/sdk.js`
-- Firebase project `feedback-sdk-live` (billing: Sibhi Orchards). `.firebaserc` keeps
-  `default` on the `demo-` project so emulators never touch it; deploy with
-  `npx firebase deploy --project live`.
-- Firestore TTL on `rate.expire_at` deletes old rate-limit buckets. Container images are
-  cleaned up after 1 day.
+`node scripts/build-release.mjs` bundles `public/`, the built API and the Firestore config into
+`packages/create-heresay/release/`, which is what the CLI deploys. Bump
+`functions/src/core/version.ts` for a new version. To try the CLI from a checkout, before it is
+on npm: `node packages/create-heresay/bin/create-heresay.mjs`.
 
 ## Brand
 

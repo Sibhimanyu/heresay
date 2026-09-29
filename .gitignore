@@ -5,3 +5,5 @@ functions/lib-test/
 .firebase/
 *.local
 .context/
+packages/create-heresay/node_modules/
+packages/create-heresay/release/
