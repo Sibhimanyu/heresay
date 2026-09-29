@@ -164,6 +164,27 @@ test('reporter preferences: stored for the team, never sent back, only the note 
   assert.equal(store.reports.get((r2.body as { report: { id: string } }).report.id)!.reporter, null);
 });
 
+test('sign-in: an app says whether people sign in; bad values are refused', async () => {
+  const { call, asOwner } = setup();
+  const make = (body: Record<string, unknown>) => call({ method: 'POST', path: '/v1/projects', headers: asOwner(), body });
+  const a = (await make({ name: 'Portal', sign_in: 'yes' })).body as { project: Project };
+  assert.equal(a.project.sign_in, 'yes');
+  assert.equal(((await make({ name: 'Open site' })).body as { project: Project }).project.sign_in, null);
+  assert.equal((await make({ name: 'X', sign_in: 'maybe' })).status, 400);
+  const patched = await call({ method: 'PATCH', path: `/v1/projects/${a.project.id}`, headers: asOwner(), body: { sign_in: 'no' } });
+  assert.equal((patched.body as { project: Project }).project.sign_in, 'no');
+});
+
+test('the host app can pass the signed-in email; junk is dropped', async () => {
+  const { store, submit } = await withProject();
+  const send = async (user_email: unknown) => {
+    const id = ((await submit({ type: 'idea', text: 'x', context: { user_label: 'Sibhi', user_email } })).body as { report: { id: string } }).report.id;
+    return store.reports.get(id)!.context.user_email;
+  };
+  assert.equal(await send('sibhi@example.com'), 'sibhi@example.com');
+  assert.equal(await send('not-an-email'), null);
+});
+
 test('someone who is not on the team cannot see or triage anything', async () => {
   const { call, asOwner, project, submit } = await withProject();
   const id = ((await submit({ type: 'idea', text: 'dark mode' })).body as { report: { id: string } }).report.id;

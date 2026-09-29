@@ -19,6 +19,7 @@ struct Client: Sendable {
         let type: ReportType
         let text: String
         let context: ReportContext
+        let reporter: ReporterPrefs.Reporter?
     }
 
     private struct MineBody: Encodable {
@@ -35,8 +36,9 @@ struct Client: Sendable {
     private struct ReportsEnvelope: Decodable { let reports: [SentReport] }
     private struct ErrorEnvelope: Decodable { let error: String? }
 
-    func submit(deviceId: String, type: ReportType, text: String, context: ReportContext) async throws -> SentReport {
-        let body = SubmitBody(key: key, device_id: deviceId, sdk: sdk, type: type, text: text, context: context)
+    func submit(deviceId: String, type: ReportType, text: String, context: ReportContext,
+                reporter: ReporterPrefs.Reporter? = nil) async throws -> SentReport {
+        let body = SubmitBody(key: key, device_id: deviceId, sdk: sdk, type: type, text: text, context: context, reporter: reporter)
         return try await post("reports", body, as: ReportEnvelope.self).report
     }
 

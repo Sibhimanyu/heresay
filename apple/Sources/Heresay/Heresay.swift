@@ -3,6 +3,9 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if os(macOS)
+import AppKit
+#endif
 
 /// Heresay: a Report button for your app. People pick what it is (Broken, Confusing, Could be
 /// better, Idea), write a sentence, and later see what happened to it.
@@ -30,17 +33,27 @@ public final class Heresay: ObservableObject {
     /// The server doesn't know this key (a 404): the app was deleted from the dashboard, or the
     /// key is wrong. The button and sheet stay hidden until `configure` is called again.
     @Published public private(set) var isDisabled = false
+    /// What the person told the team about themselves, in Preferences. Saved on the device.
+    @Published public private(set) var prefs = ReporterPrefs()
+    /// The tab the sheet opens on next; `present()` picks one if nil.
+    @Published var requestedTab: SheetTab?
 
     var client: Client?
     var accent: Color = .heresayPeacock
+    /// The app chose its own accent; then the mark follows it too.
+    var customAccent = false
+    var markColor: Color { customAccent ? accent : .heresayMark }
     private var version: String?
     private var screen: String?
     private var userId: String?
-    private var userLabel: String?
+    @Published private(set) var userLabel: String?
+    @Published private(set) var userEmail: String?
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        if let data = defaults.data(forKey: Keys.prefs),
+           let saved = try? JSONDecoder().decode(ReporterPrefs.self, from: data) { prefs = saved }
     }
 
     // MARK: Setup
@@ -60,15 +73,27 @@ public final class Heresay: ObservableObject {
         client = Client(base: url, key: key, session: session)
         isDisabled = false
         self.version = version ?? Self.bundleVersion()
-        if let accent { self.accent = accent }
+        if let accent { self.accent = accent; customAccent = true }
         Task { await refresh() }
     }
 
     /// Who is signed in, in your system. Call after sign-in; call with no arguments after sign-out.
-    public static func identify(id: String? = nil, label: String? = nil) {
-        shared.userId = id
-        shared.userLabel = label
+    /// Then nobody is asked their name to send a report, and with `email` the team can reply.
+    public static func identify(id: String? = nil, label: String? = nil, email: String? = nil) {
+        shared.identify(id: id, label: label, email: email)
     }
+
+    func identify(id: String?, label: String?, email: String?) {
+        userId = id
+        userLabel = label
+        userEmail = email
+    }
+
+    /// The app said who is signed in.
+    var isSignedIn: Bool { userId != nil || userLabel != nil || userEmail != nil }
+
+    /// A name to show for the signed-in person.
+    var signedInAs: String? { userLabel ?? userEmail ?? (userId != nil ? "your account" : nil) }
 
     public static func setVersion(_ version: String?) { shared.version = version }
 
@@ -78,9 +103,19 @@ public final class Heresay: ObservableObject {
     /// Open the report sheet from your own button or menu item.
     public static func present() { shared.present() }
 
-    func present() {
+    func present(_ tab: SheetTab? = nil) {
         guard !isDisabled else { return }
+        requestedTab = tab
         isPresented = true
+    }
+
+    /// Open straight to Preferences: name, email for replies, a note about their setup.
+    public static func presentPreferences() { shared.present(.preferences) }
+
+    /// Keep what the person chose. Sent with their next report, never before.
+    public func save(_ prefs: ReporterPrefs) {
+        self.prefs = prefs
+        if let data = try? JSONEncoder().encode(prefs) { defaults.set(data, forKey: Keys.prefs) }
     }
 
     /// Send a report from your own UI instead of the sheet.
@@ -94,7 +129,7 @@ public final class Heresay: ObservableObject {
     func send(type: ReportType, text: String) async throws -> SentReport {
         guard let client else { throw Client.Failure(status: 0, message: "Heresay isn’t configured. Call Heresay.configure(key:url:) first.") }
         do {
-            let r = try await client.submit(deviceId: deviceId, type: type, text: text, context: context())
+            let r = try await client.submit(deviceId: deviceId, type: type, text: text, context: context(), reporter: prefs.reporter(signedIn: isSignedIn))
             reports.insert(r, at: 0)
             return r
         } catch let f as Client.Failure where f.status == 404 {
@@ -155,8 +190,23 @@ public final class Heresay: ObservableObject {
     func context() -> ReportContext {
         ReportContext(
             route: screen, appVersion: version, platform: Self.platform, os: Self.osDescription(),
-            browser: nil, userId: userId, userLabel: userLabel, framework: "swiftui"
+            browser: nil, userId: userId, userLabel: userLabel, userEmail: userEmail, framework: "swiftui",
+            viewport: Self.windowSize()
         )
+    }
+
+    /// The size of the window people were looking at, in points.
+    static func windowSize() -> String? {
+        #if os(macOS)
+        let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow
+        // With the sheet up, the key window is the sheet; its parent is the app's window.
+        guard let size = (window?.sheetParent ?? window)?.frame.size else { return nil }
+        #else
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let size = (scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? scenes.first?.windows.first)?.bounds.size
+        else { return nil }
+        #endif
+        return "\(Int(size.width.rounded()))x\(Int(size.height.rounded()))"
     }
 
     nonisolated static var platform: String {
@@ -193,10 +243,30 @@ public final class Heresay: ObservableObject {
     private enum Keys {
         static let device = "heresay.device_id"
         static let seen = "heresay.seen"
+        static let prefs = "heresay.prefs"
     }
 }
 
+/// The sheet's three tabs.
+enum SheetTab: Hashable { case report, mine, preferences }
+
 extension Color {
-    /// Heresay peacock, #0f766e.
-    static let heresayPeacock = Color(red: 15 / 255, green: 118 / 255, blue: 110 / 255)
+    /// Heresay peacock: #0f766e, and a brighter #149e91 in dark mode so it doesn't sink.
+    static let heresayPeacock = adaptive(light: (15, 118, 110), dark: (20, 158, 145))
+    /// The mark's own colour: deep peacock on light, bright teal on dark, as on the web.
+    static let heresayMark = adaptive(light: (11, 94, 87), dark: (45, 212, 191))
+
+    private static func adaptive(light: (CGFloat, CGFloat, CGFloat), dark: (CGFloat, CGFloat, CGFloat)) -> Color {
+        #if os(macOS)
+        Color(NSColor(name: nil) { a in
+            let c = a.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+            return NSColor(srgbRed: c.0 / 255, green: c.1 / 255, blue: c.2 / 255, alpha: 1)
+        })
+        #else
+        Color(UIColor { t in
+            let c = t.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: c.0 / 255, green: c.1 / 255, blue: c.2 / 255, alpha: 1)
+        })
+        #endif
+    }
 }

@@ -27,17 +27,30 @@ fine in source control. Put the tag as late as possible, loaded once:
 
 If a Content Security Policy is set, allow the Heresay origin in `script-src` and `connect-src`.
 
-## 3. Optional, when the app has them
+## 3. Who is signed in (required if people sign in)
 
-- Signed-in users: after sign-in call `window.Heresay?.identify({ id: user.id, label: user.name })`,
-  and `window.Heresay?.identify()` after sign-out.
+If the app has sign-in, tell Heresay who it is wherever the signed-in user becomes known (the
+auth provider's listener, the session hook, the layout that reads the user), and clear it on
+sign-out:
+
+```js
+window.Heresay?.identify({ id: user.id, label: user.name, email: user.email });
+window.Heresay?.identify();   // after sign-out
+```
+
+Then the person is never asked their name to send a report, and the team can reply to them. It
+follows whoever is signed in on that device, so apps with many users and many logins need
+nothing else. Use the fields the app already has; leave out any it doesn't.
+
+## 4. Optional, when the app has them
+
 - A version: add `data-version="<version>"` to the tag (from package.json, a build env var, ...).
 - Screens that change without the URL changing: `window.Heresay?.setScreen("<name>")` on each change.
 - A brand colour: `data-accent="#rrggbb"` (hex only).
 
 Change nothing else in the app.
 
-## 4. Prove it
+## 5. Prove it
 
 Call `check_install`. It finds the key in this repo's code by itself (`found_in_code`). Then run
 the app and open it in a browser: `seen_running` shows the SDK loaded there. To test the whole

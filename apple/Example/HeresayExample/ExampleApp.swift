@@ -36,10 +36,16 @@ struct NotesView: View {
             .navigationTitle("Notes")
             .onAppear { Heresay.setScreen("Notes") }
             .task {
-                // For screenshots and demos only: HERESAY_DEMO_SEND sends a report, HERESAY_OPEN opens the sheet.
+                // For screenshots and demos only: HERESAY_DEMO_SEND sends a report, HERESAY_OPEN opens
+                // the sheet (=preferences for that tab), HERESAY_SIGNED_IN plays a signed-in user.
                 let env = ProcessInfo.processInfo.environment
+                if env["HERESAY_SIGNED_IN"] == "1" { Heresay.identify(id: "u_42", label: "Sibhi Govindasamy", email: "sibhi@example.com") }
                 if env["HERESAY_DEMO_SEND"] == "1" { try? await Heresay.send(.broken, text: "The export button does nothing.") }
-                if env["HERESAY_OPEN"] == "1" { try? await Task.sleep(for: .seconds(1)); Heresay.present() }
+                switch env["HERESAY_OPEN"] {
+                case "1": try? await Task.sleep(for: .seconds(1)); Heresay.present()
+                case "preferences": try? await Task.sleep(for: .seconds(1)); Heresay.presentPreferences()
+                default: break
+                }
             }
         }
     }

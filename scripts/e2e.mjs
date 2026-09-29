@@ -73,8 +73,9 @@ try {
   assert.equal(await dash.locator('.platform.soon').count(), 3, 'web, iOS and macOS are ready');
   await dash.locator('a.platform', { hasText: 'Web' }).click();
   await dash.fill('input[name=name]', 'Acme Notes');
-  assert.equal(await dash.getByRole('radio', { name: 'Not sure' }).getAttribute('aria-checked'), 'true', 'framework is optional');
+  assert.equal(await dash.getByRole('radiogroup', { name: 'Framework' }).getByRole('radio', { name: 'Not sure' }).getAttribute('aria-checked'), 'true', 'framework is optional');
   await dash.getByRole('radio', { name: 'Next.js' }).click();
+  await dash.getByRole('radio', { name: 'Yes, they sign in' }).click();
   await dash.fill('textarea[name=origins]', `${CUSTOMER}\nhttp://localhost:3000`);
   await dash.screenshot({ path: `${SHOTS}e2e-1b-details.png` });
   await dash.getByRole('button', { name: 'Create app' }).click();
@@ -83,6 +84,7 @@ try {
   const snippet = await dash.locator('.code pre').first().textContent();
   assert.match(snippet, /next\/script/);
   const key = /data-key="([^"]+)"/.exec(snippet)[1];
+  assert.ok(await dash.locator('.code pre').filter({ hasText: 'identify({ id: user.id, label: user.name, email: user.email })' }).count(), 'signed-in apps get the identify step');
   console.log('snippet:', snippet);
 
   step('the steps before this one are links: going back edits the same app, and the key stays');
@@ -173,7 +175,7 @@ try {
   const sdk = app.locator('[data-feedback-sdk]');
   await sdk.getByRole('button', { name: /Report a problem/ }).click();
 
-  step('reporter sets preferences once: name, email, a setup note, button on the left');
+  step('an anonymous reporter sets preferences once: name, email, a setup note');
   await sdk.getByRole('tab', { name: 'Preferences' }).click();
   await sdk.getByLabel('Your name').fill('Asha');
   await sdk.getByLabel('Email').fill('not-an-email');
@@ -181,11 +183,10 @@ try {
   await sdk.getByText('That email does not look right.').waitFor();
   await sdk.getByLabel('Email').fill('asha@example.org');
   await sdk.getByLabel('About your setup').fill('I use a screen reader.');
-  await sdk.getByRole('button', { name: 'Left' }).click();
   await sdk.getByRole('button', { name: 'Save' }).click();
   await sdk.getByText('Saved on this device.').waitFor();
   await app.screenshot({ path: `${SHOTS}e2e-2a-preferences.png` });
-  assert.equal(await sdk.locator('.fab.left').count(), 1, 'the button moved to the left');
+  assert.equal(await sdk.getByText('Button position').count(), 0, 'where the button sits is the developer\'s choice');
   await sdk.getByRole('tab', { name: 'Report', exact: true }).click();
   await sdk.getByText('your preferences are attached').waitFor();
   await sdk.getByRole('button', { name: /Confusing/ }).click();
@@ -230,6 +231,29 @@ try {
   await sdk.getByText('Declined').first().waitFor();
   await sdk.getByText('Why: Cancel is under Settings, Plan').waitFor();
   await app.screenshot({ path: `${SHOTS}e2e-4-reporter-sees-reason.png` });
+
+  step('a signed-in reporter is never asked their name: the app says who it is');
+  const signed = await ctx.newPage();
+  await signed.goto(`${BASE}/demo.html?key=${key}#/home`);
+  await signed.waitForFunction(() => window.Heresay && window.Heresay.identify);
+  await signed.evaluate(() => window.Heresay.identify({ id: 'u_42', label: 'Sibhi Govindasamy', email: 'sibhi@example.com' }));
+  await signed.evaluate(() => window.Heresay.openPreferences());
+  const sw = signed.locator('[data-feedback-sdk]');
+  await sw.getByText('Signed in as Sibhi Govindasamy').waitFor();
+  assert.equal(await sw.getByLabel('Your name').count(), 0, 'no name field when signed in');
+  assert.equal(await sw.getByLabel('Email').count(), 0, 'no email field when signed in');
+  await signed.screenshot({ path: `${SHOTS}e2e-2c-signed-in-prefs.png` });
+  await sw.getByRole('tab', { name: 'Report', exact: true }).click();
+  await sw.getByRole('button', { name: /Idea/ }).click();
+  await sw.getByLabel('What happened?').fill('Dark mode for the calendar, please.');
+  await sw.getByRole('button', { name: 'Send' }).click();
+  await sw.getByText('Waiting for the developer').waitFor();
+  await dash.reload();
+  await dash.locator('.filters button', { hasText: 'Open' }).click();
+  const sRow = dash.locator('article.report', { hasText: 'Dark mode for the calendar' });
+  await sRow.getByText('Signed in: Sibhi Govindasamy · sibhi@example.com').waitFor();
+  assert.equal(await sRow.getByText('Asha').count(), 0, 'what this device typed while signed out is not sent');
+  await signed.close();
 
   step('the default accent is peacock; a host accent replaces it; junk is ignored');
   const sendBg = async (q) => {

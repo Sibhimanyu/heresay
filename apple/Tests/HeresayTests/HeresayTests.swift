@@ -202,3 +202,59 @@ final class LiveTests: XCTestCase {
         XCTAssertTrue(h.reports.contains { $0.id == sent.id })
     }
 }
+
+final class PreferencesTests: XCTestCase {
+    func testNothingFilledInSendsNothing() {
+        XCTAssertNil(ReporterPrefs().reporter())
+        XCTAssertNil(ReporterPrefs(name: "  ").reporter())
+    }
+
+    func testABadEmailIsKeptToFixButNotSent() {
+        let p = ReporterPrefs(name: "Asha", email: "not an email", note: "I use VoiceOver")
+        XCTAssertFalse(p.emailLooksValid)
+        XCTAssertEqual(p.reporter(), .init(name: "Asha", email: nil, note: "I use VoiceOver"))
+        XCTAssertEqual(ReporterPrefs(email: " asha@example.org ").reporter()?.email, "asha@example.org")
+    }
+
+    func testSignedInTheAppSpeaksForThemAndOnlyTheNoteIsSent() {
+        let p = ReporterPrefs(name: "Typed name", email: "typed@example.org", note: "VoiceOver")
+        XCTAssertEqual(p.reporter(signedIn: true), .init(name: nil, email: nil, note: "VoiceOver"))
+        XCTAssertNil(ReporterPrefs(name: "Typed").reporter(signedIn: true))
+    }
+
+    func testSubmitSendsTheReporterAndViewportLikeTheWebSDK() async throws {
+        StubProtocol.sent = []
+        StubProtocol.handler = { _, _ in (201, Data(#"{"report":\#(sample)}"#.utf8)) }
+        let c = Client(base: URL(string: "https://x.web.app")!, key: "pk", session: StubProtocol.session())
+        var ctx = ReportContext(route: "Home", appVersion: "1.0", platform: "ios", os: "iOS 18", browser: nil, userId: nil, userLabel: nil, framework: "swiftui")
+        ctx.viewport = "390x844"
+        _ = try await c.submit(deviceId: "ios_0123456789abcdef", type: .idea, text: "x", context: ctx,
+                               reporter: ReporterPrefs(name: "Asha", note: "VoiceOver").reporter())
+        let json = try JSONSerialization.jsonObject(with: StubProtocol.sent[0].1) as! [String: Any]
+        XCTAssertEqual((json["context"] as? [String: Any])?["viewport"] as? String, "390x844")
+        let reporter = json["reporter"] as? [String: Any]
+        XCTAssertEqual(reporter?["name"] as? String, "Asha")
+        XCTAssertEqual(reporter?["note"] as? String, "VoiceOver")
+        XCTAssertNil(reporter?["email"], "unset fields are left out")
+    }
+}
+
+@MainActor
+final class SavedPreferencesTests: XCTestCase {
+    func testPreferencesSurviveARelaunch() {
+        let d = UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!
+        Heresay(defaults: d).save(ReporterPrefs(name: "Asha", note: "VoiceOver"))
+        let again = Heresay(defaults: d)
+        XCTAssertEqual(again.prefs.name, "Asha")
+        XCTAssertEqual(again.prefs.note, "VoiceOver")
+    }
+
+    func testIdentifySendsTheSignedInEmail() {
+        let h = Heresay(defaults: UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!)
+        h.identify(id: "u1", label: "Sibhi", email: "sibhi@example.com")
+        XCTAssertTrue(h.isSignedIn)
+        XCTAssertEqual(h.context().userEmail, "sibhi@example.com")
+        h.identify(id: nil, label: nil, email: nil)
+        XCTAssertFalse(h.isSignedIn)
+    }
+}
