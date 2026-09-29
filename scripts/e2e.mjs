@@ -255,6 +255,22 @@ try {
   assert.equal(await sRow.getByText('Asha').count(), 0, 'what this device typed while signed out is not sent');
   await signed.close();
 
+  step('the one-time introduction: a bubble says the button is there, once per device');
+  const intro = await (await browser.newContext()).newPage();
+  await intro.goto(`${BASE}/demo.html?key=${key}`);
+  await intro.waitForFunction(() => window.Heresay && window.Heresay.introduce);
+  assert.equal(await intro.evaluate(() => window.Heresay.introduce()), true);
+  const iw = intro.locator('[data-feedback-sdk]');
+  await iw.getByText('Something not right? Tell the team.').waitFor();
+  await intro.waitForTimeout(400); // past the fade-in
+  await intro.screenshot({ path: `${SHOTS}e2e-2d-introduce.png` });
+  await iw.getByRole('button', { name: 'Try it' }).click();
+  await iw.getByRole('button', { name: /Confusing/ }).waitFor();
+  await intro.reload();
+  await intro.waitForFunction(() => window.Heresay && window.Heresay.introduce);
+  assert.equal(await intro.evaluate(() => window.Heresay.introduce()), false, 'never twice on a device');
+  await intro.context().close();
+
   step('the default accent is peacock; a host accent replaces it; junk is ignored');
   const sendBg = async (q) => {
     const pg = await ctx.newPage();

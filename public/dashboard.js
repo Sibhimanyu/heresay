@@ -411,8 +411,20 @@
       el('p', { text: 'Then tell Heresay who is signed in, so nobody types their name to send a report:' }), codeBlock(code)])];
   }
 
+  /** People who never noticed the button can't use it: a one-time introduction, shown by Heresay. */
+  function introStep(p) {
+    var apple = platformOf(p.platform).apple;
+    return apple ? [
+      el('p', { html: '<b>Last, tell people it’s there.</b> ' + (p.platform === 'macos' ? 'Under Help, nobody finds it by chance. ' : '') + 'Once the main screen appears, after sign-in and onboarding, show the one-time introduction. It says where to find Heresay and offers to open it:' }),
+      codeBlock('MainView()\n    .onAppear { Heresay.introduce() }   // once per install; later calls do nothing'),
+    ] : [
+      el('p', { html: '<b>Last, tell people it’s there.</b> Add <code>data-intro="auto"</code> to the tag for a one-time bubble over the button. Apps with sign-in or onboarding: call this once the main screen appears instead:' }),
+      codeBlock('window.Heresay?.introduce();   // once per device; later calls do nothing'),
+    ];
+  }
+
   function byHand(p) {
-    return byHandSteps(p).concat(identifyStep(p));
+    return byHandSteps(p).concat(identifyStep(p), introStep(p));
   }
 
   function byHandSteps(p) {
@@ -458,7 +470,7 @@
       '',
       '   npx -y heresay@latest connect --url ' + location.origin + ' --token ' + token + ' --yes',
       '',
-      '2. Print the install steps for this app and follow them. They include the app\'s key and exactly where the code goes' + (apple ? ' (a Swift package and one line of setup).' : ', for any framework.'),
+      '2. Print the install steps for this app and follow them. They include the app\'s key and exactly where the code goes' + (apple ? ' (a Swift package and one line of setup)' : ', for any framework') + '. Follow every required step, including telling the people who use the app that Heresay is there: call introduce() once the main screen appears, so it isn\'t hidden' + (apple ? ' under a menu' : ' in a corner') + '.',
       '',
       '   npx -y heresay@latest install ' + p.id,
       '',
@@ -466,7 +478,7 @@
       '',
       '   npx -y heresay@latest check ' + p.id,
       '',
-      '   You are done when it prints "installed": true. If it doesn\'t, fix what it says and run it again.',
+      '   You are done when it prints "installed": true and an empty "todo" list. If not, do what it says and run it again.',
       '',
       'Change nothing else in the app.',
     ].join('\n');
