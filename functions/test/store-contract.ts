@@ -12,7 +12,7 @@ let n = 0;
 const uid = (p: string) => `${p}${Date.now().toString(36)}${(n++).toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
 function project(owner: string): Project {
-  return { id: uid('p_'), name: 'Test', key: uid('pk_'), owner_uid: owner, allowed_origins: [], created_at: AT };
+  return { id: uid('p_'), name: 'Test', platform: 'web', framework: null, key: uid('pk_'), created_by: owner, allowed_origins: [], created_at: AT };
 }
 function report(p: Project, over: Partial<Report> = {}): Report {
   return {
@@ -26,15 +26,17 @@ function task(r: Report): Task {
 }
 
 export function storeContract(name: string, make: () => Store | Promise<Store>) {
-  test(`${name}: projects are found by id and key, and listed per owner`, async () => {
+  test(`${name}: projects are found by id and key, and all are listed`, async () => {
     const s = await make(); const owner = uid('u_');
-    const a = project(owner), b = project(owner), other = project(uid('u_'));
-    for (const p of [a, b, other]) await s.createProject(p);
+    const a = project(owner), b = project(owner);
+    for (const p of [a, b]) await s.createProject(p);
     assert.equal((await s.getProject(a.id))?.key, a.key);
     assert.equal((await s.getProjectByKey(b.key))?.id, b.id);
     assert.equal(await s.getProject('p_missing'), null);
     assert.equal(await s.getProjectByKey('pk_missing'), null);
-    assert.deepEqual((await s.listProjects(owner)).map((p) => p.id).sort(), [a.id, b.id].sort());
+    const listed = (await s.listProjects()).map((p) => p.id);
+    assert.ok(listed.includes(a.id) && listed.includes(b.id));
+    assert.equal((await s.getProject(a.id))?.platform, 'web');
   });
 
   test(`${name}: reports stay inside their project and device`, async () => {
@@ -69,6 +71,21 @@ export function storeContract(name: string, make: () => Store | Promise<Store>) 
     assert.ok(d.ok && d.report.decline_reason === 'Not a bug');
     assert.equal((await s.getReport(p.id, r.id))?.status, 'declined');
     assert.equal(await s.getTask(p.id, r.id), null, 'declining never creates a task');
+  });
+
+  test(`${name}: the instance is created once and updated in place`, async () => {
+    const s = await make();
+    const before = await s.getInstance();
+    const email = `${uid('o')}@example.com`;
+    const created = await s.updateInstance((cur) => cur
+      ? { ...cur, members: [...cur.members, { email, role: 'owner', added_at: AT, added_by: null }] }
+      : { created_at: AT, members: [{ email, role: 'owner', added_at: AT, added_by: null }] });
+    assert.ok(created.members.some((m) => m.email === email));
+    const read = await s.getInstance();
+    assert.ok(read && read.members.some((m) => m.email === email));
+    assert.equal(read!.members.length, (before?.members.length ?? 0) + 1);
+    const removed = await s.updateInstance((cur) => ({ ...cur!, members: cur!.members.filter((m) => m.email !== email) }));
+    assert.ok(!removed.members.some((m) => m.email === email));
   });
 
   test(`${name}: hit counts up to the limit and no further, per bucket`, async () => {

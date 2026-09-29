@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Store, Transition } from './store.js';
 import {
-  LIMITS, REPORT_ORDER, REPORT_TYPES, isReportType, toReporterView,
-  type Project, type Report, type ReportContext, type Task,
+  LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isPlatform, isReportType, toReporterView,
+  type Instance, type Member, type Project, type Report, type ReportContext, type Task,
 } from './types.js';
 
 export interface Req {
@@ -20,12 +20,19 @@ export interface Res {
   headers?: Record<string, string>;
 }
 
+/** Who is calling, as proven by the backend's sign-in. */
+export interface Identity { uid: string; email: string | null; emailVerified: boolean }
+
 export interface Deps {
   store: Store;
-  /** Firebase ID token -> uid, or null if it does not verify. */
-  verifyIdToken(token: string): Promise<string | null>;
+  /** A sign-in token -> who it belongs to, or null if it does not verify. */
+  verifyIdToken(token: string): Promise<Identity | null>;
   now(): number;
   log(event: string, fields: Record<string, unknown>): void;
+  /** The release this backend is running, reported by /v1/health. */
+  version: string;
+  /** Where this Heresay's own dashboard is served from. */
+  selfOrigins?: string[];
 }
 
 /**
@@ -114,27 +121,41 @@ async function route(req: Req, deps: Deps): Promise<Res> {
   const p = parts.slice(1);
 
   // Public, called from inside the host app.
+  if (p[0] === 'health' && req.method === 'GET') return json(200, { ok: true, version: deps.version });
   if (p[0] === 'reports' && p.length === 1 && req.method === 'POST') return submit(req, deps);
   if (p[0] === 'reports' && p[1] === 'mine' && req.method === 'POST') return mine(req, deps);
   if (p[0] === 'reports' && req.method === 'OPTIONS') return preflight(req);
 
-  // Developer, signed in to the dashboard.
-  const uid = await caller(req, deps);
-  if (!uid) return json(401, { error: 'sign in first' });
+  // The team, signed in to the dashboard.
+  const who = await caller(req, deps);
+  if (!who) return json(401, { error: 'sign in first' });
+  const instance = await deps.store.getInstance();
+  if (!instance) {
+    return json(503, { error: 'This Heresay has no owner yet. Finish setup with npx create-heresay.', code: 'no_instance' });
+  }
+  const member = memberFor(instance, who);
+  if (!member) {
+    return json(403, { error: `${who.email ?? 'This account'} is not on this Heresay's team. Ask an owner to add you.`, code: 'not_member', email: who.email });
+  }
+
+  if (p[0] === 'me' && req.method === 'GET') {
+    return json(200, { email: member.email, role: member.role, version: deps.version, platforms: PLATFORMS });
+  }
+  if (p[0] === 'team') return team(p, member, req, deps);
 
   if (p[0] === 'projects' && p.length === 1) {
-    if (req.method === 'GET') return listProjects(uid, deps);
-    if (req.method === 'POST') return createProject(uid, req, deps);
+    if (req.method === 'GET') return listProjects(deps);
+    if (req.method === 'POST') return createProject(member, req, deps);
   }
   if (p[0] === 'projects' && p[1]) {
     const project = await deps.store.getProject(p[1]);
-    // Someone else's project is indistinguishable from no project.
-    if (!project || project.owner_uid !== uid) return json(404, { error: 'no such project' });
+    if (!project) return json(404, { error: 'no such app' });
+    if (p.length === 2 && req.method === 'GET') return json(200, { project });
     if (p[2] === 'reports' && p.length === 3 && req.method === 'GET') {
       return json(200, { reports: sortForTriage(await deps.store.listReports(project.id)) });
     }
     if (p[2] === 'reports' && p[3] && req.method === 'POST') {
-      return triage(project, p[3], p[4], uid, req, deps);
+      return triage(project, p[3], p[4], member.email, req, deps);
     }
     if (p[2] === 'reports' && p[3] && p[4] === 'prompt' && req.method === 'GET') {
       const task = await deps.store.getTask(project.id, p[3]);
@@ -145,9 +166,53 @@ async function route(req: Req, deps: Deps): Promise<Res> {
   return json(404, { error: 'not found' });
 }
 
-async function caller(req: Req, deps: Deps): Promise<string | null> {
+async function caller(req: Req, deps: Deps): Promise<Identity | null> {
   const m = /^Bearer (.+)$/.exec(req.headers['authorization'] ?? '');
   return m ? deps.verifyIdToken(m[1]) : null;
+}
+
+const normEmail = (e: string) => e.trim().toLowerCase();
+const isEmail = (e: unknown): e is string => typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim()) && e.length <= 254;
+
+/** Membership is by email, and only a verified email counts: anyone can type an address. */
+function memberFor(instance: Instance, who: Identity): Member | null {
+  if (!who.email || !who.emailVerified) return null;
+  return instance.members.find((m) => m.email === normEmail(who.email!)) ?? null;
+}
+
+async function team(p: string[], me: Member, req: Req, deps: Deps): Promise<Res> {
+  if (p.length === 1 && req.method === 'GET') {
+    return json(200, { members: (await deps.store.getInstance())!.members });
+  }
+  if (me.role !== 'owner') return json(403, { error: 'only an owner can change the team' });
+  const at = new Date(deps.now()).toISOString();
+  if (p.length === 1 && req.method === 'POST') {
+    const body = parseBody(req.body);
+    if (!isEmail(body.email)) return json(400, { error: 'that is not an email address' });
+    const email = normEmail(body.email);
+    const role = body.role === 'owner' ? 'owner' : 'member';
+    const next = await deps.store.updateInstance((cur) => {
+      const i = cur!;
+      if (i.members.some((m) => m.email === email)) return i;
+      return { ...i, members: [...i.members, { email, role, added_at: at, added_by: me.email }] };
+    });
+    deps.log('api.member_added', { by: me.email, email, role });
+    return json(201, { members: next.members });
+  }
+  if (p.length === 2 && req.method === 'DELETE') {
+    const email = normEmail(decodeURIComponent(p[1]));
+    let refused = '';
+    const next = await deps.store.updateInstance((cur) => {
+      const i = cur!;
+      const owners = i.members.filter((m) => m.role === 'owner');
+      if (owners.length === 1 && owners[0].email === email) { refused = 'a Heresay always needs one owner'; return i; }
+      return { ...i, members: i.members.filter((m) => m.email !== email) };
+    });
+    if (refused) return json(409, { error: refused });
+    deps.log('api.member_removed', { by: me.email, email });
+    return json(200, { members: next.members });
+  }
+  return json(404, { error: 'not found' });
 }
 
 // ---- public ------------------------------------------------------------------------------
@@ -175,8 +240,11 @@ async function publicProject(req: Req, key: unknown, deps: Deps):
   if (typeof key !== 'string' || !key) return json(400, { error: 'missing key' }, headers);
   const project = await deps.store.getProjectByKey(key);
   if (!project) return json(404, { error: 'unknown key' }, headers);
+  // The instance's own site is always allowed, so the dashboard can send a test report.
+  // No other site can claim that origin, so this opens nothing up.
+  const o = origin ? normaliseOrigin(origin) : null;
   if (project.allowed_origins.length > 0
-    && !(origin && project.allowed_origins.includes(normaliseOrigin(origin)))) {
+    && !(o && (project.allowed_origins.includes(o) || (deps.selfOrigins ?? []).includes(o)))) {
     return json(403, { error: 'this site is not allowed to use this key' }, headers);
   }
   return { project, headers };
@@ -254,16 +322,19 @@ function parseBody(b: unknown): Record<string, unknown> {
 
 // ---- developer ---------------------------------------------------------------------------
 
-async function listProjects(uid: string, deps: Deps): Promise<Res> {
-  const ps = await deps.store.listProjects(uid);
+async function listProjects(deps: Deps): Promise<Res> {
+  const ps = await deps.store.listProjects();
   ps.sort((a, b) => a.created_at.localeCompare(b.created_at));
   return json(200, { projects: ps });
 }
 
-async function createProject(uid: string, req: Req, deps: Deps): Promise<Res> {
+async function createProject(me: Member, req: Req, deps: Deps): Promise<Res> {
   const body = parseBody(req.body);
   const name = str(body.name, 80);
-  if (!name) return json(400, { error: 'a project needs a name' });
+  if (!name) return json(400, { error: 'an app needs a name' });
+  const platform = body.platform === undefined ? 'web' : body.platform;
+  if (!isPlatform(platform)) return json(400, { error: `platform must be one of ${PLATFORMS.join(', ')}` });
+  const framework = str(body.framework, 40);
   const origins: string[] = [];
   for (const o of Array.isArray(body.allowed_origins) ? body.allowed_origins : []) {
     if (typeof o !== 'string' || !o.trim()) continue;
@@ -272,11 +343,12 @@ async function createProject(uid: string, req: Req, deps: Deps): Promise<Res> {
     origins.push(normaliseOrigin(u.origin));
   }
   const project: Project = {
-    id: newId('p_', 9), name, key: newId('pk_', 18), owner_uid: uid,
-    allowed_origins: [...new Set(origins)], created_at: new Date(deps.now()).toISOString(),
+    id: newId('p_', 9), name, platform, framework: framework ? framework.toLowerCase() : null,
+    key: newId('pk_', 18), allowed_origins: [...new Set(origins)], created_by: me.email,
+    created_at: new Date(deps.now()).toISOString(),
   };
   await deps.store.createProject(project);
-  deps.log('api.project_created', { project_id: project.id, uid });
+  deps.log('api.project_created', { project_id: project.id, by: me.email, platform });
   return json(201, { project });
 }
 
@@ -289,7 +361,7 @@ function transitionRes(t: Transition): Res {
 
 async function triage(
   project: Project, report_id: string, action: string | undefined, uid: string,
-  req: Req, deps: Deps,
+  req: Req, deps: Deps,  // uid: the team member's email
 ): Promise<Res> {
   const body = parseBody(req.body);
   const at = new Date(deps.now()).toISOString();

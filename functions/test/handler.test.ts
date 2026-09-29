@@ -12,9 +12,21 @@ function setup() {
   let t = Date.parse('2026-09-27T10:00:00Z');
   const deps: Deps = {
     store,
-    verifyIdToken: async (tok) => (tok.startsWith('uid:') ? tok.slice(4) : null),
+    // Test tokens: "uid:<name>" is <name>@example.com, verified; "unverified:<name>" is not.
+    verifyIdToken: async (tok) => {
+      const [kind, name] = tok.split(':');
+      if (kind === 'uid') return { uid: name, email: `${name}@example.com`, emailVerified: true };
+      if (kind === 'unverified') return { uid: name, email: `${name}@example.com`, emailVerified: false };
+      return null;
+    },
     now: () => t,
     log: () => {},
+    version: '0.0.0-test',
+    selfOrigins: ['https://heresay.example'],
+  };
+  store.instance = {
+    created_at: '2026-09-27T09:00:00Z',
+    members: [{ email: 'alice@example.com', role: 'owner', added_at: '2026-09-27T09:00:00Z', added_by: null }],
   };
   const call = (r: Partial<Req>) => handle({
     method: 'GET', path: '/', query: {}, body: undefined, headers: {}, ip: '1.2.3.4', ...r,
@@ -112,13 +124,18 @@ test('accept writes a task; only a task has an agent prompt; fixed follows accep
   assert.equal(store.reports.get(id)!.status, 'fixed');
 });
 
-test('another owner cannot see or triage the project', async () => {
+test('someone who is not on the team cannot see or triage anything', async () => {
   const { call, asOwner, project, submit } = await withProject();
   const id = ((await submit({ type: 'idea', text: 'dark mode' })).body as { report: { id: string } }).report.id;
-  assert.equal((await call({ path: `/v1/projects/${project.id}/reports`, headers: asOwner('mallory') })).status, 404);
+  const peek = await call({ path: `/v1/projects/${project.id}/reports`, headers: asOwner('mallory') });
+  assert.equal(peek.status, 403);
+  assert.equal((peek.body as { code: string }).code, 'not_member');
   assert.equal((await call({
     method: 'POST', path: `/v1/projects/${project.id}/reports/${id}/accept`, headers: asOwner('mallory'),
-  })).status, 404);
+  })).status, 403);
+  assert.equal((await call({ path: '/v1/projects', headers: asOwner('mallory') })).status, 403);
+  // An unverified address never counts, even if it matches a member.
+  assert.equal((await call({ path: '/v1/projects', headers: { authorization: 'Bearer unverified:alice' } })).status, 403);
   assert.equal((await call({ path: `/v1/projects/${project.id}/reports` })).status, 401);
 });
 
@@ -134,6 +151,8 @@ test('origin allow-list: another site cannot use the key; empty list allows any'
   const { submit } = await withProject();
   const r = await submit({ type: 'broken', text: 'x' }, { headers: { origin: 'https://evil.example' } });
   assert.equal(r.status, 403);
+  // The Heresay's own site may always send, for the dashboard's test report.
+  assert.equal((await submit({ type: 'broken', text: 'x' }, { headers: { origin: 'https://heresay.example' } })).status, 201);
   const open = await withProject([]);
   assert.equal((await open.submit({ type: 'broken', text: 'x' }, { headers: { origin: 'https://any.example' } })).status, 201);
 });
@@ -164,4 +183,61 @@ test('triage order: open first, then broken < confusing < improvement < idea, th
     r('d', 'confusing', 'open', '2'), r('e', 'confusing', 'open', '1'), r('f', 'broken', 'open', '3'),
   ]);
   assert.deepEqual(sorted.map((x) => x.id), ['f', 'e', 'd', 'b', 'a', 'c']);
+});
+
+test('before setup writes an owner, the dashboard says so instead of letting anyone in', async () => {
+  const { call, store, asOwner } = setup();
+  store.instance = null;
+  const r = await call({ path: '/v1/projects', headers: asOwner() });
+  assert.equal(r.status, 503);
+  assert.equal((r.body as { code: string }).code, 'no_instance');
+});
+
+test('health is public and reports the version; me reports role', async () => {
+  const { call, asOwner } = setup();
+  const h = await call({ path: '/v1/health' });
+  assert.deepEqual(h.body, { ok: true, version: '0.0.0-test' });
+  const me = (await call({ path: '/v1/me', headers: asOwner() })).body as { email: string; role: string };
+  assert.equal(me.email, 'alice@example.com');
+  assert.equal(me.role, 'owner');
+});
+
+test('team: an owner adds and removes people; members cannot; the last owner stays', async () => {
+  const { call, asOwner } = setup();
+  const add = (email: string, by = 'alice', role?: string) =>
+    call({ method: 'POST', path: '/v1/team', headers: asOwner(by), body: { email, role } });
+  assert.equal((await add('not an email')).status, 400);
+  assert.equal((await add('  Bob@Example.com ')).status, 201);
+
+  // Bob is in now, as a member, matched case-insensitively.
+  const bobMe = (await call({ path: '/v1/me', headers: asOwner('bob') })).body as { role: string };
+  assert.equal(bobMe.role, 'member');
+  assert.equal((await call({ path: '/v1/projects', headers: asOwner('bob') })).status, 200);
+  assert.equal((await add('carol@example.com', 'bob')).status, 403, 'members cannot invite');
+
+  // Adding twice is a no-op, not a duplicate.
+  await add('bob@example.com');
+  const members = ((await call({ path: '/v1/team', headers: asOwner('bob') })).body as { members: { email: string }[] }).members;
+  assert.equal(members.filter((m) => m.email === 'bob@example.com').length, 1);
+
+  const lastOwner = await call({ method: 'DELETE', path: '/v1/team/alice%40example.com', headers: asOwner() });
+  assert.equal(lastOwner.status, 409);
+  assert.equal((await call({ method: 'DELETE', path: '/v1/team/bob%40example.com', headers: asOwner() })).status, 200);
+  assert.equal((await call({ path: '/v1/projects', headers: asOwner('bob') })).status, 403);
+});
+
+test('apps have a platform; every member sees every app', async () => {
+  const { call, asOwner } = setup();
+  await call({ method: 'POST', path: '/v1/team', headers: asOwner(), body: { email: 'bob@example.com' } });
+  const bad = await call({ method: 'POST', path: '/v1/projects', headers: asOwner(), body: { name: 'X', platform: 'amiga' } });
+  assert.equal(bad.status, 400);
+  const ios = await call({ method: 'POST', path: '/v1/projects', headers: asOwner(), body: { name: 'Acme iOS', platform: 'ios' } });
+  assert.equal(ios.status, 201);
+  const web = await call({ method: 'POST', path: '/v1/projects', headers: asOwner(), body: { name: 'Acme web', framework: 'Next' } });
+  const w = (web.body as { project: Project }).project;
+  assert.equal(w.platform, 'web', 'web is the default');
+  assert.equal(w.framework, 'next');
+  assert.equal(w.created_by, 'alice@example.com');
+  const seen = ((await call({ path: '/v1/projects', headers: asOwner('bob') })).body as { projects: Project[] }).projects;
+  assert.deepEqual(seen.map((p) => p.name).sort(), ['Acme iOS', 'Acme web']);
 });

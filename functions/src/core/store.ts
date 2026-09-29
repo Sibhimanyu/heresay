@@ -1,4 +1,4 @@
-import type { Project, Report, ReportStatus, Task } from './types.js';
+import type { Instance, Project, Report, ReportStatus, Task } from './types.js';
 
 /** Result of a status change. A lost race is not an error: the caller is told what it is now. */
 export type Transition =
@@ -7,10 +7,16 @@ export type Transition =
   | { ok: false; reason: 'wrong_status'; status: ReportStatus };
 
 export interface Store {
+  /** The team that owns this install, or null before `create-heresay` has written it. */
+  getInstance(): Promise<Instance | null>;
+  /** Atomic read-modify-write of the team. `fn` may throw to abort. */
+  updateInstance(fn: (current: Instance | null) => Instance): Promise<Instance>;
+
   createProject(p: Project): Promise<void>;
   getProject(id: string): Promise<Project | null>;
   getProjectByKey(key: string): Promise<Project | null>;
-  listProjects(owner_uid: string): Promise<Project[]>;
+  /** Every app in this install. The whole team sees all of them. */
+  listProjects(): Promise<Project[]>;
 
   createReport(r: Report): Promise<void>;
   getReport(project_id: string, id: string): Promise<Report | null>;
@@ -35,19 +41,25 @@ export interface Store {
 
 /** For tests and local runs. Same semantics as the Firestore store, no persistence. */
 export class MemoryStore implements Store {
+  instance: Instance | null = null;
   projects = new Map<string, Project>();
   reports = new Map<string, Report>();
   tasks = new Map<string, Task>();
   buckets = new Map<string, number>();
+
+  async getInstance() { return this.instance ? structuredClone(this.instance) : null; }
+  async updateInstance(fn: (current: Instance | null) => Instance) {
+    const next = fn(this.instance ? structuredClone(this.instance) : null);
+    this.instance = structuredClone(next);
+    return structuredClone(next);
+  }
 
   async createProject(p: Project) { this.projects.set(p.id, { ...p }); }
   async getProject(id: string) { return this.projects.get(id) ?? null; }
   async getProjectByKey(key: string) {
     return [...this.projects.values()].find((p) => p.key === key) ?? null;
   }
-  async listProjects(owner_uid: string) {
-    return [...this.projects.values()].filter((p) => p.owner_uid === owner_uid);
-  }
+  async listProjects() { return [...this.projects.values()]; }
 
   async createReport(r: Report) { this.reports.set(r.id, { ...r }); }
   async getReport(project_id: string, id: string) {

@@ -34,6 +34,10 @@
           "functionId": "api",
           "region": "us-central1"
         }
+      },
+      {
+        "source": "/sdk/v1.js",
+        "destination": "/sdk.js"
       }
     ],
     "headers": [
@@ -51,7 +55,7 @@
         ]
       },
       {
-        "source": "/sdk.js",
+        "source": "/sdk{,/v1}.js",
         "headers": [
           {
             "key": "Cache-Control",

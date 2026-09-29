@@ -55,16 +55,35 @@ export interface Report {
   triaged_by: string | null;
 }
 
+/** What kind of app a project is. Decides the SDK and the install steps. */
+export type Platform = 'web' | 'ios' | 'macos' | 'android' | 'react-native' | 'flutter';
+export const PLATFORMS: readonly Platform[] = ['web', 'ios', 'macos', 'android', 'react-native', 'flutter'];
+export const isPlatform = (v: unknown): v is Platform =>
+  typeof v === 'string' && (PLATFORMS as readonly string[]).includes(v);
+
+/** One app that reports come from. The dashboard calls these "apps". */
 export interface Project {
   id: string;
   name: string;
+  platform: Platform;
+  /** e.g. 'nextjs', 'react', 'html', 'swiftui'. Shapes the install steps; optional. */
+  framework: string | null;
   /** Public. It goes in the host app's HTML. It identifies, it does not authorise triage. */
   key: string;
-  owner_uid: string;
-  /** Where the SDK may be embedded. Empty means any origin. */
+  /** Where the SDK may be embedded. Empty means any origin. Web only. */
   allowed_origins: string[];
+  /** Email of the team member who added it. */
+  created_by: string;
   created_at: string;
 }
+
+/**
+ * One Heresay install belongs to one team. `create-heresay` writes the first owner; owners
+ * invite the rest. Membership is by verified email, so signing in is all a teammate does.
+ */
+export type Role = 'owner' | 'member';
+export interface Member { email: string; role: Role; added_at: string; added_by: string | null }
+export interface Instance { members: Member[]; created_at: string }
 
 /**
  * The ONLY thing a coding agent is ever handed. Written by `accept` and by nothing else, so a

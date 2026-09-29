@@ -1,8 +1,9 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Store, Transition } from '../../core/store.js';
-import type { Project, Report, ReportStatus, Task } from '../../core/types.js';
+import type { Instance, Project, Report, ReportStatus, Task } from '../../core/types.js';
 
 /**
+ * meta/instance                              the team: members and roles
  * projects/{project_id}
  * projects/{project_id}/reports/{report_id}
  * projects/{project_id}/tasks/{report_id}    written only by accept(), read only by the prompt
@@ -18,6 +19,20 @@ export class FirestoreStore implements Store {
   private reports(p: string) { return this.projects().doc(p).collection('reports'); }
   private tasks(p: string) { return this.projects().doc(p).collection('tasks'); }
 
+  private instanceRef() { return this.db.collection('meta').doc('instance'); }
+  async getInstance() {
+    const s = await this.instanceRef().get();
+    return s.exists ? s.data() as Instance : null;
+  }
+  async updateInstance(fn: (current: Instance | null) => Instance) {
+    return this.db.runTransaction(async (tx) => {
+      const s = await tx.get(this.instanceRef());
+      const next = fn(s.exists ? s.data() as Instance : null);
+      tx.set(this.instanceRef(), next);
+      return next;
+    });
+  }
+
   async createProject(p: Project) { await this.projects().doc(p.id).create(p); }
   async getProject(id: string) {
     const s = await this.projects().doc(id).get();
@@ -27,8 +42,8 @@ export class FirestoreStore implements Store {
     const q = await this.projects().where('key', '==', key).limit(1).get();
     return q.empty ? null : q.docs[0].data() as Project;
   }
-  async listProjects(owner_uid: string) {
-    const q = await this.projects().where('owner_uid', '==', owner_uid).get();
+  async listProjects() {
+    const q = await this.projects().get();
     return q.docs.map((d) => d.data() as Project);
   }
 
