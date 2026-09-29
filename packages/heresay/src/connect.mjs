@@ -211,8 +211,10 @@ export async function connect(args) {
     `  ${peacock('“Add Heresay to this app”')}`,
     `  ${peacock('“Fix the next Heresay report”')}`,
     '',
-    pc.dim('Commit .mcp.json, the skill and AGENTS.md. Teammates run npx heresay connect'),
-    pc.dim('once to get their own token.'),
+    pc.bold('Commit these files now:') + ' ' + done.map(([f]) => f).join(', ') + '.',
+    pc.dim('New checkouts and worktrees (Conductor, CI, a teammate\'s clone) only get what\'s'),
+    pc.dim('committed. Teammates then run npx heresay connect once for their own token.'),
+    pc.dim('The /heresay skill shows up in new agent chats; start one to use it.'),
   ].join('\n'), 'Ready');
   p.outro('Every report gets a hearing.');
 }

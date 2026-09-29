@@ -247,6 +247,21 @@ export function findInRepo(root, strings, { code = false } = {}) {
   return null;
 }
 
+/** The files `heresay connect` writes, if they exist here but aren't committed. */
+export const AGENT_FILES = ['.mcp.json', '.claude/skills/heresay/SKILL.md', 'AGENTS.md', 'CLAUDE.md'];
+export function uncommittedAgentFiles(root) {
+  const loose = [];
+  for (const f of AGENT_FILES) {
+    if (!existsSync(join(root, f))) continue;
+    try {
+      execFileSync('git', ['ls-files', '--error-unmatch', f], { cwd: root, stdio: 'ignore' });
+      // Tracked, but with our section changed and not committed yet?
+      execFileSync('git', ['diff', '--quiet', 'HEAD', '--', f], { cwd: root, stdio: 'ignore' });
+    } catch { loose.push(f); }
+  }
+  return loose;
+}
+
 /** An app connected to this repo, by id or name. `how` says where to look them up. */
 export async function findApp(api, id, how = 'Run: heresay apps') {
   const app = (await api.apps()).apps.find((a) => a.id === id || a.name.toLowerCase() === String(id).toLowerCase());
@@ -291,6 +306,10 @@ export async function verifyInstall(api, app, { wait = 0, root = repoAt().root }
     todo.push(apple(app)
       ? 'People sign in to this app: call Heresay.identify(id:label:email:) after sign-in and Heresay.identify() after sign-out, so nobody is asked their name.'
       : 'People sign in to this app: call window.Heresay?.identify({ id, label, email }) after sign-in and identify() after sign-out, so nobody is asked their name.');
+  }
+  const loose = uncommittedAgentFiles(root);
+  if (loose.length) {
+    todo.push(`Commit Heresay's agent files (${loose.join(', ')}) in their own commit. New checkouts, worktrees and teammates only get what's committed, so without it the /heresay skill and MCP server are missing there.`);
   }
   out.todo = todo;
   if (!file && !out.seen_running) {

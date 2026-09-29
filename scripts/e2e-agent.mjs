@@ -99,8 +99,12 @@ const found = await call('check_install', { app: app.id });
 assert.equal(found.installed, true, 'verified from the code alone');
 assert.equal(found.found_in_code, 'index.html');
 assert.match(guide, /Tell people it's there \(required\)/, 'the guide says to introduce Heresay');
-assert.equal(found.todo.length, 1, 'the key alone is not the whole install');
-assert.match(found.todo[0], /introduce\(\)/);
+assert.ok(found.todo.some((t) => /introduce\(\)/.test(t)), 'the key alone is not the whole install');
+assert.ok(found.todo.some((t) => /Commit Heresay's agent files/.test(t)), 'uncommitted agent files are flagged');
+// Committing them clears that item: new worktrees and clones will have the skill.
+execFileSync('git', ['add', '.mcp.json', '.claude', 'AGENTS.md', 'CLAUDE.md'], { cwd: dir });
+execFileSync('git', ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e', 'commit', '-qm', 'Heresay agent files'], { cwd: dir });
+assert.ok(!(await call('check_install', { app: app.id })).todo.some((t) => /Commit Heresay/.test(t)));
 // Telling people it exists clears it.
 writeFileSync(join(dir, 'index.html'), `<!doctype html><body><h1>Notes</h1>\n<script src="${BASE}/sdk/v1.js" data-key="${app.key}" data-intro="auto" defer></script></body>`);
 assert.deepEqual((await call('check_install', { app: app.id })).todo, [], 'nothing owed once people are told');

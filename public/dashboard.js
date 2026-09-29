@@ -512,6 +512,8 @@
       '',
       '   npx -y heresay@latest connect --url ' + location.origin + ' --token ' + token + ' --yes',
       '',
+      '   Then commit the files it added (.mcp.json, .claude/skills/heresay/, AGENTS.md, CLAUDE.md) in their own commit, so every checkout and worktree of this repo has the Heresay skill and MCP server. Commit nothing else with them.',
+      '',
       '2. Print the install steps for this app and follow them. They include the app\'s key and exactly where the code goes' + (apple ? ' (a Swift package and one line of setup)' : ', for any framework') + '. Follow every required step, including telling the people who use the app that Heresay is there: call introduce() once the main screen appears, so it isn\'t hidden' + (apple ? ' under a menu' : ' in a corner') + '.',
       '',
       '   npx -y heresay@latest install ' + p.id,
@@ -520,7 +522,7 @@
       '',
       '   npx -y heresay@latest check ' + p.id,
       '',
-      '   You are done when it prints "installed": true and an empty "todo" list. If not, do what it says and run it again.',
+      '   You are done when it prints "installed": true and an empty "todo" list. If not, do what it says and run it again. Commit the install as its own change.',
       '',
       'Change nothing else in the app.',
     ].join('\n');
