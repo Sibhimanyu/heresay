@@ -41,6 +41,24 @@ export interface ReportContext {
   user_label: string | null;
   /** What the SDK saw on the page ('next', 'nuxt', ...). Fills in an app's framework. */
   framework: string | null;
+  /** The page the report was sent from. Web only; older SDKs leave them out. */
+  page_title?: string | null;
+  page_url?: string | null;   // origin + path + hash, never the query string
+  viewport?: string | null;   // '1280x720'
+}
+
+/**
+ * What the reporter chose to say about themselves, in the SDK's Preferences. Typed by the
+ * reporter, so untrusted like the report text, and optional: nobody has to fill it in. Kept
+ * apart from `context` (which the SDK attaches) and from user_id/user_label (which the host
+ * app asserts), so the dashboard can say who claimed what.
+ */
+export interface ReporterPrefs {
+  name: string | null;
+  /** Only if they want to be contacted. Never shown to a coding agent. */
+  email: string | null;
+  /** A standing note sent with every report: "I use a screen reader", "on slow Wi-Fi". */
+  note: string | null;
 }
 
 /** Frameworks the web SDK can recognise on a page. */
@@ -55,6 +73,8 @@ export interface Report {
   type: ReportType;
   text: string;
   context: ReportContext;
+  /** null when the reporter set no preferences. */
+  reporter?: ReporterPrefs | null;
   status: ReportStatus;
   decline_reason: string | null;
   /** What was done, in words for the reporter. Set when marked fixed. */
@@ -113,6 +133,8 @@ export interface Task {
   type: ReportType;
   text: string;
   context: ReportContext;
+  /** The reporter's standing note, if any. Their name and email stay out of briefs. */
+  reporter_note?: string | null;
   note: string | null;    // what the accepter added
   accepted_by: string;
   accepted_at: string;
@@ -176,4 +198,7 @@ export const LIMITS = {
   deviceIdMax: 64,
   reasonMax: 1000,
   repoMax: 200,
+  nameMax: 80,
+  emailMax: 200,
+  noteMax: 500,
 } as const;

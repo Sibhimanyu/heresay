@@ -10,9 +10,11 @@
  *   Feedback.setVersion("1.4.0")
  *   Feedback.setScreen("Checkout")    for apps whose URL does not change per screen
  *   Feedback.open()
+ *   Feedback.openPreferences()        the reporter's own name, email, setup note and button side
  *
  * No account, no cookies. The reporter is a random per-device id kept in localStorage, and
- * that id is also what lets them see what happened to their own reports.
+ * that id is also what lets them see what happened to their own reports. Their preferences are
+ * kept on the device too, and sent with each report only if they filled them in.
  */
 (function () {
   'use strict';
@@ -78,6 +80,28 @@
     return state.reports.filter(function (r) { return r.status !== 'open' && s[r.id] !== r.status; }).length;
   }
 
+  /**
+   * What the reporter chose to tell the team, and where they want the button. Per device and
+   * per app. Everything is optional; an empty field is simply not sent.
+   */
+  var PREFS_KEY = 'fbsdk.prefs.' + KEY;
+  function prefs() {
+    try {
+      var p = JSON.parse(load(PREFS_KEY) || '{}');
+      return p && typeof p === 'object' ? p : {};
+    } catch (e) { return {}; }
+  }
+  function savePrefs(p) { save(PREFS_KEY, JSON.stringify(p)); }
+  function reporter() {
+    var p = prefs();
+    var r = { name: p.name || null, email: p.email || null, note: p.note || null };
+    return r.name || r.email || r.note ? r : null;
+  }
+  function side() {
+    var p = prefs().side;
+    return p === 'left' || p === 'right' ? p : (script.getAttribute('data-position') === 'left' ? 'left' : 'right');
+  }
+
   // ---- context ---------------------------------------------------------------------------
 
   function platformInfo() {
@@ -119,6 +143,11 @@
     } catch (e) { return null; }
   }
 
+  /** The page, without its query string: that is where apps put tokens and personal data. */
+  function pageUrl() {
+    try { return location.origin + location.pathname + location.hash; } catch (e) { return null; }
+  }
+
   function context() {
     var p = platformInfo();
     return {
@@ -130,6 +159,9 @@
       user_id: state.userId,
       user_label: state.userLabel,
       framework: framework(),
+      page_title: (document.title || '').trim() || null,
+      page_url: pageUrl(),
+      viewport: Math.round(window.innerWidth) + 'x' + Math.round(window.innerHeight),
     };
   }
 
@@ -161,7 +193,7 @@
     return fetch(API + '/reports', {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web', type: type, text: text, context: context() }),
+      body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web', type: type, text: text, context: context(), reporter: reporter() }),
     }).then(body);
   }
 
@@ -192,6 +224,7 @@
     '.mark{display:inline-flex;color:var(--fb-mark)}.mark svg{display:block}',
     '.dot{width:8px;height:8px;border-radius:50%;background:var(--fb-acc)}',
     '.scrim{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:flex-end;padding:16px}',
+    '.scrim.left{justify-content:flex-start}',
     '.panel{width:min(380px,100%);max-height:min(560px,calc(100vh - 32px));overflow:auto;background:var(--fb-bg);',
     'border:1px solid var(--fb-line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.3);padding:16px}',
     '.head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}',
@@ -206,7 +239,17 @@
     '.type span{display:block;font-size:12px;color:var(--fb-mute)}',
     '.type[aria-pressed=true]{border-color:var(--fb-acc);box-shadow:inset 0 0 0 1px var(--fb-acc)}',
     'textarea{width:100%;min-height:96px;resize:vertical;padding:10px;border:1px solid var(--fb-line);border-radius:10px;background:none}',
-    'textarea:focus,.type:focus-visible,button:focus-visible{outline:2px solid var(--fb-acc);outline-offset:1px}',
+    'input[type=text],input[type=email]{width:100%;padding:9px 10px;border:1px solid var(--fb-line);border-radius:10px;background:none}',
+    'textarea:focus,input:focus,.type:focus-visible,button:focus-visible{outline:2px solid var(--fb-acc);outline-offset:1px}',
+    '.field{display:block;margin:0 0 12px}',
+    '.field>span{display:block;font-weight:600;margin-bottom:4px}',
+    '.field>span i{font-style:normal;font-weight:400;color:var(--fb-mute)}',
+    '.field textarea{min-height:64px}',
+    '.hint{display:block;font-size:12px;color:var(--fb-mute);margin-top:4px}',
+    '.seg{display:flex;gap:6px}',
+    '.seg button{flex:1;padding:8px;border:1px solid var(--fb-line);border-radius:10px;background:none;cursor:pointer}',
+    '.seg button[aria-pressed=true]{border-color:var(--fb-acc);box-shadow:inset 0 0 0 1px var(--fb-acc)}',
+    '.link{border:0;background:none;padding:0;cursor:pointer;color:var(--fb-mute);text-decoration:underline;font-size:12px}',
     '.row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px}',
     '.small{font-size:12px;color:var(--fb-mute)}',
     '.send{padding:9px 16px;border:0;border-radius:10px;background:var(--fb-acc);color:var(--fb-acc-fg);font-weight:600;cursor:pointer}',
@@ -266,7 +309,7 @@
   }
   var fabDot = el('span', { class: 'dot', hidden: '' });
   var fab = el('button', {
-    class: 'fab' + (script.getAttribute('data-position') === 'left' ? ' left' : ''),
+    class: 'fab' + (side() === 'left' ? ' left' : ''),
     type: 'button', 'aria-haspopup': 'dialog', onclick: function () { open(); },
   }, [markEl(), el('span', { text: 'Report' }), fabDot]);
   root.appendChild(fab);
@@ -285,7 +328,7 @@
     if (scrim || dead) return;
     lastFocus = document.activeElement;
     view = which || (unseen() ? 'mine' : 'new');
-    scrim = el('div', { class: 'scrim', onclick: function (e) { if (e.target === scrim) close(); } });
+    scrim = el('div', { class: 'scrim' + (side() === 'left' ? ' left' : ''), onclick: function (e) { if (e.target === scrim) close(); } });
     scrim.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     root.appendChild(scrim);
     renderPanel();
@@ -312,13 +355,13 @@
     };
     var panel = el('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Feedback' }, [
       el('div', { class: 'head' }, [
-        el('div', { class: 'tabs', role: 'tablist' }, [tab('new', 'Report'), tab('mine', 'Your reports')]),
+        el('div', { class: 'tabs', role: 'tablist' }, [tab('new', 'Report'), tab('mine', 'Your reports'), tab('prefs', 'Preferences')]),
         el('button', { class: 'x', type: 'button', 'aria-label': 'Close', text: '×', onclick: close }),
       ]),
-      view === 'new' ? formView() : listView(),
+      view === 'new' ? formView() : view === 'prefs' ? prefsView() : listView(),
     ]);
     scrim.appendChild(panel);
-    var first = panel.querySelector(view === 'new' ? '.type' : '.tab[aria-selected=true]');
+    var first = panel.querySelector(view === 'new' ? '.type' : view === 'prefs' ? 'input' : '.tab[aria-selected=true]');
     if (first) first.focus();
   }
 
@@ -363,12 +406,75 @@
       el('fieldset', {}, [el('legend', { text: 'What is it?' })].concat(types)),
       text,
       el('div', { class: 'row' }, [
-        el('span', { class: 'small', text: 'The current screen and app version are attached.' }),
+        el('span', { class: 'small', text: reporter()
+          ? 'This page, the app version and your preferences are attached.'
+          : 'This page and the app version are attached.' }),
         sendBtn,
       ]),
       err,
     ]);
     return form;
+  }
+
+  function prefsView() {
+    var p = prefs();
+    var status = el('span', { class: 'small', role: 'status' });
+    var field = function (label, input, hint) {
+      return el('label', { class: 'field' }, [
+        el('span', {}, [document.createTextNode(label + ' '), el('i', { text: '(optional)' })]),
+        input, hint ? el('span', { class: 'hint', text: hint }) : null,
+      ]);
+    };
+    var name = el('input', { type: 'text', maxlength: '80', autocomplete: 'name' });
+    var email = el('input', { type: 'email', maxlength: '200', autocomplete: 'email' });
+    var note = el('textarea', { maxlength: '500', placeholder: 'For example: I use a screen reader, or I am usually on slow Wi-Fi.' });
+    name.value = p.name || ''; email.value = p.email || ''; note.value = p.note || '';
+    var where = side();
+    var sideBtn = function (id, label) {
+      return el('button', {
+        type: 'button', 'aria-pressed': String(where === id), 'data-side': id,
+        onclick: function () {
+          where = id;
+          Array.prototype.forEach.call(seg.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-side') === id)); });
+        },
+      }, [document.createTextNode(label)]);
+    };
+    var seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Button position' }, [sideBtn('left', 'Left'), sideBtn('right', 'Right')]);
+    var err = el('div', { class: 'err', role: 'alert' });
+
+    function apply(next) {
+      savePrefs(next);
+      fab.classList.toggle('left', side() === 'left');
+      if (scrim) scrim.classList.toggle('left', side() === 'left');
+    }
+
+    return el('form', {
+      role: 'tabpanel', novalidate: '',
+      onsubmit: function (e) {
+        e.preventDefault();
+        err.textContent = '';
+        var em = email.value.trim();
+        if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { err.textContent = 'That email does not look right.'; email.focus(); return; }
+        apply({ name: name.value.trim(), email: em, note: note.value.trim(), side: where });
+        status.textContent = 'Saved on this device.';
+      },
+    }, [
+      state.userLabel ? el('p', { class: 'small', text: 'The app already tells the team you are ' + state.userLabel + '.' }) : null,
+      field('Your name', name),
+      field('Email', email, 'Only if you are happy for the team to reply to you.'),
+      field('About your setup', note, 'Sent with every report, so you only say it once.'),
+      el('div', { class: 'field' }, [el('span', { text: 'Button position' }), seg]),
+      el('div', { class: 'row' }, [
+        el('button', { class: 'link', type: 'button', text: 'Clear all', onclick: function () {
+          apply({});
+          view = 'prefs';
+          renderPanel();
+        } }),
+        el('span', {}, [status, document.createTextNode(' '), el('button', { class: 'send', type: 'submit', text: 'Save' })]),
+      ]),
+      err,
+      el('p', { class: 'small', text: 'Kept in this browser and sent only with reports you choose to send.' }),
+    ]);
   }
 
   function listView() {
@@ -417,6 +523,7 @@
     setVersion: function (v) { state.version = v != null ? String(v) : null; },
     setScreen: function (s) { state.screen = s != null ? String(s) : null; },
     open: function () { open('new'); },
+    openPreferences: function () { open('prefs'); },
     close: close,
   };
 })();

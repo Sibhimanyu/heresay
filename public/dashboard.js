@@ -472,8 +472,8 @@
     promptBox.appendChild(copyBtn);
     promptBox.appendChild(copyNote);
 
-    var agentFirst = !apple && (!p.framework || p.framework === 'other');
-    var panes = { hand: el('div', { hidden: agentFirst }, byHand(p)), agent: el('div', { hidden: !agentFirst }, [
+    // The agent route comes first on every platform; doing it by hand is the fallback.
+    var panes = { hand: el('div', { hidden: true }, byHand(p)), agent: el('div', {}, [
       el('p', { html: 'Open your coding agent (Claude Code, Cursor, Codex, …) in your app’s repo, then paste in this prompt.' }),
       promptBox,
       el('details', { class: 'alt' }, [el('summary', { text: 'Prefer to run the command yourself?' }),
@@ -485,7 +485,7 @@
         ])]),
     ]) };
     var tabs = el('div', { class: 'seg', role: 'tablist' });
-    (agentFirst ? [['agent', 'Ask your coding agent'], ['hand', 'Add it yourself']] : [['hand', 'Add it yourself'], ['agent', 'Ask your coding agent']]).forEach(function (t, i) {
+    [['agent', 'Ask your coding agent'], ['hand', 'Add it yourself']].forEach(function (t, i) {
       tabs.appendChild(el('button', {
         type: 'button', role: 'tab', 'aria-selected': String(i === 0), text: t[1],
         onclick: function (e) {
@@ -582,6 +582,7 @@
     var empty = el('p', { class: 'empty' });
     var ctx = { repos: [], briefs: {} };
     var repoLine = el('p', { class: 'repos-line' });
+    view.appendChild(el('a', { class: 'back', href: '#/', text: '← All apps' }));
     view.appendChild(el('div', { class: 'head' }, [
       el('div', { class: 'title' }, [icon(platformOf(p.platform)), el('div', {}, [el('h1', { text: p.name }),
         p.framework ? el('span', { class: 'mute small', text: frameworkLabel(p.framework) + (p.framework_detected ? ' (detected)' : '') }) : null])]),
@@ -635,8 +636,20 @@
   }
 
   function ctxLine(c) {
-    return [c.route, c.app_version && ('v' + c.app_version), c.platform, c.os, c.browser, c.user_label || c.user_id]
+    return [c.page_title, c.route, c.app_version && ('v' + c.app_version), c.platform, c.os, c.browser,
+      c.viewport, c.user_label || c.user_id]
       .filter(Boolean).join(' · ');
+  }
+
+  /** What the reporter said about themselves, in the SDK's Preferences. Their words, not verified. */
+  function reporterLine(rp) {
+    if (!rp) return null;
+    var who = [rp.name, rp.email].filter(Boolean).join(' · ');
+    return el('div', { class: 'ctx' }, [
+      who ? el('span', {}, [document.createTextNode('From: ' + who + ' ')]) : null,
+      rp.email ? el('a', { href: 'mailto:' + encodeURIComponent(rp.email).replace(/%40/g, '@'), text: 'Reply' }) : null,
+      rp.note ? el('div', { text: 'About their setup: ' + rp.note }) : null,
+    ]);
   }
 
   function row(p, r, reload, ctx) {
@@ -712,6 +725,8 @@
       ]),
       el('p', { class: 'text', text: r.text }),
       el('div', { class: 'ctx', text: ctxLine(r.context) }),
+      r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
+      reporterLine(r.reporter),
       r.decline_reason ? el('div', { class: 'reason', text: 'Declined: ' + r.decline_reason }) : null,
       r.fix_note ? el('div', { class: 'reason', text: 'Told them: ' + r.fix_note }) : null,
       r.status === 'accepted' && brief ? el('div', { class: 'brief-line' }, [
