@@ -146,8 +146,18 @@ export async function guide(conn, topic) {
   return { text: [...notes, text].join('\n\n'), skill_version: latest, stale };
 }
 
-/** The install guide with this app's tag filled in. */
+export const SWIFT_PACKAGE = 'https://github.com/Sibhimanyu/heresay-swift';
+
+/** The install guide for the app's platform, with its key filled in. */
 export async function installGuide(conn, app) {
+  if (app.platform === 'ios' || app.platform === 'macos') {
+    const g = await guide(conn, 'install-apple');
+    return [
+      `App: ${app.name} (${app.id}), platform ${app.platform}. Key: ${app.key}`,
+      '',
+      g.text.replaceAll('SWIFT_PACKAGE', SWIFT_PACKAGE).replaceAll('HERESAY_URL', conn.url).replaceAll('KEY', app.key),
+    ].join('\n');
+  }
   const sdk = `${conn.url}/sdk/v1.js`;
   const tag = `<script src="${sdk}" data-key="${app.key}" defer></script>`;
   const g = await guide(conn, 'install-web');

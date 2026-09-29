@@ -44,7 +44,7 @@ export interface ReportContext {
 }
 
 /** Frameworks the web SDK can recognise on a page. */
-export const FRAMEWORKS = ['html', 'react', 'next', 'vue', 'nuxt', 'svelte', 'angular'] as const;
+export const FRAMEWORKS = ['html', 'react', 'next', 'vue', 'nuxt', 'svelte', 'angular', 'swiftui', 'uikit', 'appkit'] as const;
 export const isFramework = (v: unknown): v is (typeof FRAMEWORKS)[number] =>
   typeof v === 'string' && (FRAMEWORKS as readonly string[]).includes(v);
 

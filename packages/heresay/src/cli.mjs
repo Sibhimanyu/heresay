@@ -15,7 +15,7 @@ const HELP = `
     npx heresay connect --update                              refresh the skill and config files
 
   For agents (the same actions as the MCP tools)
-    heresay guide [topic]                  start | install-web | fix-brief | write-note
+    heresay guide [topic]                  start | install-web | install-apple | fix-brief | write-note
     heresay apps                           apps connected to this repo
     heresay create-app <name> [--site <origin>]… [--platform web]
     heresay install <app>                  install steps with this app's tag

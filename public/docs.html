@@ -21,7 +21,7 @@
     <aside class="toc">
       <b>START</b><a href="#self-host">Set up Heresay</a><a href="#quick-start">Add it to an app</a><a href="#what-users-see">What your users see</a><a href="#dashboard">The dashboard</a>
       <b>REFERENCE</b><a href="#options">Script tag options</a><a href="#api">JavaScript API</a><a href="#statuses">Report types and statuses</a><a href="#agents">Coding agents</a>
-      <b>MORE</b><a href="#security">Security and limits</a><a href="#privacy">Privacy</a><a href="#csp">Content Security Policy</a><a href="#rest">Other platforms</a><a href="#trouble">Troubleshooting</a>
+      <b>MORE</b><a href="#security">Security and limits</a><a href="#privacy">Privacy</a><a href="#csp">Content Security Policy</a><a href="#apple">iOS and macOS</a><a href="#rest">Other platforms</a><a href="#trouble">Troubleshooting</a>
     </aside>
 
     <main class="doc" data-origin>
@@ -143,8 +143,20 @@ router.afterEach((to) =&gt; Heresay.setScreen(to.name));</code></pre>
 <pre><code>script-src  ORIGIN;
 connect-src ORIGIN;</code></pre>
 
+      <h2 id="apple">iOS and macOS</h2>
+      <p>A Swift package for SwiftUI apps (iOS 16, macOS 13 and later). In Xcode, <b>File › Add Package Dependencies…</b> with <code>https://github.com/Sibhimanyu/heresay-swift</code>, then:</p>
+<pre><code><span class="k">import</span> Heresay
+
+<span class="k">@main</span> struct MyApp: App {
+    init() { Heresay.configure(key: "pk_your_key", url: URL(string: "ORIGIN")!) }
+    var body: some Scene {
+        WindowGroup { ContentView().heresayReportButton() }   <span class="k">// iOS: a Report button in the corner</span>
+    }
+}</code></pre>
+      <p>On macOS, use <code>ContentView().heresay()</code> and add <code>.commands { HeresayCommands() }</code> for <b>Help › Report a Problem…</b> (⌥⌘R). The same calls as the web SDK exist: <code>Heresay.identify(id:label:)</code>, <code>Heresay.setScreen(_:)</code>, <code>Heresay.present()</code>, and <code>Heresay.send(_:text:)</code> for your own UI. The app version comes from the bundle. Native apps have no web origin to lock the key to; the rate limits still apply.</p>
+
       <h2 id="rest">Other platforms</h2>
-      <p>The web SDK is the first. Until the iOS SDK ships, any app can talk to the same API. Both calls take a JSON body sent as <code>text/plain</code>.</p>
+      <p>Android, React Native and Flutter SDKs are on the way. Until then, any app can talk to the same API. Both calls take a JSON body.</p>
 <pre><code><span class="k">POST</span> ORIGIN/v1/reports
 { "key": "pk_…", "device_id": "a-random-id-16-to-64-chars",
   "type": "confusing", "text": "I can't find where to cancel my plan.",

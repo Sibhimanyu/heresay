@@ -8,3 +8,6 @@ functions/lib-test/
 packages/create-heresay/node_modules/
 packages/create-heresay/release/
 .impeccable/hook.cache.json
+apple/.build/
+apple/.swiftpm/
+apple/Example/*.xcodeproj/

@@ -17,7 +17,7 @@ sees the outcome in the app, including the note you write when you mark it fixed
 
 ## Which topic next
 
-- Adding Heresay to an app: `install-web` (web today; iOS, macOS and Android are coming).
+- Adding Heresay to an app: `install-web` for web apps, `install-apple` for iOS and macOS.
 - Fixing reports: `fix-brief`, then `write-note`.
 
 ## Tools

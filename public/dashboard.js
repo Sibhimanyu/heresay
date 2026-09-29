@@ -180,9 +180,9 @@
   var PLATFORMS = [
     { id: 'web', label: 'Web', note: 'Any site or web app', ready: true,
       icon: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>' },
-    { id: 'ios', label: 'iOS', note: 'iPhone and iPad',
+    { id: 'ios', label: 'iOS', note: 'iPhone and iPad, SwiftUI', ready: true, apple: true,
       icon: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>' },
-    { id: 'macos', label: 'macOS', note: 'Mac apps',
+    { id: 'macos', label: 'macOS', note: 'Mac apps, SwiftUI', ready: true, apple: true,
       icon: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M1.5 19.5h21"/>' },
     { id: 'android', label: 'Android', note: 'Phones and tablets',
       icon: '<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M8 8a4 4 0 0 1 8 0M8.5 4.5l1 1.5M15.5 4.5l-1 1.5"/>' },
@@ -260,7 +260,8 @@
     }
 
     view.appendChild(stepper(2));
-    view.appendChild(el('h1', { text: 'About your web app' }));
+    var native = !!platformOf(platform).apple;
+    view.appendChild(el('h1', { text: 'About your ' + platformOf(platform).label + ' app' }));
     var err = el('p', { class: 'err', role: 'alert' });
     var fw = 'unknown';
     var chips = el('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Framework' });
@@ -273,7 +274,12 @@
         },
       }));
     });
-    var form = el('form', { class: 'form' }, [
+    var form = el('form', { class: 'form' }, native ? [
+      el('label', {}, ['Name', el('input', { name: 'name', required: true, maxlength: '80', placeholder: 'Acme for ' + platformOf(platform).label, autocomplete: 'off' })]),
+      el('p', { class: 'hint', text: 'Native apps have no web address to lock the key to, so any copy of your app can send reports. The per-device, per-network and per-app rate limits still apply.' }),
+      el('div', { class: 'row' }, [el('a', { class: 'btn ghost', href: '#/new', text: 'Back' }), el('button', { class: 'btn primary', text: 'Create app' })]),
+      err,
+    ] : [
       el('label', {}, ['Name', el('input', { name: 'name', required: true, maxlength: '80', placeholder: 'Acme web', autocomplete: 'off' })]),
       el('div', { class: 'field' }, [el('span', { class: 'lbl' }, ['Built with ', el('span', { class: 'opt', text: 'optional' })]), chips,
         el('p', { class: 'hint', text: 'Only changes the install steps we show. Not sure? Leave it: your coding agent can work it out, and the general steps work everywhere.' })]),
@@ -285,8 +291,8 @@
     form.onsubmit = function (e) {
       e.preventDefault();
       err.textContent = '';
-      var origins = form.origins.value.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-      api('POST', '/projects', { name: form.name.value, platform: platform, framework: fw === 'unknown' ? null : fw, allowed_origins: origins })
+      var origins = native ? [] : form.origins.value.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      api('POST', '/projects', { name: form.name.value, platform: platform, framework: native ? 'swiftui' : (fw === 'unknown' ? null : fw), allowed_origins: origins })
         .then(function (b) { projects.push(b.project); location.hash = '#/apps/' + b.project.id + '/setup'; })
         .catch(function (x) { err.textContent = x.message; });
     };
@@ -317,7 +323,35 @@
     }[fw] || 'Load this once on every page, as late as you can, for example before <code>&lt;/body&gt;</code>:', tag(p)];
   }
 
+  var SWIFT_PACKAGE = 'https://github.com/Sibhimanyu/heresay-swift';
+
+  function appleByHand(p) {
+    var mac = p.platform === 'macos';
+    var code = [
+      'import SwiftUI',
+      'import Heresay',
+      '',
+      '@main',
+      'struct MyApp: App {',
+      '    init() {',
+      '        Heresay.configure(key: "' + p.key + '", url: URL(string: "' + location.origin + '")!)',
+      '    }',
+      '    var body: some Scene {',
+      '        WindowGroup {',
+      mac ? '            ContentView().heresay()' : '            ContentView().heresayReportButton()',
+      '        }',
+    ].concat(mac ? ['        .commands { HeresayCommands() }'] : []).concat(['    }', '}']).join('\n');
+    return [
+      el('p', { html: '<b>1.</b> In Xcode, choose <b>File › Add Package Dependencies…</b> and paste:' }),
+      codeBlock(SWIFT_PACKAGE),
+      el('p', { html: '<b>2.</b> Configure it once, where your app starts, and add the ' + (mac ? 'menu item (Help › Report a Problem…)' : 'Report button') + ':' }),
+      codeBlock(code),
+      el('p', { class: 'hint', html: 'Optional: <code>Heresay.identify(id:label:)</code> after sign-in, <code>Heresay.setScreen("Checkout")</code> as people move around, and <code>Heresay.present()</code> to open it from your own button. Needs iOS 16 or macOS 13.' }),
+    ];
+  }
+
   function byHand(p) {
+    if (platformOf(p.platform).apple) return appleByHand(p);
     var fw = p.framework;
     if (fw && fw !== 'other') {
       var one = placement(fw, p);
@@ -341,6 +375,21 @@
   }
 
   function agentPromptFor(p) {
+    if (platformOf(p.platform).apple) {
+      return [
+        'Add Heresay, an in-app feedback button, to this ' + platformOf(p.platform).label + ' app.',
+        '',
+        '1. Add the Swift package ' + SWIFT_PACKAGE + ' (product "Heresay") to the app target.',
+        '2. In the App struct\'s init, call Heresay.configure(key: "' + p.key + '", url: URL(string: "' + location.origin + '")!).',
+        p.platform === 'macos'
+          ? '3. Add .heresay() to the root view of the main WindowGroup, and .commands { HeresayCommands() } to that WindowGroup.'
+          : '3. Add .heresayReportButton() to the root view of the main WindowGroup.',
+        '4. If the app has signed-in users, call Heresay.identify(id:label:) after sign-in and Heresay.identify() after sign-out.',
+        '5. Where it is easy, call Heresay.setScreen("<screen name>") when the main screens appear.',
+        '',
+        'Change nothing else. Reference: ' + location.origin + '/guides/install-apple.md',
+      ].join('\n');
+    }
     return [
       'Add Heresay, an in-app feedback button, to this app.',
       '',
@@ -364,7 +413,7 @@
     ]));
 
     // Without a known framework, the agent is the better default: it can see the code.
-    var agentFirst = !p.framework || p.framework === 'other';
+    var agentFirst = !platformOf(p.platform).apple && (!p.framework || p.framework === 'other');
     var panes = { hand: el('div', { hidden: agentFirst }, byHand(p)), agent: el('div', { hidden: !agentFirst }, [
       el('ol', { class: 'agent-steps' }, [
         el('li', {}, [el('b', { text: 'In your app’s repo, run:' }), codeBlock('npx heresay connect --url ' + location.origin),
@@ -387,16 +436,21 @@
     });
     view.appendChild(el('section', { class: 'card' }, [
       tabs, panes.hand, panes.agent,
-      el('p', { class: 'hint', html: 'Your key is meant to be public: it only lets the sites you listed send reports. Optional extras (who is signed in, your app version, your brand colour) are in the <a href="/docs.html#options" target="_blank">docs</a>.' }),
+      platformOf(p.platform).apple
+        ? el('p', { class: 'hint', text: 'Your key is meant to be public: it can only send reports, never read them. It is fine in your source code.' })
+        : el('p', { class: 'hint', html: 'Your key is meant to be public: it only lets the sites you listed send reports. Optional extras (who is signed in, your app version, your brand colour) are in the <a href="/docs.html#options" target="_blank">docs</a>.' }),
     ]));
 
     var status = el('div', { class: 'wait', role: 'status' });
-    var tryIt = el('a', { class: 'btn', href: '/demo.html?key=' + encodeURIComponent(p.key), target: '_blank', rel: 'noopener', text: 'Send a test report' });
+    var tryIt = platformOf(p.platform).apple ? null
+      : el('a', { class: 'btn', href: '/demo.html?key=' + encodeURIComponent(p.key), target: '_blank', rel: 'noopener', text: 'Send a test report' });
     view.appendChild(el('section', { class: 'card test' }, [
       el('div', { class: 'test-head' }, [el('span', { class: 'stepnum', text: '4' }), el('h2', { text: 'Send your first report' })]),
-      el('p', { class: 'mute', text: 'Open your app, tap Report in the corner and send anything. Or use our test page. It shows up here within a few seconds.' }),
+      el('p', { class: 'mute', text: platformOf(p.platform).apple
+        ? 'Run your app, ' + (p.platform === 'macos' ? 'choose Help › Report a Problem…' : 'tap Report in the corner') + ' and send anything. It shows up here within a few seconds.'
+        : 'Open your app, tap Report in the corner and send anything. Or use our test page. It shows up here within a few seconds.' }),
       status,
-      el('div', { class: 'row' }, [tryIt]),
+      tryIt ? el('div', { class: 'row' }, [tryIt]) : null,
     ]));
 
     var seen = null;

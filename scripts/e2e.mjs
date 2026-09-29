@@ -61,7 +61,7 @@ try {
   await dash.getByRole('link', { name: 'Add an app' }).click();
   await dash.getByRole('heading', { name: 'What are you adding Heresay to?' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-1a-platform.png` });
-  assert.equal(await dash.locator('.platform.soon').count(), 5, 'only web is ready');
+  assert.equal(await dash.locator('.platform.soon').count(), 3, 'web, iOS and macOS are ready');
   await dash.locator('a.platform', { hasText: 'Web' }).click();
   await dash.fill('input[name=name]', 'Acme Notes');
   assert.equal(await dash.getByRole('radio', { name: 'Not sure' }).getAttribute('aria-checked'), 'true', 'framework is optional');
@@ -199,6 +199,19 @@ try {
     body: JSON.stringify({ key, device_id: 'other_device_000000000', type: 'idea', text: 'x' }),
   });
   assert.equal(foreign.status, 403);
+
+  step('an iOS app gets Swift install steps, and no web-sites question');
+  await dash.goto(`${BASE}/app/#/new/ios`);
+  await dash.getByRole('heading', { name: 'About your iOS app' }).waitFor();
+  assert.equal(await dash.locator('textarea[name=origins]').count(), 0);
+  await dash.fill('input[name=name]', 'Acme iOS');
+  await dash.getByRole('button', { name: 'Create app' }).click();
+  await dash.getByText('File › Add Package Dependencies…').waitFor();
+  const swift = await dash.locator('.code pre').nth(1).textContent();
+  assert.match(swift, /Heresay\.configure\(key: "pk_/);
+  assert.match(swift, /heresayReportButton\(\)/);
+  assert.equal(await dash.getByRole('link', { name: 'Send a test report' }).count(), 0, 'no web test page for native apps');
+  await dash.screenshot({ path: `${SHOTS}e2e-1f-ios-install.png`, fullPage: true });
 
   step('connect a repo for coding agents from the dashboard: the token is shown once');
   await dash.goto(`${BASE}/app/#/connect?repo=github.com/acme/notes&app=${project.id}`);
