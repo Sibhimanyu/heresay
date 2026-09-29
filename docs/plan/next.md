@@ -33,8 +33,9 @@ Product page: https://sibhimanyu.github.io/heresay/ (from `site/`, published wit
 - **Binding a prompt token isn't transactional.** Two repos that connect with the same prompt
   token at the same moment could both bind (`agent.ts`, bind). It's rare and the fix is small:
   a transactional `updateAgentToken`.
-- **`.mcp.json` pins `heresay@0`,** so npx may keep running a cached older 0.x. The prompts use
-  `heresay@latest` for this reason. Consider having `heresay mcp` warn when a newer 0.x exists.
+- **Repos connected before 0.2.9 still pin `heresay@0`** in `.mcp.json`. `connect` now writes
+  `heresay@latest`, and the MCP server says when it's behind, including how to fix an old pin
+  (`npx -y heresay@latest connect --update`).
 - **Deleting an app leaves tokens behind.** A token whose only app was deleted stays, with no
   apps. It's harmless, but it shows in Connected repos until someone revokes it.
 - **Upstream warnings.** The functions emulator warns that `firebase-functions` is outdated,

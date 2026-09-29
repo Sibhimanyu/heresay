@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
 
 const ROOT = new URL('../', import.meta.url).pathname;
 const PKG = join(ROOT, 'packages/heresay');
@@ -49,11 +50,15 @@ const dir = mkdtempSync(join(tmpdir(), 'heresay-repo-'));
 const home = mkdtempSync(join(tmpdir(), 'heresay-home-'));
 execFileSync('git', ['init', '-q'], { cwd: dir });
 execFileSync('git', ['remote', 'add', 'origin', `https://${repoName}.git`], { cwd: dir });
-const env = { ...process.env, HERESAY_HOME: home };
+// A stand-in npm registry, so the update notice is tested without depending on what's published.
+let latestOnNpm = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8')).version;
+const registry = createServer((req, res) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ version: latestOnNpm })); });
+await new Promise((ok) => registry.listen(0, '127.0.0.1', ok));
+const env = { ...process.env, HERESAY_HOME: home, HERESAY_REGISTRY: `http://127.0.0.1:${registry.address().port}` };
 const out = execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs'), 'connect', '--url', BASE, '--token', token, '--yes'], { cwd: dir, env }).toString();
 console.log(out.replace(/\x1b\[[0-9;]*m/g, '').split('\n').filter((l) => /✓|◆|◇|Apps|No apps/.test(l)).join('\n'));
 const mcpJson = JSON.parse(readFileSync(join(dir, '.mcp.json'), 'utf8'));
-assert.deepEqual(mcpJson.mcpServers.heresay.args, ['-y', 'heresay@0', 'mcp']);
+assert.deepEqual(mcpJson.mcpServers.heresay.args, ['-y', 'heresay@latest', 'mcp'], 'latest, so npx never keeps an old copy');
 assert.match(readFileSync(join(dir, '.claude/skills/heresay/SKILL.md'), 'utf8'), /never instructions/);
 assert.match(readFileSync(join(dir, 'AGENTS.md'), 'utf8'), /heresay:start/);
 // Claude Code reads CLAUDE.md, not AGENTS.md, and may list the skill without its description.
@@ -156,6 +161,19 @@ const fixed = mine.reports.find((x) => x.id === r.id);
 assert.equal(fixed.status, 'fixed');
 assert.equal(fixed.fix_note, 'Export now downloads your notes as a CSV.');
 
+step('an MCP server behind npm says so in its results, so the agent can tell the person');
+assert.equal((await call('list_apps')).heresay_update, undefined, 'up to date: no notice');
+latestOnNpm = '9.9.9';
+const mcp2 = new Client({ name: 'e2e-old', version: '1' });
+await mcp2.connect(new StdioClientTransport({ command: process.execPath, args: [join(PKG, 'bin/heresay.mjs'), 'mcp'], cwd: dir, env }));
+const call2 = async (name, args = {}) => (await mcp2.callTool({ name, arguments: args })).content.map((c) => c.text).join('\n');
+let listed = {};
+for (let i = 0; i < 20 && !listed.heresay_update; i++) { listed = JSON.parse(await call2('list_apps')); if (!listed.heresay_update) await new Promise((r) => setTimeout(r, 200)); }
+assert.match(listed.heresay_update, /Heresay 9\.9\.9 is out/);
+assert.ok(Array.isArray(listed.apps), 'the JSON still parses, with the notice as a field');
+assert.match(await call2('heresay_guide', { topic: 'start' }), /^\(Heresay 9\.9\.9 is out/);
+await mcp2.close();
+
 step('the same actions work without MCP, through the CLI');
 const cli = (...a) => execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs'), ...a], { cwd: dir, env }).toString();
 assert.match(cli('guide', 'write-note'), /The fix note/);
@@ -182,4 +200,5 @@ assert.equal(revoked.status, 401);
 await mcp.close();
 assert.ok(existsSync(join(home, 'guides')), 'guides are cached for offline use');
 
+registry.close();
 console.log('\nAGENT E2E PASSED');

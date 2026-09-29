@@ -10,7 +10,7 @@ npx heresay connect
 Run it in the app's repo. It opens your Heresay dashboard to make a token for this repo, then
 adds files you commit:
 
-- `.mcp.json`: the Heresay MCP server (`npx heresay@0 mcp`)
+- `.mcp.json`: the Heresay MCP server (`npx heresay@latest mcp`)
 - `.claude/skills/heresay/SKILL.md`: a short skill with the rules
 - a Heresay section in `AGENTS.md`, for agents without MCP
 

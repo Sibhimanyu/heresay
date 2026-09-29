@@ -127,6 +127,7 @@
       $('who').textContent = b.email;
       show('app');
       route();
+      checkForUpdate(b);
     }).catch(function (x) {
       show('blocked');
       if (x.code === 'not_member') {
@@ -141,6 +142,48 @@
       }
     });
   });
+
+  // ---- a newer Heresay -------------------------------------------------------------------
+
+  /** a.b.c > x.y.z, numerically. Anything unparseable is never newer. */
+  function newer(a, b) {
+    var p = function (v) { return String(v).split('-')[0].split('.').map(Number); };
+    var x = p(a), y = p(b);
+    if (x.length !== 3 || x.some(isNaN)) return false;
+    for (var i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > (y[i] || 0);
+    return false;
+  }
+
+  /**
+   * Each team runs its own Heresay, so nothing updates it but them. Owners (who can run the
+   * update) see a quiet banner when npm has a newer release; it goes away per version once
+   * dismissed. A slow or blocked registry just means no banner.
+   */
+  function checkForUpdate(who) {
+    if (who.role !== 'owner' || !who.version) return;
+    fetch('https://registry.npmjs.org/create-heresay/latest').then(function (r) { return r.ok ? r.json() : null; }).then(function (pkg) {
+      if (!pkg || !newer(pkg.version, who.version)) return;
+      var key = 'heresay.update-dismissed';
+      try { if (localStorage.getItem(key) === pkg.version) return; } catch (e) { /* private mode */ }
+      var box = $('update');
+      box.textContent = '';
+      var cmd = 'npx create-heresay update';
+      var copy = el('button', { class: 'btn', type: 'button', text: 'Copy command', onclick: function () {
+        navigator.clipboard.writeText(cmd).then(function () { copy.textContent = 'Copied'; });
+      } });
+      box.appendChild(el('div', { class: 'update-in' }, [
+        el('p', {}, [el('b', { text: 'Heresay ' + pkg.version + ' is out.' }),
+          document.createTextNode(' This one runs ' + who.version + '. On the computer that set it up, run '),
+          el('code', { text: cmd }), document.createTextNode('. It takes a few minutes, and nothing is lost.')]),
+        copy,
+        el('button', { class: 'btn ghost', type: 'button', text: 'Not now', 'aria-label': 'Dismiss until the next version', onclick: function () {
+          try { localStorage.setItem(key, pkg.version); } catch (e) { /* private mode */ }
+          box.hidden = true;
+        } }),
+      ]));
+      box.hidden = false;
+    }).catch(function () { /* offline or blocked: no banner */ });
+  }
 
   // ---- routes ----------------------------------------------------------------------------
 

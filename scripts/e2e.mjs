@@ -62,9 +62,21 @@ try {
   step('owner signs in with an email link and lands on an empty Heresay');
   const dash = await ctx.newPage();
   dash.on('pageerror', (e) => console.error('dashboard error:', e));
+  // npm says a newer create-heresay is out, so the owner should be told once.
+  await dash.route('https://registry.npmjs.org/create-heresay/latest', (r) => r.fulfill({ json: { version: '9.9.9' } }));
   await signInByLink(dash, OWNER);
   await dash.getByRole('heading', { name: 'Add your first app' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-0-empty.png` });
+
+  step('a newer Heresay on npm: the owner sees how to update, and can put it off until the next one');
+  await dash.getByText('Heresay 9.9.9 is out.').waitFor();
+  await dash.locator('#update code', { hasText: 'npx create-heresay update' }).waitFor();
+  await dash.screenshot({ path: `${SHOTS}e2e-0b-update.png` });
+  await dash.getByRole('button', { name: 'Dismiss until the next version' }).click();
+  assert.equal(await dash.locator('#update').isHidden(), true);
+  await dash.reload();
+  await dash.getByRole('heading', { name: 'Add your first app' }).waitFor();
+  assert.equal(await dash.locator('#update').isHidden(), true, 'stays dismissed for this version');
 
   step('add an app: platform, details, install; verified automatically when the app loads it');
   await dash.getByRole('link', { name: 'Add an app' }).click();
