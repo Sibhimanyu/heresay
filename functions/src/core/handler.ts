@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Store, Transition } from './store.js';
+import { agent, normaliseRepo, reposFor, tokens } from './agent.js';
 import {
-  LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isPlatform, isReportType, toReporterView,
+  LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, toReporterView,
   type Instance, type Member, type Project, type Report, type ReportContext, type Task,
 } from './types.js';
 
@@ -40,6 +41,27 @@ export interface Deps {
  * defence: the device id is chosen by the client and can be rotated, the IP limit catches that,
  * and the key limit caps what any one project can be flooded with whatever else gets through.
  */
+/** Reading your own reports: generous, but not unlimited. Per network. */
+export const MINE_LIMIT = { limit: 240, windowMs: 3600_000 } as const;
+
+/** How often "seen running" is written, at most, per app. */
+const SEEN_EVERY_MS = 10 * 60_000;
+
+/**
+ * Every SDK call proves the SDK is loaded in the app. Remember when and where, so the dashboard
+ * can say "installed" without anyone sending a test report. Not from this Heresay's own pages.
+ */
+async function markSeen(project: Project, req: Req, body: Record<string, unknown>, deps: Deps) {
+  const now = deps.now();
+  if (project.sdk_seen && now - Date.parse(project.sdk_seen.at) < SEEN_EVERY_MS) return;
+  const origin = req.headers['origin'] ? normaliseOrigin(req.headers['origin']) : null;
+  if (origin && (deps.selfOrigins ?? []).includes(origin)) return;
+  const sdk = typeof body.sdk === 'string' && ['web', 'ios', 'macos'].includes(body.sdk) ? body.sdk : (origin ? 'web' : null);
+  await deps.store.updateProject(project.id, {
+    sdk_seen: { at: new Date(now).toISOString(), where: origin ?? (sdk === 'ios' ? 'the iOS app' : sdk === 'macos' ? 'the Mac app' : 'the app'), sdk },
+  });
+}
+
 export const RATE_LIMITS = [
   { scope: 'device', limit: 5, windowMs: 10 * 60_000 },
   { scope: 'device', limit: 20, windowMs: 24 * 3600_000 },
@@ -67,6 +89,7 @@ export function parseContext(v: unknown): ReportContext {
   return {
     route: f('route'), app_version: f('app_version'), platform: f('platform'), os: f('os'),
     browser: f('browser'), user_id: f('user_id'), user_label: f('user_label'),
+    framework: isFramework(c.framework) ? c.framework : null,
   };
 }
 
@@ -126,6 +149,14 @@ async function route(req: Req, deps: Deps): Promise<Res> {
   if (p[0] === 'reports' && p[1] === 'mine' && req.method === 'POST') return mine(req, deps);
   if (p[0] === 'reports' && req.method === 'OPTIONS') return preflight(req);
 
+  // Coding agents, with a per-repo token instead of a person's sign-in.
+  if (p[0] === 'agent') {
+    return agent(p.slice(1), req, deps, parseBody(req.body), agentPrompt,
+      (by, body) => createProject({ email: by, role: 'member', added_at: '', added_by: null }, { ...req, body }, deps),
+      async (project, id, note, by) => transitionRes(await deps.store.move(project.id, id, 'accepted', 'fixed',
+        { fix_note: note, triaged_by: by, updated_at: new Date(deps.now()).toISOString() })));
+  }
+
   // The team, signed in to the dashboard.
   const who = await caller(req, deps);
   if (!who) return json(401, { error: 'sign in first' });
@@ -142,6 +173,7 @@ async function route(req: Req, deps: Deps): Promise<Res> {
     return json(200, { email: member.email, role: member.role, version: deps.version, platforms: PLATFORMS });
   }
   if (p[0] === 'team') return team(p, member, req, deps);
+  if (p[0] === 'agent-tokens') return tokens(p, member, req, deps, parseBody(req.body));
 
   if (p[0] === 'projects' && p.length === 1) {
     if (req.method === 'GET') return listProjects(deps);
@@ -151,8 +183,20 @@ async function route(req: Req, deps: Deps): Promise<Res> {
     const project = await deps.store.getProject(p[1]);
     if (!project) return json(404, { error: 'no such app' });
     if (p.length === 2 && req.method === 'GET') return json(200, { project });
+    if (p.length === 2 && req.method === 'PATCH') return updateProject(project, member, req, deps);
+    if (p.length === 2 && req.method === 'DELETE') return deleteProject(project, member, req, deps);
     if (p[2] === 'reports' && p.length === 3 && req.method === 'GET') {
-      return json(200, { reports: sortForTriage(await deps.store.listReports(project.id)) });
+      // Alongside each accepted report: where its fix is going, and whether an agent has it.
+      const now = deps.now();
+      const briefs: Record<string, unknown> = {};
+      for (const t of await deps.store.listTasks(project.id)) {
+        const live = t.claim && now - Date.parse(t.claim.at) < 24 * 3600_000;
+        briefs[t.id] = { repo: t.repo ?? null, claimed_by: live ? t.claim!.repo : null, notes: t.notes ?? [] };
+      }
+      return json(200, { reports: sortForTriage(await deps.store.listReports(project.id)), briefs });
+    }
+    if (p[2] === 'repos' && p.length === 3 && req.method === 'GET') {
+      return json(200, { repos: await reposFor(project.id, deps) });
     }
     if (p[2] === 'reports' && p[3] && req.method === 'POST') {
       return triage(project, p[3], p[4], member.email, req, deps);
@@ -286,9 +330,16 @@ async function submit(req: Req, deps: Deps): Promise<Res> {
   const report: Report = {
     id: newId('r_'), project_id: project.id, device_id: body.device_id, type: body.type, text,
     context: parseContext(body.context), status: 'open', decline_reason: null,
-    created_at: at, updated_at: at, triaged_by: null,
+    fix_note: null, created_at: at, updated_at: at, triaged_by: null,
   };
   await deps.store.createReport(report);
+  await markSeen(project, req, body, deps);
+  // Nobody said what the app is built with, and the SDK could tell: remember it. Not from
+  // this Heresay's own test page, which isn't the app.
+  const fromSelf = (deps.selfOrigins ?? []).includes(normaliseOrigin(req.headers['origin'] ?? ''));
+  if (!project.framework && report.context.framework && !fromSelf) {
+    await deps.store.updateProject(project.id, { framework: report.context.framework, framework_detected: true });
+  }
   deps.log('api.report_created', { project_id: project.id, report_id: report.id, type: report.type });
   return json(201, { report: toReporterView(report) }, headers);
 }
@@ -304,6 +355,13 @@ async function mine(req: Req, deps: Deps): Promise<Res> {
   const { project, headers } = got;
   // The device id is random and long, so knowing it is what proves these are yours.
   if (!validDeviceId(body.device_id)) return json(400, { error: 'bad device_id' }, headers);
+  const now = deps.now();
+  const start = Math.floor(now / MINE_LIMIT.windowMs) * MINE_LIMIT.windowMs;
+  if (!(await deps.store.hit(`mine:${sha(req.ip)}:${start}`, MINE_LIMIT.limit, start + MINE_LIMIT.windowMs))) {
+    return json(429, { error: 'too many requests, try again later' },
+      { ...headers, 'retry-after': String(Math.ceil((start + MINE_LIMIT.windowMs - now) / 1000)) });
+  }
+  await markSeen(project, req, body, deps);
   const rs = await deps.store.listReportsForDevice(project.id, body.device_id);
   rs.sort((a, b) => b.created_at.localeCompare(a.created_at));
   return json(200, { reports: rs.map(toReporterView) }, headers);
@@ -352,6 +410,58 @@ async function createProject(me: Member, req: Req, deps: Deps): Promise<Res> {
   return json(201, { project });
 }
 
+/** Going back in the add-app wizard edits the app rather than making another. The key stays. */
+async function updateProject(project: Project, me: Member, req: Req, deps: Deps): Promise<Res> {
+  const body = parseBody(req.body);
+  const patch: Partial<Project> = {};
+  if (body.name !== undefined) {
+    const name = str(body.name, 80);
+    if (!name) return json(400, { error: 'an app needs a name' });
+    patch.name = name;
+  }
+  if (body.platform !== undefined) {
+    if (!isPlatform(body.platform)) return json(400, { error: `platform must be one of ${PLATFORMS.join(', ')}` });
+    patch.platform = body.platform;
+  }
+  if (body.framework !== undefined) {
+    const f = str(body.framework, 40);
+    patch.framework = f ? f.toLowerCase() : null;
+    patch.framework_detected = false;
+  }
+  if (body.allowed_origins !== undefined) {
+    const origins: string[] = [];
+    for (const o of Array.isArray(body.allowed_origins) ? body.allowed_origins : []) {
+      if (typeof o !== 'string' || !o.trim()) continue;
+      let u: URL;
+      try { u = new URL(o.trim()); } catch { return json(400, { error: `not a URL: ${o}` }); }
+      origins.push(normaliseOrigin(u.origin));
+    }
+    patch.allowed_origins = [...new Set(origins)];
+  }
+  await deps.store.updateProject(project.id, patch);
+  deps.log('api.project_updated', { project_id: project.id, by: me.email, fields: Object.keys(patch) });
+  return json(200, { project: { ...project, ...patch } });
+}
+
+/**
+ * Gone for good: the app, its reports and briefs. Its key stops working at once. Connected
+ * repos keep their tokens (they may serve other apps) but lose this app.
+ */
+async function deleteProject(project: Project, me: Member, req: Req, deps: Deps): Promise<Res> {
+  if (me.role !== 'owner') return json(403, { error: 'only an owner can delete an app' });
+  const body = parseBody(req.body);
+  // Typed, not clicked: this can't be undone.
+  if (body.confirm !== project.name) return json(400, { error: 'type the app\'s name to confirm' });
+  await deps.store.deleteProject(project.id);
+  for (const t of await deps.store.listAgentTokens()) {
+    if (t.app_ids.includes(project.id)) {
+      await deps.store.updateAgentToken(t.id, { app_ids: t.app_ids.filter((id) => id !== project.id) });
+    }
+  }
+  deps.log('api.project_deleted', { project_id: project.id, by: me.email });
+  return json(200, { ok: true });
+}
+
 function transitionRes(t: Transition): Res {
   if (t.ok) return json(200, { report: t.report });
   if (t.reason === 'not_found') return json(404, { error: 'no such report' });
@@ -369,10 +479,14 @@ async function triage(
   if (action === 'accept') {
     const report = await deps.store.getReport(project.id, report_id);
     if (!report) return json(404, { error: 'no such report' });
+    // Route the fix to a repo now: the one asked for, else the app's first connected repo.
+    const repos = await reposFor(project.id, deps);
+    const asked = body.repo === undefined || body.repo === null ? null : normaliseRepo(body.repo);
+    if (asked && !repos.includes(asked)) return json(400, { error: `${asked} is not connected to ${project.name}`, repos });
     const task: Task = {
       id: report.id, project_id: project.id, report_id: report.id, type: report.type,
       text: report.text, context: report.context, note: str(body.note, LIMITS.reasonMax),
-      accepted_by: uid, accepted_at: at,
+      accepted_by: uid, accepted_at: at, repo: asked ?? repos[0] ?? null, claim: null, notes: [],
     };
     t = await deps.store.accept(project.id, report_id, task, at);
   } else if (action === 'decline') {
@@ -382,8 +496,9 @@ async function triage(
     t = await deps.store.move(project.id, report_id, 'open', 'declined',
       { decline_reason: reason, triaged_by: uid, updated_at: at });
   } else if (action === 'fixed') {
+    // Optional from the dashboard; when given, the reporter reads it next to "Fixed".
     t = await deps.store.move(project.id, report_id, 'accepted', 'fixed',
-      { triaged_by: uid, updated_at: at });
+      { fix_note: str(body.note, LIMITS.reasonMax), triaged_by: uid, updated_at: at });
   } else {
     return json(404, { error: 'not found' });
   }

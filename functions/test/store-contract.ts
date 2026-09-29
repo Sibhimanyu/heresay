@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Store } from '../src/core/store.js';
-import type { Project, Report, Task } from '../src/core/types.js';
+import type { AgentToken, Project, Report, Task } from '../src/core/types.js';
 
 const AT = '2026-09-29T10:00:00.000Z';
 let n = 0;
@@ -17,7 +17,7 @@ function project(owner: string): Project {
 function report(p: Project, over: Partial<Report> = {}): Report {
   return {
     id: uid('r_'), project_id: p.id, device_id: 'device_contract_000001', type: 'broken', text: 'It broke',
-    context: { route: '/x', app_version: '1.0', platform: 'web', os: null, browser: null, user_id: null, user_label: null },
+    context: { route: '/x', app_version: '1.0', platform: 'web', os: null, browser: null, user_id: null, user_label: null, framework: null },
     status: 'open', decline_reason: null, created_at: AT, updated_at: AT, triaged_by: null, ...over,
   };
 }
@@ -86,6 +86,60 @@ export function storeContract(name: string, make: () => Store | Promise<Store>) 
     assert.equal(read!.members.length, (before?.members.length ?? 0) + 1);
     const removed = await s.updateInstance((cur) => ({ ...cur!, members: cur!.members.filter((m) => m.email !== email) }));
     assert.ok(!removed.members.some((m) => m.email === email));
+  });
+
+  test(`${name}: projects can be patched in place`, async () => {
+    const s = await make(); const p = project(uid('u_')); await s.createProject(p);
+    await s.updateProject(p.id, { framework: 'next', framework_detected: true });
+    const got = await s.getProject(p.id);
+    assert.equal(got?.framework, 'next');
+    assert.equal(got?.framework_detected, true);
+    assert.equal(got?.key, p.key, 'the rest is untouched');
+  });
+
+  test(`${name}: deleting a project removes it, its reports and its tasks, and nothing else`, async () => {
+    const s = await make(); const p = project(uid('u_')), q = project(uid('u_'));
+    await s.createProject(p); await s.createProject(q);
+    const r1 = report(p), r2 = report(p), r3 = report(q);
+    for (const r of [r1, r2, r3]) await s.createReport(r);
+    await s.accept(p.id, r1.id, task(r1), AT);
+    await s.accept(q.id, r3.id, task(r3), AT);
+    await s.deleteProject(p.id);
+    assert.equal(await s.getProject(p.id), null);
+    assert.equal(await s.getProjectByKey(p.key), null);
+    assert.deepEqual(await s.listReports(p.id), []);
+    assert.deepEqual(await s.listTasks(p.id), []);
+    assert.equal(await s.getReport(p.id, r1.id), null);
+    assert.equal(await s.getTask(p.id, r1.id), null);
+    assert.equal((await s.getProjectByKey(q.key))?.id, q.id, 'the other project is untouched');
+    assert.deepEqual((await s.listReports(q.id)).map((r) => r.id), [r3.id]);
+    assert.equal((await s.getTask(q.id, r3.id))?.report_id, r3.id);
+  });
+
+  test(`${name}: tasks are listed per project and updated atomically`, async () => {
+    const s = await make(); const p = project(uid('u_')), q = project(uid('u_'));
+    await s.createProject(p); await s.createProject(q);
+    const r1 = report(p), r2 = report(q);
+    await s.createReport(r1); await s.createReport(r2);
+    await s.accept(p.id, r1.id, { ...task(r1), repo: null, claim: null, notes: [] }, AT);
+    await s.accept(q.id, r2.id, task(r2), AT);
+    assert.deepEqual((await s.listTasks(p.id)).map((t) => t.id), [r1.id]);
+    const next = await s.updateTask(p.id, r1.id, (t) => ({ ...t, claim: { repo: 'github.com/a/b', at: AT } }));
+    assert.equal(next?.claim?.repo, 'github.com/a/b');
+    assert.equal((await s.getTask(p.id, r1.id))?.claim?.repo, 'github.com/a/b');
+    assert.equal(await s.updateTask(p.id, 'r_missing', (t) => t), null);
+  });
+
+  test(`${name}: agent tokens are stored, found by id, and revoked by patch`, async () => {
+    const s = await make();
+    const t: AgentToken = { id: uid('t'), secret_hash: 'h'.repeat(64), repo: 'github.com/a/b', app_ids: ['p_1'],
+      created_by: 'a@example.com', created_at: AT, last_used_at: null, revoked_at: null };
+    await s.createAgentToken(t);
+    assert.equal((await s.getAgentToken(t.id))?.repo, 'github.com/a/b');
+    assert.ok((await s.listAgentTokens()).some((x) => x.id === t.id));
+    await s.updateAgentToken(t.id, { revoked_at: AT });
+    assert.equal((await s.getAgentToken(t.id))?.revoked_at, AT);
+    assert.equal(await s.getAgentToken('t_missing'), null);
   });
 
   test(`${name}: hit counts up to the limit and no further, per bucket`, async () => {

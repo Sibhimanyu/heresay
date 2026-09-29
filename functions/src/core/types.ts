@@ -39,7 +39,14 @@ export interface ReportContext {
   browser: string | null;
   user_id: string | null;      // from the host app, if it chose to say
   user_label: string | null;
+  /** What the SDK saw on the page ('next', 'nuxt', ...). Fills in an app's framework. */
+  framework: string | null;
 }
+
+/** Frameworks the web SDK can recognise on a page. */
+export const FRAMEWORKS = ['html', 'react', 'next', 'vue', 'nuxt', 'svelte', 'angular', 'swiftui', 'uikit', 'appkit'] as const;
+export const isFramework = (v: unknown): v is (typeof FRAMEWORKS)[number] =>
+  typeof v === 'string' && (FRAMEWORKS as readonly string[]).includes(v);
 
 export interface Report {
   id: string;
@@ -50,6 +57,8 @@ export interface Report {
   context: ReportContext;
   status: ReportStatus;
   decline_reason: string | null;
+  /** What was done, in words for the reporter. Set when marked fixed. */
+  fix_note?: string | null;
   created_at: string;
   updated_at: string;
   triaged_by: string | null;
@@ -66,8 +75,14 @@ export interface Project {
   id: string;
   name: string;
   platform: Platform;
-  /** e.g. 'nextjs', 'react', 'html', 'swiftui'. Shapes the install steps; optional. */
+  /** e.g. 'next', 'react', 'html'. Shapes the install steps; optional. */
   framework: string | null;
+  /** True when the framework came from the SDK rather than from a person. */
+  framework_detected?: boolean;
+  /** The SDK was last seen running in the app: proof the install works, with no test report. */
+  sdk_seen?: { at: string; where: string; sdk: string | null } | null;
+  /** A coding agent found the app's key in a repo's code (`heresay check`). */
+  code_found?: { at: string; repo: string; file: string } | null;
   /** Public. It goes in the host app's HTML. It identifies, it does not authorise triage. */
   key: string;
   /** Where the SDK may be embedded. Empty means any origin. Web only. */
@@ -101,6 +116,39 @@ export interface Task {
   note: string | null;    // what the accepter added
   accepted_by: string;
   accepted_at: string;
+  /**
+   * Which repo the fix goes in, chosen at accept time or by a handoff. null: any repo
+   * connected to the app may take it.
+   */
+  repo?: string | null;
+  /** An agent working on it. Others skip it until the claim goes stale (CLAIM_TTL_MS). */
+  claim?: { repo: string; at: string } | null;
+  /** Private to the team: progress notes and handoffs. Never shown to the reporter. */
+  notes?: TaskNote[];
+}
+
+export interface TaskNote { by: string; at: string; text: string; kind: 'note' | 'handoff' }
+
+/** A claim nobody has touched for this long is dropped, so a crashed agent can't block a brief. */
+export const CLAIM_TTL_MS = 24 * 3600_000;
+
+/**
+ * What `npx heresay connect` gives one repo: access to the briefs of the apps whose code is
+ * there, and nothing else. The secret is shown once; only its hash is stored.
+ */
+export interface AgentToken {
+  id: string;             // the public half: hst_<id>_<secret>
+  secret_hash: string;
+  /**
+   * e.g. 'github.com/acme/web'. null until first used: a token made for a copy-paste prompt
+   * binds to whichever repo runs `heresay connect` with it first, and only that one after.
+   */
+  repo: string | null;
+  app_ids: string[];
+  created_by: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
 }
 
 /** What the reporter's device gets back. No other device's reports, no triager identity. */
@@ -110,13 +158,15 @@ export interface ReporterView {
   text: string;
   status: ReportStatus;
   decline_reason: string | null;
+  fix_note: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export const toReporterView = (r: Report): ReporterView => ({
   id: r.id, type: r.type, text: r.text, status: r.status,
-  decline_reason: r.decline_reason, created_at: r.created_at, updated_at: r.updated_at,
+  decline_reason: r.decline_reason, fix_note: r.fix_note ?? null,
+  created_at: r.created_at, updated_at: r.updated_at,
 });
 
 export const LIMITS = {
@@ -125,4 +175,5 @@ export const LIMITS = {
   deviceIdMin: 16,
   deviceIdMax: 64,
   reasonMax: 1000,
+  repoMax: 200,
 } as const;

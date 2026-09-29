@@ -148,17 +148,21 @@
 
   function route() {
     stopTimer();
-    var parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+    var hash = location.hash.replace(/^#\/?/, '');
+    var query = new URLSearchParams(hash.split('?')[1] || '');
+    var parts = hash.split('?')[0].split('/').filter(Boolean);
     document.querySelectorAll('[data-nav]').forEach(function (a) {
       a.setAttribute('aria-current', String((parts[0] === 'team') === (a.dataset.nav === 'team')));
     });
     var view = $('view');
     view.textContent = '';
     if (parts[0] === 'team') return teamView(view);
-    if (parts[0] === 'new') return newAppView(view, parts[1]);
+    if (parts[0] === 'connect') return connectView(view, query);
+    if (parts[0] === 'new') return newAppView(view, parts[1], query);
     if (parts[0] === 'apps' && parts[1]) {
       return withProject(parts[1], function (p) {
         if (parts[2] === 'setup') setupView(view, p);
+        else if (parts[2] === 'delete') deleteView(view, p);
         else reportsView(view, p);
       });
     }
@@ -177,9 +181,9 @@
   var PLATFORMS = [
     { id: 'web', label: 'Web', note: 'Any site or web app', ready: true,
       icon: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>' },
-    { id: 'ios', label: 'iOS', note: 'iPhone and iPad',
+    { id: 'ios', label: 'iOS', note: 'iPhone and iPad, SwiftUI', ready: true, apple: true,
       icon: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>' },
-    { id: 'macos', label: 'macOS', note: 'Mac apps',
+    { id: 'macos', label: 'macOS', note: 'Mac apps, SwiftUI', ready: true, apple: true,
       icon: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M1.5 19.5h21"/>' },
     { id: 'android', label: 'Android', note: 'Phones and tablets',
       icon: '<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M8 8a4 4 0 0 1 8 0M8.5 4.5l1 1.5M15.5 4.5l-1 1.5"/>' },
@@ -209,14 +213,17 @@
       var grid = el('div', { class: 'apps' });
       projects.forEach(function (p) {
         var count = el('span', { class: 'count', text: ' ' });
-        grid.appendChild(el('a', { class: 'app-card', href: '#/apps/' + p.id }, [
+        var card = el('a', { class: 'app-card', href: '#/apps/' + p.id }, [
           icon(platformOf(p.platform)),
           el('div', {}, [el('b', { text: p.name }), el('span', { class: 'mute', text: platformOf(p.platform).label + (p.framework ? ' · ' + frameworkLabel(p.framework) : '') })]),
           count,
-        ]));
+        ]);
+        grid.appendChild(card);
         api('GET', '/projects/' + p.id + '/reports').then(function (r) {
           var open = r.reports.filter(function (x) { return x.status === 'open'; }).length;
-          count.textContent = r.reports.length ? (open ? open + ' open' : 'All answered') : 'No reports yet';
+          // No report yet means setup isn't proven: send them back to finish it.
+          if (!r.reports.length && !p.sdk_seen && !p.code_found) { card.href = '#/apps/' + p.id + '/setup'; count.textContent = 'Setup not finished'; count.className = 'count todo'; return; }
+          count.textContent = !r.reports.length ? 'No reports yet' : open ? open + ' open' : 'All answered';
           if (open) count.className = 'count on';
         });
       });
@@ -233,21 +240,39 @@
   ];
   function frameworkLabel(id) { var f = FRAMEWORKS.filter(function (x) { return x[0] === id; })[0]; return f ? f[1] : id; }
 
-  function stepper(active) {
-    var steps = ['Platform', 'Details', 'Install', 'Test'];
-    return el('ol', { class: 'steps' }, steps.map(function (s, i) {
-      return el('li', { class: i + 1 < active ? 'done' : i + 1 === active ? 'now' : '' }, [el('span', { text: String(i + 1) }), s]);
+  /**
+   * The four steps. Earlier ones are links, so you can go back and change things; later ones
+   * aren't, because each step needs the one before it. `tested` marks the last step done.
+   */
+  function stepper(active, p, tested) {
+    var q = p ? '?app=' + p.id : '';
+    var links = ['#/new' + q, p ? '#/new/' + p.platform + q : null, p ? '#/apps/' + p.id + '/setup' : null, null];
+    var names = ['Platform', 'Details', 'Install', 'Test'];
+    return el('ol', { class: 'steps' }, names.map(function (s, i) {
+      var n = i + 1;
+      var cls = n < active || (tested && n <= 4) ? 'done' : n === active ? 'now' : '';
+      var inner = [el('span', { text: tested && n <= 4 ? '✓' : String(n) }), s];
+      var back = n < active && links[i];
+      return el('li', { class: cls }, back ? [el('a', { href: links[i], 'aria-label': 'Back to ' + s }, inner)] : inner);
     }));
   }
 
-  function newAppView(view, platform) {
+  /** Adding an app, or with ?app=<id>, going back to change one that already exists. */
+  function newAppView(view, platform, query) {
+    var editId = query && query.get('app');
+    if (editId) return withProject(editId, function (p) { drawNewApp(view, platform, p); });
+    drawNewApp(view, platform, null);
+  }
+
+  function drawNewApp(view, platform, editing) {
+    var q = editing ? '?app=' + editing.id : '';
     if (!platform) {
-      view.appendChild(stepper(1));
+      view.appendChild(stepper(1, editing));
       view.appendChild(el('h1', { text: 'What are you adding Heresay to?' }));
       var grid = el('div', { class: 'platforms' });
       PLATFORMS.forEach(function (p) {
         grid.appendChild(el(p.ready ? 'a' : 'div', {
-          class: 'platform' + (p.ready ? '' : ' soon'), href: p.ready ? '#/new/' + p.id : null,
+          class: 'platform' + (p.ready ? '' : ' soon') + (editing && editing.platform === p.id ? ' current' : ''), href: p.ready ? '#/new/' + p.id + q : null,
           'aria-disabled': p.ready ? null : 'true',
         }, [icon(p), el('b', { text: p.label }), el('span', { class: 'mute', text: p.note }), p.ready ? null : el('span', { class: 'tag', text: 'Soon' })]));
       });
@@ -256,10 +281,11 @@
       return;
     }
 
-    view.appendChild(stepper(2));
-    view.appendChild(el('h1', { text: 'About your web app' }));
+    view.appendChild(stepper(2, editing));
+    var native = !!platformOf(platform).apple;
+    view.appendChild(el('h1', { text: 'About your ' + platformOf(platform).label + ' app' }));
     var err = el('p', { class: 'err', role: 'alert' });
-    var fw = 'unknown';
+    var fw = editing && editing.framework && !editing.framework_detected ? editing.framework : 'unknown';
     var chips = el('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Framework' });
     FRAMEWORKS.forEach(function (f) {
       chips.appendChild(el('button', {
@@ -270,24 +296,38 @@
         },
       }));
     });
-    var form = el('form', { class: 'form' }, [
+    var form = el('form', { class: 'form' }, native ? [
+      el('label', {}, ['Name', el('input', { name: 'name', required: true, maxlength: '80', placeholder: 'Acme for ' + platformOf(platform).label, autocomplete: 'off' })]),
+      el('p', { class: 'hint', text: 'Native apps have no web address to lock the key to, so any copy of your app can send reports. The per-device, per-network and per-app rate limits still apply.' }),
+      el('div', { class: 'row' }, [el('a', { class: 'btn ghost', href: '#/new' + q, text: 'Back' }), el('button', { class: 'btn primary', text: editing ? 'Save and continue' : 'Create app' })]),
+      err,
+    ] : [
       el('label', {}, ['Name', el('input', { name: 'name', required: true, maxlength: '80', placeholder: 'Acme web', autocomplete: 'off' })]),
       el('div', { class: 'field' }, [el('span', { class: 'lbl' }, ['Built with ', el('span', { class: 'opt', text: 'optional' })]), chips,
         el('p', { class: 'hint', text: 'Only changes the install steps we show. Not sure? Leave it: your coding agent can work it out, and the general steps work everywhere.' })]),
       el('label', {}, ['Where it runs', el('textarea', { name: 'origins', rows: '3', placeholder: 'https://app.example.com\nhttp://localhost:3000' })]),
       el('p', { class: 'hint', text: 'One address per line: your live site and anywhere you test it. Only these sites can send reports with this app’s key. Leave it empty to allow any site while you try things out.' }),
-      el('div', { class: 'row' }, [el('a', { class: 'btn ghost', href: '#/new', text: 'Back' }), el('button', { class: 'btn primary', text: 'Create app' })]),
+      el('div', { class: 'row' }, [el('a', { class: 'btn ghost', href: '#/new' + q, text: 'Back' }), el('button', { class: 'btn primary', text: editing ? 'Save and continue' : 'Create app' })]),
       err,
     ]);
     form.onsubmit = function (e) {
       e.preventDefault();
       err.textContent = '';
-      var origins = form.origins.value.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-      api('POST', '/projects', { name: form.name.value, platform: platform, framework: fw === 'unknown' ? null : fw, allowed_origins: origins })
-        .then(function (b) { projects.push(b.project); location.hash = '#/apps/' + b.project.id + '/setup'; })
+      var origins = native ? [] : form.origins.value.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      var body = { name: form.name.value, platform: platform, framework: native ? 'swiftui' : (fw === 'unknown' ? null : fw), allowed_origins: origins };
+      // Editing keeps the key, so a line already pasted into the app keeps working.
+      (editing ? api('PATCH', '/projects/' + editing.id, body) : api('POST', '/projects', body))
+        .then(function (b) {
+          projects = projects.filter(function (x) { return x.id !== b.project.id; }).concat([b.project]);
+          location.hash = '#/apps/' + b.project.id + '/setup';
+        })
         .catch(function (x) { err.textContent = x.message; });
     };
     view.appendChild(form);
+    if (editing) {
+      form.name.value = editing.name;
+      if (!native) form.origins.value = editing.allowed_origins.join('\n');
+    }
     form.name.focus();
   }
 
@@ -314,7 +354,35 @@
     }[fw] || 'Load this once on every page, as late as you can, for example before <code>&lt;/body&gt;</code>:', tag(p)];
   }
 
+  var SWIFT_PACKAGE = 'https://github.com/Sibhimanyu/heresay-swift';
+
+  function appleByHand(p) {
+    var mac = p.platform === 'macos';
+    var code = [
+      'import SwiftUI',
+      'import Heresay',
+      '',
+      '@main',
+      'struct MyApp: App {',
+      '    init() {',
+      '        Heresay.configure(key: "' + p.key + '", url: URL(string: "' + location.origin + '")!)',
+      '    }',
+      '    var body: some Scene {',
+      '        WindowGroup {',
+      mac ? '            ContentView().heresay()' : '            ContentView().heresayReportButton()',
+      '        }',
+    ].concat(mac ? ['        .commands { HeresayCommands() }'] : []).concat(['    }', '}']).join('\n');
+    return [
+      el('p', { html: '<b>1.</b> In Xcode, choose <b>File › Add Package Dependencies…</b> and paste:' }),
+      codeBlock(SWIFT_PACKAGE),
+      el('p', { html: '<b>2.</b> Configure it once, where your app starts, and add the ' + (mac ? 'menu item (Help › Report a Problem…)' : 'Report button') + ':' }),
+      codeBlock(code),
+      el('p', { class: 'hint', html: 'Optional: <code>Heresay.identify(id:label:)</code> after sign-in, <code>Heresay.setScreen("Checkout")</code> as people move around, and <code>Heresay.present()</code> to open it from your own button. Needs iOS 16 or macOS 13.' }),
+    ];
+  }
+
   function byHand(p) {
+    if (platformOf(p.platform).apple) return appleByHand(p);
     var fw = p.framework;
     if (fw && fw !== 'other') {
       var one = placement(fw, p);
@@ -337,34 +405,67 @@
     ];
   }
 
-  function agentPromptFor(p) {
+  /** One prompt that connects the repo, installs Heresay and waits for the test report. */
+  function onePrompt(p, token) {
+    var apple = platformOf(p.platform).apple;
     return [
-      'Add Heresay, an in-app feedback button, to this app.',
+      'Set up Heresay, in-app feedback, in this repo. Do these steps in order.',
       '',
-      '1. Load this script once on every page, as late as possible: before </body>, or the framework\'s equivalent (for Next.js, next/script with strategy="afterInteractive" in the root layout).',
+      '1. Connect this repo to Heresay. This adds .mcp.json, a Heresay skill and an AGENTS.md section, and saves the token in ~/.heresay, outside the repo. Do not copy the token into any file.',
       '',
-      '   ' + tag(p),
+      '   npx -y heresay@latest connect --url ' + location.origin + ' --token ' + token + ' --yes',
       '',
-      '2. If the app has signed-in users, call window.Heresay?.identify({ id: user.id, label: user.name }) after sign-in, and window.Heresay?.identify() after sign-out.',
-      '3. If the app has a version number (for example package.json "version"), add data-version="<version>" to the tag.',
-      '4. If screens change without the URL changing, call window.Heresay?.setScreen("<screen name>") on each change.',
+      '2. Print the install steps for this app and follow them. They include the app\'s key and exactly where the code goes' + (apple ? ' (a Swift package and one line of setup).' : ', for any framework.'),
       '',
-      'Change nothing else. Reference: ' + location.origin + '/docs.html',
+      '   npx -y heresay@latest install ' + p.id,
+      '',
+      '3. Verify the install. This finds the app\'s key in the code and tells the Heresay dashboard, which is waiting for it:',
+      '',
+      '   npx -y heresay@latest check ' + p.id,
+      '',
+      '   You are done when it prints "installed": true. If it doesn\'t, fix what it says and run it again.',
+      '',
+      'Change nothing else in the app.',
     ].join('\n');
   }
 
   function setupView(view, p) {
-    view.appendChild(stepper(3));
-    view.appendChild(el('div', { class: 'head' }, [
-      el('h1', { text: 'Put Heresay in ' + p.name }),
-      el('a', { class: 'btn ghost', href: '#/apps/' + p.id, text: 'Go to reports' }),
-    ]));
+    var apple = platformOf(p.platform).apple;
+    var steps = stepper(3, p, false);
+    view.appendChild(steps);
+    view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'Put Heresay in ' + p.name })]));
 
-    // Without a known framework, the agent is the better default: it can see the code.
-    var agentFirst = !p.framework || p.framework === 'other';
+    // The agent route: one prompt by default, with the same thing as two steps for people who
+    // would rather run the command themselves.
+    var promptBox = el('div');
+    var getPrompt = el('button', { class: 'btn primary', type: 'button', text: 'Get the prompt' });
+    getPrompt.onclick = function () {
+      getPrompt.disabled = true;
+      getPrompt.textContent = 'Making a token…';
+      // No repo yet: the token binds to whichever repo the agent runs it in.
+      api('POST', '/agent-tokens', { app_ids: [p.id] }).then(function (b) {
+        getPrompt.remove();
+        promptBox.appendChild(codeBlock(onePrompt(p, b.token)));
+        promptBox.appendChild(el('p', { class: 'hint', html: 'It carries a token for this app that works only in the first repo that uses it. You can revoke it under <a href="#/connect">Connected repos</a>.' }));
+      }).catch(function (x) {
+        getPrompt.disabled = false;
+        getPrompt.textContent = 'Get the prompt';
+        promptBox.appendChild(el('p', { class: 'err', text: x.message }));
+      });
+    };
+    promptBox.appendChild(getPrompt);
+
+    var agentFirst = !apple && (!p.framework || p.framework === 'other');
     var panes = { hand: el('div', { hidden: agentFirst }, byHand(p)), agent: el('div', { hidden: !agentFirst }, [
-      el('p', { text: 'Paste this into Claude Code, Cursor or any coding agent, in your app’s folder:' }),
-      codeBlock(agentPromptFor(p)),
+      el('p', { text: 'Paste one prompt into your coding agent (Claude Code, Cursor, Codex, …), opened in your app’s repo. It connects the repo, installs Heresay, and verifies it.' }),
+      promptBox,
+      el('details', { class: 'where' }, [el('summary', { text: 'Or do it in two steps' }),
+        el('ol', { class: 'agent-steps' }, [
+          el('li', {}, [el('b', { text: 'In your app’s repo, run:' }), codeBlock('npx heresay connect --url ' + location.origin),
+            el('p', { class: 'hint', text: 'It opens this dashboard to make a token for the repo, and adds the Heresay skill and MCP server for your agent. The token stays on your computer, not in the repo.' })]),
+          el('li', {}, [el('b', { text: 'Then tell your agent:' }), codeBlock('Add Heresay to this app'),
+            el('p', { class: 'hint', text: 'It installs Heresay in the right place and verifies it. Later, “Fix the next Heresay report” works the same way.' })]),
+        ])]),
     ]) };
     var tabs = el('div', { class: 'seg', role: 'tablist' });
     (agentFirst ? [['agent', 'Ask your coding agent'], ['hand', 'Add it yourself']] : [['hand', 'Add it yourself'], ['agent', 'Ask your coding agent']]).forEach(function (t, i) {
@@ -378,40 +479,75 @@
     });
     view.appendChild(el('section', { class: 'card' }, [
       tabs, panes.hand, panes.agent,
-      el('p', { class: 'hint', html: 'Your key is meant to be public: it only lets the sites you listed send reports. Optional extras (who is signed in, your app version, your brand colour) are in the <a href="/docs.html#options" target="_blank">docs</a>.' }),
-      el('div', { class: 'soon-note' }, [
-        el('b', { text: 'Coming next: ' }),
-        el('code', { text: 'npx heresay connect' }),
-        ' links your repo to this app, so your coding agent can pick up the reports you accept and mark them fixed.',
-      ]),
+      apple
+        ? el('p', { class: 'hint', text: 'Your key is meant to be public: it can only send reports, never read them. It is fine in your source code.' })
+        : el('p', { class: 'hint', html: 'Your key is meant to be public: it only lets the sites you listed send reports. Optional extras (who is signed in, your app version, your brand colour) are in the <a href="/docs.html#options" target="_blank">docs</a>.' }),
     ]));
 
-    var status = el('div', { class: 'wait', role: 'status' });
-    var tryIt = el('a', { class: 'btn', href: '/demo.html?key=' + encodeURIComponent(p.key), target: '_blank', rel: 'noopener', text: 'Send a test report' });
+    // Step 4 lives on this page and needs nobody to do anything: it completes when Heresay is
+    // found in the code (the agent's `heresay check`) or seen running in the app (any SDK call).
+    // Nothing moves on until then, because that is the proof the install works.
+    var rowCode = checkRow('In your code', 'Waiting for your agent to confirm it, or for your app to load it.');
+    var rowRun = checkRow('Running in your app', apple ? 'Waiting for your app to start with Heresay in it.' : 'Waiting for a page with Heresay on it to load, anywhere: your live site or localhost.');
+    var status = el('div', { class: 'wait', role: 'status', text: 'Checking automatically…' });
+    var feed = el('ul', { class: 'feed', 'aria-live': 'polite' });
+    var cont = el('button', { class: 'btn primary', type: 'button', disabled: true, text: 'Continue to reports' });
+    cont.onclick = function () { location.hash = '#/apps/' + p.id; };
+    var lockNote = el('span', { class: 'hint', text: 'Unlocks as soon as the install is verified.' });
     view.appendChild(el('section', { class: 'card test' }, [
-      el('div', { class: 'test-head' }, [el('span', { class: 'stepnum', text: '4' }), el('h2', { text: 'Send your first report' })]),
-      el('p', { class: 'mute', text: 'Open your app, tap Report in the corner and send anything. Or use our test page. It shows up here within a few seconds.' }),
+      el('div', { class: 'test-head' }, [el('span', { class: 'stepnum', text: '4' }), el('h2', { text: 'Verify' })]),
+      el('p', { class: 'mute', text: 'Heresay checks this by itself. No test report needed.' }),
+      el('ul', { class: 'checks-list' }, [rowCode.li, rowRun.li]),
       status,
-      el('div', { class: 'row' }, [tryIt]),
+      feed,
+      el('div', { class: 'row split' }, [el('span', { class: 'spacer' }), lockNote, cont]),
     ]));
 
-    var seen = null;
+    function checkRow(title, waiting) {
+      var mark = el('span', { class: 'mark', 'aria-hidden': 'true' });
+      var detail = el('span', { class: 'mute small', text: waiting });
+      var li = el('li', {}, [mark, el('div', {}, [el('b', { text: title }), detail])]);
+      return {
+        li: li,
+        set: function (text) { li.className = 'ok'; detail.textContent = text; },
+        // The other check proved it already; this one stops waiting and says it is optional.
+        settle: function (text) { if (li.className !== 'ok') { li.className = 'skip'; detail.textContent = text; } },
+      };
+    }
+
+    var known = {}, first = true;
+    function ago(iso) {
+      var s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+      return s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : new Date(iso).toLocaleString();
+    }
     function check() {
-      api('GET', '/projects/' + p.id + '/reports').then(function (b) {
-        if (seen === null) seen = b.reports.length;
-        var fresh = b.reports.length > seen;
-        if (!b.reports.length) {
-          status.className = 'wait';
-          status.textContent = 'Waiting for your first report…';
-          return;
+      Promise.all([api('GET', '/projects/' + p.id), api('GET', '/projects/' + p.id + '/reports')]).then(function (x) {
+        var app = x[0].project, rs = x[1].reports.slice().sort(function (a, c) { return a.created_at < c.created_at ? 1 : -1; });
+        if (app.code_found) rowCode.set('Found in ' + app.code_found.file + ' (' + app.code_found.repo + '), ' + ago(app.code_found.at));
+        if (app.sdk_seen) rowRun.set('Seen on ' + app.sdk_seen.where + ', ' + ago(app.sdk_seen.at));
+        var ok = !!(app.code_found || app.sdk_seen || rs.length);
+        if (ok && cont.disabled) {
+          cont.disabled = false;
+          lockNote.remove();
+          status.className = 'wait ok';
+          status.textContent = 'Installed. Reports will arrive here and on the reports page.';
+          steps.replaceWith(steps = stepper(3, p, true));
         }
-        var first = b.reports.slice().sort(function (a, c) { return a.created_at < c.created_at ? 1 : -1; })[0];
-        status.className = 'wait ok';
-        status.textContent = '';
-        status.appendChild(el('b', { text: fresh || seen === 0 ? 'It works. ' : 'Reports are coming in. ' }));
-        status.appendChild(document.createTextNode('Latest: “' + first.text.slice(0, 120) + '”'));
-        status.appendChild(el('a', { class: 'btn primary', href: '#/apps/' + p.id, text: 'See reports' }));
-        stopTimer();
+        if (ok) {
+          rowCode.settle('Optional. Your coding agent confirms it with npx heresay check.');
+          rowRun.settle('Optional. Shows here the first time your app loads Heresay.');
+        }
+        // Any reports that do come in show up live, so nobody has to leave the page to see one.
+        feed.textContent = '';
+        rs.slice(0, 5).forEach(function (r) {
+          feed.appendChild(el('li', { class: !first && !known[r.id] ? 'fresh' : '' }, [
+            el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
+            el('span', { class: 'feed-text', text: r.text }),
+            el('span', { class: 'mute small', text: [r.context.route, r.context.platform, new Date(r.created_at).toLocaleTimeString()].filter(Boolean).join(' · ') }),
+          ]));
+          known[r.id] = true;
+        });
+        first = false;
       }).catch(function () {});
     }
     check();
@@ -427,16 +563,33 @@
     var filters = el('nav', { class: 'filters', 'aria-label': 'Filter' });
     var list = el('div', { class: 'reports' });
     var empty = el('p', { class: 'empty' });
+    var ctx = { repos: [], briefs: {} };
+    var repoLine = el('p', { class: 'repos-line' });
     view.appendChild(el('div', { class: 'head' }, [
-      el('div', { class: 'title' }, [icon(platformOf(p.platform)), el('h1', { text: p.name })]),
-      el('a', { class: 'btn', href: '#/apps/' + p.id + '/setup', text: 'Install' }),
+      el('div', { class: 'title' }, [icon(platformOf(p.platform)), el('div', {}, [el('h1', { text: p.name }),
+        p.framework ? el('span', { class: 'mute small', text: frameworkLabel(p.framework) + (p.framework_detected ? ' (detected)' : '') }) : null])]),
+      el('div', { class: 'row tight' }, [
+        el('a', { class: 'btn', href: '#/apps/' + p.id + '/setup', text: 'Install' }),
+        el('a', { class: 'btn ghost', href: '#/apps/' + p.id + '/delete', text: 'Delete…' }),
+      ]),
     ]));
+    view.appendChild(repoLine);
     view.appendChild(filters);
     view.appendChild(list);
     view.appendChild(empty);
 
     function load() {
-      return api('GET', '/projects/' + p.id + '/reports').then(function (b) { reports = b.reports; render(); });
+      return Promise.all([
+        api('GET', '/projects/' + p.id + '/reports'),
+        api('GET', '/projects/' + p.id + '/repos'),
+      ]).then(function (x) {
+        reports = x[0].reports; ctx.briefs = x[0].briefs || {}; ctx.repos = x[1].repos;
+        repoLine.textContent = '';
+        repoLine.appendChild(document.createTextNode(ctx.repos.length
+          ? 'Agents fix these in: ' + ctx.repos.join(', ') + ' · ' : 'No repo connected for agents yet · '));
+        repoLine.appendChild(el('a', { href: '#/connect?app=' + p.id, text: 'Connect a repo' }));
+        render();
+      });
     }
 
     function render() {
@@ -456,7 +609,7 @@
         empty.appendChild(document.createTextNode('No reports yet. '));
         empty.appendChild(el('a', { href: '#/apps/' + p.id + '/setup', text: 'Check the install' }));
       } else empty.textContent = filter === 'open' ? 'Nothing waiting. Every report has had its hearing.' : 'Nothing here.';
-      shown.forEach(function (r) { list.appendChild(row(p, r, load)); });
+      shown.forEach(function (r) { list.appendChild(row(p, r, load, ctx)); });
     }
 
     load();
@@ -469,7 +622,8 @@
       .filter(Boolean).join(' · ');
   }
 
-  function row(p, r, reload) {
+  function row(p, r, reload, ctx) {
+    var brief = ctx.briefs[r.id];
     var err = el('span', { class: 'err' });
     var actions = el('div', { class: 'actions' });
     var act = function (action, body) {
@@ -482,7 +636,13 @@
     function buttons() {
       actions.textContent = '';
       if (r.status === 'open') {
-        actions.appendChild(el('button', { class: 'btn primary', text: 'Accept', onclick: function () { act('accept'); } }));
+        // Several repos hold this app's code: say where the fix goes, defaulting to the first.
+        var pick = ctx.repos.length > 1 ? el('select', { 'aria-label': 'Where the fix goes' },
+          ctx.repos.map(function (x) { return el('option', { value: x, text: 'Fix in ' + x }); })) : null;
+        actions.appendChild(el('button', { class: 'btn primary', text: 'Accept', onclick: function () {
+          act('accept', pick ? { repo: pick.value } : undefined);
+        } }));
+        if (pick) actions.appendChild(pick);
         actions.appendChild(el('button', { class: 'btn', text: 'Decline…', onclick: declineForm }));
       }
       if (r.status === 'accepted') {
@@ -496,9 +656,21 @@
               .catch(function (x) { err.textContent = x.message; });
           },
         }));
-        actions.appendChild(el('button', { class: 'btn', text: 'Mark fixed', onclick: function () { act('fixed'); } }));
+        actions.appendChild(el('button', { class: 'btn', text: 'Mark fixed…', onclick: fixedForm }));
       }
       actions.appendChild(err);
+    }
+
+    function fixedForm() {
+      actions.textContent = '';
+      var note = el('textarea', { placeholder: 'What changed, in their words. The person who sent this will read it. Optional.', 'aria-label': 'Note for the reporter' });
+      actions.appendChild(note);
+      actions.appendChild(el('button', { class: 'btn primary', text: 'Mark fixed', onclick: function () {
+        act('fixed', note.value.trim() ? { note: note.value } : undefined);
+      } }));
+      actions.appendChild(el('button', { class: 'btn ghost', text: 'Cancel', onclick: buttons }));
+      actions.appendChild(err);
+      note.focus();
     }
 
     function declineForm() {
@@ -524,8 +696,152 @@
       el('p', { class: 'text', text: r.text }),
       el('div', { class: 'ctx', text: ctxLine(r.context) }),
       r.decline_reason ? el('div', { class: 'reason', text: 'Declined: ' + r.decline_reason }) : null,
+      r.fix_note ? el('div', { class: 'reason', text: 'Told them: ' + r.fix_note }) : null,
+      r.status === 'accepted' && brief ? el('div', { class: 'brief-line' }, [
+        brief.claimed_by ? el('b', { text: 'In progress in ' + brief.claimed_by }) : document.createTextNode(brief.repo ? 'Waiting for an agent in ' + brief.repo : 'Waiting for an agent in any connected repo'),
+      ]) : null,
+      brief && brief.notes.length ? el('details', { class: 'notes' }, [el('summary', { text: brief.notes.length + (brief.notes.length === 1 ? ' note' : ' notes') + ' from agents' })]
+        .concat(brief.notes.map(function (n) { return el('p', {}, [el('span', { class: 'mute', text: n.by.replace(/^agent:/, '') + ' · ' + new Date(n.at).toLocaleString() + ': ' }), n.text]); }))) : null,
       r.status === 'fixed' || r.status === 'declined' ? null : actions,
     ]);
+  }
+
+  // ---- delete an app ---------------------------------------------------------------------
+
+  /** The prompt that takes Heresay back out of a repo: the code, then the agent files. */
+  function removePrompt(p) {
+    var apple = platformOf(p.platform).apple;
+    return [
+      'Remove Heresay, an in-app feedback SDK, from this repo. Do these steps in order.',
+      '',
+      '1. Read the removal steps and follow them:',
+      '',
+      '   npx -y heresay@latest guide uninstall',
+      '',
+      '2. Remove it from the app\'s code. Search for the key ' + p.key + ' and for "' + (apple ? 'Heresay' : 'sdk/v1.js') + '". ' + (apple
+        ? 'Remove the Heresay Swift package dependency, `import Heresay`, the Heresay.configure(…) call, .heresayReportButton() / .heresay(), HeresayCommands, and any Heresay.identify / setScreen / present calls.'
+        : 'Remove the Heresay script tag (or its next/script, nuxt.config or layout entry) and any window.Heresay calls such as identify or setScreen.'),
+      '',
+      '3. Remove the agent files Heresay added (.mcp.json entry, skill, AGENTS.md section, saved token):',
+      '',
+      '   npx -y heresay@latest disconnect --yes',
+      '',
+      'Change nothing else. Build and run the tests to make sure nothing else broke.',
+    ].join('\n');
+  }
+
+  function deleteView(view, p) {
+    var owner = me.role === 'owner';
+    view.appendChild(el('div', { class: 'head' }, [
+      el('div', { class: 'title' }, [icon(platformOf(p.platform)), el('h1', { text: 'Delete ' + p.name })]),
+      el('a', { class: 'btn ghost', href: '#/apps/' + p.id, text: 'Cancel' }),
+    ]));
+
+    view.appendChild(el('section', { class: 'card' }, [
+      el('h2', { text: '1. Take Heresay out of your code' }),
+      el('p', { class: 'mute', text: 'Do this first, so nothing in your app still points at Heresay. Paste this into your coding agent, in the app’s repo:' }),
+      codeBlock(removePrompt(p)),
+      el('details', { class: 'where' }, [el('summary', { text: 'Or remove it by hand' }), el('ol', { class: 'agent-steps' }, (platformOf(p.platform).apple ? [
+        'In Xcode, remove the Heresay package from the target (Project › Package Dependencies).',
+        'Delete import Heresay, the Heresay.configure(…) line, .heresayReportButton() or .heresay(), and HeresayCommands.',
+        'Delete any Heresay.identify, setScreen, present or send calls.',
+      ] : [
+        'Delete the Heresay script tag (search your code for ' + p.key + ' or sdk/v1.js). In Next.js it is a <Script> in the layout; in Nuxt an entry in nuxt.config.',
+        'Delete any window.Heresay calls (identify, setScreen, open).',
+        'If you set a Content Security Policy for Heresay, take its address out of script-src and connect-src.',
+      ]).concat(['In the repo, run npx heresay disconnect. It removes the .mcp.json entry, the Heresay skill, the AGENTS.md section and the saved token.']).map(function (t) { return el('li', { text: t }); }))]),
+    ]));
+
+    var err = el('p', { class: 'err', role: 'alert' });
+    var confirm = el('input', { name: 'confirm', autocomplete: 'off', placeholder: p.name, 'aria-label': 'Type the app’s name to confirm' });
+    var go = el('button', { class: 'btn danger', type: 'submit', disabled: true, text: 'Delete ' + p.name });
+    confirm.oninput = function () { go.disabled = confirm.value !== p.name; };
+    var form = el('form', { class: 'form' }, [
+      el('p', { text: 'This deletes the app and every report sent from it, for everyone on the team. People who sent reports can no longer see them, and the key stops working: any copy of the app still carrying it hides its Report button. Connected repos keep their tokens for their other apps.' }),
+      el('label', {}, ['Type ', el('b', { text: p.name }), ' to confirm', confirm]),
+      el('div', { class: 'row' }, [go]),
+      err,
+    ]);
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      err.textContent = '';
+      go.disabled = true;
+      api('DELETE', '/projects/' + p.id, { confirm: confirm.value }).then(function () {
+        projects = projects.filter(function (x) { return x.id !== p.id; });
+        location.hash = '#/';
+      }).catch(function (x) { err.textContent = x.message; go.disabled = false; });
+    };
+    view.appendChild(el('section', { class: 'card' }, owner ? [el('h2', { text: '2. Delete the app from Heresay' }), form]
+      : [el('h2', { text: '2. Delete the app from Heresay' }), el('p', { class: 'mute', text: 'Only an owner can delete an app. Ask one of the owners on the Team page.' })]));
+  }
+
+  // ---- connect a repo for coding agents ----------------------------------------------------
+
+  function connectView(view, query) {
+    view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'Connect a repo for your coding agent' })]));
+    view.appendChild(el('p', { class: 'mute', text: 'A token lets agents working in one repo see the accepted reports for the apps whose code is there, claim them, and mark them fixed. They never see open reports, and never accept or decline.' }));
+    var err = el('p', { class: 'err', role: 'alert' });
+    var out = el('div');
+    var boxes = el('div', { class: 'checks' });
+    var repo = el('input', { name: 'repo', required: true, placeholder: 'github.com/acme/web', value: query.get('repo') || '', autocomplete: 'off', spellcheck: 'false' });
+    var form = el('form', { class: 'form' }, [
+      el('label', {}, ['Repo', repo]),
+      el('p', { class: 'hint', html: 'As git knows it. <code>npx heresay connect</code> fills this in for you.' }),
+      el('div', { class: 'field' }, [el('span', { class: 'lbl', text: 'Apps whose code is in this repo' }), boxes,
+        el('p', { class: 'hint', text: 'A monorepo can have several. An agent can also add a new app from the repo later.' })]),
+      el('div', { class: 'row' }, [el('button', { class: 'btn primary', text: 'Create token' })]),
+      err,
+    ]);
+    view.appendChild(el('section', { class: 'card' }, [form, out]));
+    var list = el('ul', { class: 'members' });
+    view.appendChild(el('section', { class: 'card' }, [el('h2', { text: 'Connected repos' }), list]));
+
+    api('GET', '/projects').then(function (b) {
+      projects = b.projects;
+      var want = query.get('app');
+      if (!projects.length) boxes.appendChild(el('p', { class: 'hint', text: 'No apps yet. Connect anyway: your agent can create the app from the repo.' }));
+      projects.forEach(function (p) {
+        boxes.appendChild(el('label', { class: 'check' }, [
+          el('input', { type: 'checkbox', value: p.id, checked: want ? p.id === want : projects.length === 1 }),
+          ' ' + p.name, el('span', { class: 'mute', text: ' · ' + platformOf(p.platform).label }),
+        ]));
+      });
+      drawTokens();
+    });
+
+    function drawTokens() {
+      api('GET', '/agent-tokens').then(function (b) {
+        list.textContent = '';
+        if (!b.tokens.length) list.appendChild(el('li', { class: 'mute', text: 'None yet.' }));
+        b.tokens.forEach(function (t) {
+          var names = t.app_ids.map(function (id) { var p = projects.filter(function (x) { return x.id === id; })[0]; return p ? p.name : id; });
+          list.appendChild(el('li', {}, [
+            el('span', { class: 'picon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/></svg>' }),
+            el('div', {}, [el('b', { text: t.repo }), el('span', { class: 'mute', text: (names.join(', ') || 'no apps yet') + ' · by ' + t.created_by + ' · ' + (t.last_used_at ? 'last used ' + new Date(t.last_used_at).toLocaleDateString() : 'not used yet') })]),
+            el('button', { class: 'btn ghost', text: 'Revoke', onclick: function () {
+              api('DELETE', '/agent-tokens/' + t.id).then(drawTokens).catch(function (x) { err.textContent = x.message; });
+            } }),
+          ]));
+        });
+      });
+    }
+
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      err.textContent = '';
+      var ids = [].slice.call(boxes.querySelectorAll('input:checked')).map(function (i) { return i.value; });
+      api('POST', '/agent-tokens', { repo: repo.value, app_ids: ids }).then(function (b) {
+        form.hidden = true;
+        out.appendChild(el('div', { class: 'token-out' }, [
+          el('h2', { text: 'Token for ' + b.agent.repo }),
+          el('p', { text: 'Paste it where npx heresay connect asks for it. It is shown only once.' }),
+          codeBlock(b.token),
+          el('p', { class: 'hint', html: 'Haven’t started it? In the repo, run <code>npx heresay connect --url ' + location.origin + '</code>.' }),
+        ]));
+        drawTokens();
+      }).catch(function (x) { err.textContent = x.message; });
+    };
+    repo.focus();
   }
 
   // ---- team ------------------------------------------------------------------------------
@@ -536,6 +852,7 @@
     var err = el('p', { class: 'err', role: 'alert' });
     view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'Team' })]));
     view.appendChild(el('p', { class: 'mute', text: 'Everyone here can read and answer reports for every app. Owners can also change the team.' }));
+    view.appendChild(el('p', { class: 'mute' }, ['Coding agents get access per repo, not per person: ', el('a', { href: '#/connect', text: 'Connected repos' }), '.']));
 
     function draw(members) {
       list.textContent = '';

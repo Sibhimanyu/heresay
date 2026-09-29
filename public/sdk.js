@@ -96,6 +96,29 @@
     return { os: os, browser: browser };
   }
 
+  /**
+   * Which framework built the page, from the marks each one leaves. Only used to show the team
+   * the right install steps; a wrong guess costs nothing. Checked most specific first.
+   */
+  function framework() {
+    try {
+      var w = window, d = document;
+      if (w.__NEXT_DATA__ || w.next || d.getElementById('__next') || d.querySelector('script[src*="/_next/"]')) return 'next';
+      if (w.__NUXT__ || w.useNuxtApp || d.getElementById('__nuxt')) return 'nuxt';
+      if (w.__sveltekit_dev || d.querySelector('[data-sveltekit-preload-data],[data-sveltekit-reload]') ||
+        Object.keys(w).some(function (k) { return k.indexOf('__sveltekit_') === 0; })) return 'svelte';
+      if (w.getAllAngularRootElements || d.querySelector('[ng-version]')) return 'angular';
+      if (w.__VUE__ || d.querySelector('[data-v-app]')) return 'vue';
+      var roots = d.querySelectorAll('body > div, #root, #app');
+      for (var i = 0; i < roots.length; i++) {
+        var n = roots[i];
+        if (n._reactRootContainer) return 'react';
+        for (var k in n) if (k.indexOf('__reactContainer') === 0 || k.indexOf('__reactFiber') === 0) return 'react';
+      }
+      return 'html';
+    } catch (e) { return null; }
+  }
+
   function context() {
     var p = platformInfo();
     return {
@@ -106,13 +129,28 @@
       browser: p.browser,
       user_id: state.userId,
       user_label: state.userLabel,
+      framework: framework(),
     };
   }
 
   // ---- network ---------------------------------------------------------------------------
 
+  // A 404 means the key is unknown: the app was deleted from the dashboard, or the key is
+  // wrong. Nothing will ever work, so take the widget off the page once rather than keep
+  // offering a button that fails.
+  var dead = false;
+  function unknownKey() {
+    if (dead) return;
+    dead = true;
+    close();
+    host.remove();
+    console.warn('[heresay] this key isn\'t known to ' + new URL(API).origin +
+      '; the app may have been deleted. Remove the Heresay script tag.');
+  }
+
   function body(res) {
     return res.json().catch(function () { return {}; }).then(function (b) {
+      if (res.status === 404) unknownKey();
       if (!res.ok) throw new Error(b.error || ('HTTP ' + res.status));
       return b;
     });
@@ -123,7 +161,7 @@
     return fetch(API + '/reports', {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ key: KEY, device_id: deviceId(), type: type, text: text, context: context() }),
+      body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web', type: type, text: text, context: context() }),
     }).then(body);
   }
 
@@ -131,7 +169,8 @@
     return fetch(API + '/reports/mine', {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ key: KEY, device_id: deviceId() }),
+      // sdk tells the dashboard the widget is live in this app (install check).
+      body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web' }),
     }).then(body).then(function (b) {
       state.reports = b.reports || [];
       renderBadge();
@@ -243,7 +282,7 @@
   renderBadge();
 
   function open(which) {
-    if (scrim) return;
+    if (scrim || dead) return;
     lastFocus = document.activeElement;
     view = which || (unseen() ? 'mine' : 'new');
     scrim = el('div', { class: 'scrim', onclick: function (e) { if (e.target === scrim) close(); } });
@@ -355,11 +394,14 @@
         el('div', { class: 'small', text: label + ' · ' + new Date(r.created_at).toLocaleDateString() }),
         r.status === 'declined' && r.decline_reason
           ? el('div', { class: 'reason', text: 'Why: ' + r.decline_reason }) : null,
+        r.status === 'fixed' && r.fix_note
+          ? el('div', { class: 'reason', text: r.fix_note }) : null,
       ]));
     });
   }
 
   function mount() {
+    if (dead) return;
     if (!host.isConnected) document.body.appendChild(host);
     refresh();
   }

@@ -1,0 +1,31 @@
+# A tiny app for trying the Heresay Swift package by hand and for screenshots.
+# Generate the Xcode project with: xcodegen   (then open HeresayExample.xcodeproj)
+name: HeresayExample
+options:
+  bundleIdPrefix: dev.heresay
+packages:
+  Heresay:
+    path: ..
+targets:
+  HeresayExample:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    deploymentTarget:
+      iOS: "16.0"
+      macOS: "13.0"
+    sources: [HeresayExample]
+    dependencies:
+      - package: Heresay
+    info:
+      path: HeresayExample/Info.plist
+      properties:
+        CFBundleShortVersionString: "1.4.0"
+        CFBundleVersion: "22"
+        UILaunchScreen: {}
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "1.4.0"
+        CURRENT_PROJECT_VERSION: "22"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: NO
