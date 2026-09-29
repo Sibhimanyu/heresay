@@ -152,7 +152,7 @@ export async function guide(conn, topic) {
   const latest = index?.skill_version ?? SKILL_VERSION;
   const have = repoSkillVersion(repoAt().root);
   if (have !== null && have < latest) {
-    notes.push(`The Heresay skill in this repo is version ${have}; version ${latest} is out. Run \`npx heresay connect --update\` and commit the change.`);
+    notes.push(`The Heresay skill in this repo is version ${have}; version ${latest} is out. Run \`npx -y heresay@latest connect --update\` and commit the change.`);
   }
   return { text: [...notes, text].join('\n\n'), skill_version: latest, stale };
 }
