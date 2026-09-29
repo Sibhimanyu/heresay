@@ -41,8 +41,8 @@ One Firebase project per team, one origin:
 | Path | What |
 | --- | --- |
 | `/sdk/v1.js` | The web SDK (also at `/sdk.js`). Plain JS, shadow DOM, no dependencies. `public/sdk.js` |
-| `/` | The product page. `public/index.html`, `public/site.css` |
-| `/docs.html` | Developer docs |
+| `/` | Redirects to `/app/`, with a link to the product page. `public/index.html` |
+| `/docs.html` | Developer docs. `public/docs.html`, `public/site.css` |
 | `/app/` | The developer dashboard. `public/app/index.html`, `public/dashboard.js` |
 | `/v1/**` | The `api` Cloud Function. Logic in `functions/src/core/`, Firebase adapter in `functions/src/providers/firebase/` |
 
@@ -72,6 +72,15 @@ on npm: `node packages/create-heresay/bin/create-heresay.mjs`.
 The Swift package lives in `apple/` and is published by copying that folder to the public
 repo `github.com/Sibhimanyu/heresay-swift` and tagging it with the version (SwiftPM installs
 from tags).
+
+## Product page
+
+The marketing page lives at https://sibhimanyu.github.io/heresay/, not on instances. Source:
+`site/` (static, relative links, a copy of the docs page with `https://<your-heresay>.web.app`
+in place of the instance address). Publish it with `node scripts/publish-site.mjs`, which copies
+`site/` to the public repo `github.com/Sibhimanyu/heresay` (GitHub Pages, `main` branch root),
+the same way `apple/` goes to `heresay-swift`. When `public/docs.html` changes, copy the change
+into `site/docs.html` too.
 
 ## What's next
 
