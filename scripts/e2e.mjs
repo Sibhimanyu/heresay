@@ -99,12 +99,15 @@ try {
   step('one prompt for the coding agent: connect, install, verify');
   await dash.getByRole('tab', { name: 'Ask your coding agent' }).click();
   assert.equal(await dash.getByText('No MCP?').count(), 0);
-  await dash.getByRole('button', { name: 'Get the prompt' }).click();
-  const onePrompt = await dash.locator('.code pre').filter({ hasText: 'Set up Heresay' }).textContent();
+  await dash.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+  await dash.getByRole('button', { name: 'Copy prompt' }).click();
+  await dash.getByText('Copied. Paste it into your coding agent').waitFor();
+  assert.equal(await dash.locator('.code pre').filter({ hasText: 'Set up Heresay' }).count(), 0, 'the prompt is copied, not shown');
+  const onePrompt = await dash.evaluate(() => navigator.clipboard.readText());
   assert.match(onePrompt, /heresay@latest connect --url .+ --token hst_[A-Za-z0-9_-]+ --yes/);
   assert.match(onePrompt, new RegExp(`heresay@latest install ${apps[0].id}`));
   assert.match(onePrompt, new RegExp(`heresay@latest check ${apps[0].id}`));
-  await dash.getByText('Or do it in two steps').click();
+  await dash.getByText('Prefer to run the command yourself?').click();
   await dash.getByText(`npx heresay connect --url ${BASE}`).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-1c-install.png`, fullPage: true });
 
