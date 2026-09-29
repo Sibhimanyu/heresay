@@ -1,0 +1,18 @@
+{
+  "name": "heresay",
+  "version": "0.2.0",
+  "description": "Connect a repo to your Heresay so coding agents can install it and fix the reports your team accepts. MCP server, skill and CLI.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Sibhimanyu",
+  "bin": { "heresay": "bin/heresay.mjs" },
+  "files": ["bin", "src", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "keywords": ["feedback", "mcp", "coding-agent", "claude-code", "bug-report", "heresay"],
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "picocolors": "^1.1.1",
+    "zod": "^3.25.0"
+  }
+}

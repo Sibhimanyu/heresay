@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Store, Transition } from './store.js';
+import { agent, normaliseRepo, reposFor, tokens } from './agent.js';
 import {
-  LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isPlatform, isReportType, toReporterView,
+  LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, toReporterView,
   type Instance, type Member, type Project, type Report, type ReportContext, type Task,
 } from './types.js';
 
@@ -67,6 +68,7 @@ export function parseContext(v: unknown): ReportContext {
   return {
     route: f('route'), app_version: f('app_version'), platform: f('platform'), os: f('os'),
     browser: f('browser'), user_id: f('user_id'), user_label: f('user_label'),
+    framework: isFramework(c.framework) ? c.framework : null,
   };
 }
 
@@ -126,6 +128,14 @@ async function route(req: Req, deps: Deps): Promise<Res> {
   if (p[0] === 'reports' && p[1] === 'mine' && req.method === 'POST') return mine(req, deps);
   if (p[0] === 'reports' && req.method === 'OPTIONS') return preflight(req);
 
+  // Coding agents, with a per-repo token instead of a person's sign-in.
+  if (p[0] === 'agent') {
+    return agent(p.slice(1), req, deps, parseBody(req.body), agentPrompt,
+      (by, body) => createProject({ email: by, role: 'member', added_at: '', added_by: null }, { ...req, body }, deps),
+      async (project, id, note, by) => transitionRes(await deps.store.move(project.id, id, 'accepted', 'fixed',
+        { fix_note: note, triaged_by: by, updated_at: new Date(deps.now()).toISOString() })));
+  }
+
   // The team, signed in to the dashboard.
   const who = await caller(req, deps);
   if (!who) return json(401, { error: 'sign in first' });
@@ -142,6 +152,7 @@ async function route(req: Req, deps: Deps): Promise<Res> {
     return json(200, { email: member.email, role: member.role, version: deps.version, platforms: PLATFORMS });
   }
   if (p[0] === 'team') return team(p, member, req, deps);
+  if (p[0] === 'agent-tokens') return tokens(p, member, req, deps, parseBody(req.body));
 
   if (p[0] === 'projects' && p.length === 1) {
     if (req.method === 'GET') return listProjects(deps);
@@ -152,7 +163,17 @@ async function route(req: Req, deps: Deps): Promise<Res> {
     if (!project) return json(404, { error: 'no such app' });
     if (p.length === 2 && req.method === 'GET') return json(200, { project });
     if (p[2] === 'reports' && p.length === 3 && req.method === 'GET') {
-      return json(200, { reports: sortForTriage(await deps.store.listReports(project.id)) });
+      // Alongside each accepted report: where its fix is going, and whether an agent has it.
+      const now = deps.now();
+      const briefs: Record<string, unknown> = {};
+      for (const t of await deps.store.listTasks(project.id)) {
+        const live = t.claim && now - Date.parse(t.claim.at) < 24 * 3600_000;
+        briefs[t.id] = { repo: t.repo ?? null, claimed_by: live ? t.claim!.repo : null, notes: t.notes ?? [] };
+      }
+      return json(200, { reports: sortForTriage(await deps.store.listReports(project.id)), briefs });
+    }
+    if (p[2] === 'repos' && p.length === 3 && req.method === 'GET') {
+      return json(200, { repos: await reposFor(project.id, deps) });
     }
     if (p[2] === 'reports' && p[3] && req.method === 'POST') {
       return triage(project, p[3], p[4], member.email, req, deps);
@@ -286,9 +307,15 @@ async function submit(req: Req, deps: Deps): Promise<Res> {
   const report: Report = {
     id: newId('r_'), project_id: project.id, device_id: body.device_id, type: body.type, text,
     context: parseContext(body.context), status: 'open', decline_reason: null,
-    created_at: at, updated_at: at, triaged_by: null,
+    fix_note: null, created_at: at, updated_at: at, triaged_by: null,
   };
   await deps.store.createReport(report);
+  // Nobody said what the app is built with, and the SDK could tell: remember it. Not from
+  // this Heresay's own test page, which isn't the app.
+  const fromSelf = (deps.selfOrigins ?? []).includes(normaliseOrigin(req.headers['origin'] ?? ''));
+  if (!project.framework && report.context.framework && !fromSelf) {
+    await deps.store.updateProject(project.id, { framework: report.context.framework, framework_detected: true });
+  }
   deps.log('api.report_created', { project_id: project.id, report_id: report.id, type: report.type });
   return json(201, { report: toReporterView(report) }, headers);
 }
@@ -369,10 +396,14 @@ async function triage(
   if (action === 'accept') {
     const report = await deps.store.getReport(project.id, report_id);
     if (!report) return json(404, { error: 'no such report' });
+    // Route the fix to a repo now: the one asked for, else the app's first connected repo.
+    const repos = await reposFor(project.id, deps);
+    const asked = body.repo === undefined || body.repo === null ? null : normaliseRepo(body.repo);
+    if (asked && !repos.includes(asked)) return json(400, { error: `${asked} is not connected to ${project.name}`, repos });
     const task: Task = {
       id: report.id, project_id: project.id, report_id: report.id, type: report.type,
       text: report.text, context: report.context, note: str(body.note, LIMITS.reasonMax),
-      accepted_by: uid, accepted_at: at,
+      accepted_by: uid, accepted_at: at, repo: asked ?? repos[0] ?? null, claim: null, notes: [],
     };
     t = await deps.store.accept(project.id, report_id, task, at);
   } else if (action === 'decline') {
@@ -382,8 +413,9 @@ async function triage(
     t = await deps.store.move(project.id, report_id, 'open', 'declined',
       { decline_reason: reason, triaged_by: uid, updated_at: at });
   } else if (action === 'fixed') {
+    // Optional from the dashboard; when given, the reporter reads it next to "Fixed".
     t = await deps.store.move(project.id, report_id, 'accepted', 'fixed',
-      { triaged_by: uid, updated_at: at });
+      { fix_note: str(body.note, LIMITS.reasonMax), triaged_by: uid, updated_at: at });
   } else {
     return json(404, { error: 'not found' });
   }

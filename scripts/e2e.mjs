@@ -75,7 +75,9 @@ try {
   const key = /data-key="([^"]+)"/.exec(snippet)[1];
   console.log('snippet:', snippet);
   await dash.getByRole('tab', { name: 'Ask your coding agent' }).click();
-  assert.match(await dash.locator('.code pre').nth(1).textContent(), /identify/);
+  await dash.getByText(`npx heresay connect --url ${BASE}`).waitFor();
+  await dash.getByText('No MCP? Paste a one-off prompt instead').click();
+  assert.match(await dash.locator('.where .code pre').last().textContent(), /identify/);
   await dash.screenshot({ path: `${SHOTS}e2e-1c-install.png`, fullPage: true });
 
   // A different browser, so this test device's report doesn't show as an update later on.
@@ -197,6 +199,19 @@ try {
     body: JSON.stringify({ key, device_id: 'other_device_000000000', type: 'idea', text: 'x' }),
   });
   assert.equal(foreign.status, 403);
+
+  step('connect a repo for coding agents from the dashboard: the token is shown once');
+  await dash.goto(`${BASE}/app/#/connect?repo=github.com/acme/notes&app=${project.id}`);
+  await dash.getByRole('heading', { name: 'Connect a repo for your coding agent' }).waitFor();
+  assert.equal(await dash.inputValue('input[name=repo]'), 'github.com/acme/notes');
+  assert.equal(await dash.locator(`input[type=checkbox][value="${project.id}"]`).isChecked(), true, 'the app it came from is ticked');
+  await dash.getByRole('button', { name: 'Create token' }).click();
+  const shown = await dash.locator('.token-out pre').textContent();
+  assert.match(shown, /^hst_/);
+  await dash.locator('.members li', { hasText: 'github.com/acme/notes' }).waitFor();
+  await dash.screenshot({ path: `${SHOTS}e2e-7-connect.png`, fullPage: true });
+  await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.getByText('Agents fix these in: github.com/acme/notes').waitFor();
 
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;

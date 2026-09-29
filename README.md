@@ -25,6 +25,15 @@ Later: `npx create-heresay update` deploys a new version, `status` shows what's 
 deletes a Heresay. The setup UX is specified in `docs/plan/cli-ux.md`; the code is
 `packages/create-heresay/`.
 
+## Coding agents
+
+In an app's repo, `npx heresay connect` links it to its apps: it adds `.mcp.json` (the MCP
+server), a short skill and an `AGENTS.md` section, and keeps the repo's token in `~/.heresay`.
+Agents then install Heresay ("Add Heresay to this app") and fix accepted reports ("Fix the next
+Heresay report"). They never see open reports and never accept or decline. Code:
+`packages/heresay/`; guides the agent fetches live: `public/guides/`; server side:
+`functions/src/core/agent.ts`.
+
 ## How it fits together
 
 One Firebase project per team, one origin:
@@ -46,6 +55,7 @@ by verified email: the team lives in `meta/instance`, and `create-heresay` write
 npm install && npm --prefix functions install
 npm test        # handler logic, in memory
 npm run e2e     # the whole loop in a real browser against the emulators
+npm run e2e:agent  # heresay connect + the MCP server driving an app from install to fixed
 npm run dev     # emulators; site at http://127.0.0.1:5055, dashboard at /app/, demo host app at /demo.html?key=pk_...
 ```
 

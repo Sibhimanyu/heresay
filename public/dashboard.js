@@ -148,13 +148,16 @@
 
   function route() {
     stopTimer();
-    var parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+    var hash = location.hash.replace(/^#\/?/, '');
+    var query = new URLSearchParams(hash.split('?')[1] || '');
+    var parts = hash.split('?')[0].split('/').filter(Boolean);
     document.querySelectorAll('[data-nav]').forEach(function (a) {
       a.setAttribute('aria-current', String((parts[0] === 'team') === (a.dataset.nav === 'team')));
     });
     var view = $('view');
     view.textContent = '';
     if (parts[0] === 'team') return teamView(view);
+    if (parts[0] === 'connect') return connectView(view, query);
     if (parts[0] === 'new') return newAppView(view, parts[1]);
     if (parts[0] === 'apps' && parts[1]) {
       return withProject(parts[1], function (p) {
@@ -363,8 +366,14 @@
     // Without a known framework, the agent is the better default: it can see the code.
     var agentFirst = !p.framework || p.framework === 'other';
     var panes = { hand: el('div', { hidden: agentFirst }, byHand(p)), agent: el('div', { hidden: !agentFirst }, [
-      el('p', { text: 'Paste this into Claude Code, Cursor or any coding agent, in your app’s folder:' }),
-      codeBlock(agentPromptFor(p)),
+      el('ol', { class: 'agent-steps' }, [
+        el('li', {}, [el('b', { text: 'In your app’s repo, run:' }), codeBlock('npx heresay connect --url ' + location.origin),
+          el('p', { class: 'hint', text: 'It opens this dashboard to make a token for the repo, and adds the Heresay skill and MCP server for your agent. The token stays on your computer, not in the repo.' })]),
+        el('li', {}, [el('b', { text: 'Then tell your agent:' }), codeBlock('Add Heresay to this app'),
+          el('p', { class: 'hint', text: 'It installs the SDK in the right place, sends a test, and checks it arrived. Later, “Fix the next Heresay report” works the same way.' })]),
+      ]),
+      el('details', { class: 'where' }, [el('summary', { text: 'No MCP? Paste a one-off prompt instead' }),
+        el('p', { class: 'hint', text: 'For any coding agent, in your app’s folder:' }), codeBlock(agentPromptFor(p))]),
     ]) };
     var tabs = el('div', { class: 'seg', role: 'tablist' });
     (agentFirst ? [['agent', 'Ask your coding agent'], ['hand', 'Add it yourself']] : [['hand', 'Add it yourself'], ['agent', 'Ask your coding agent']]).forEach(function (t, i) {
@@ -379,11 +388,6 @@
     view.appendChild(el('section', { class: 'card' }, [
       tabs, panes.hand, panes.agent,
       el('p', { class: 'hint', html: 'Your key is meant to be public: it only lets the sites you listed send reports. Optional extras (who is signed in, your app version, your brand colour) are in the <a href="/docs.html#options" target="_blank">docs</a>.' }),
-      el('div', { class: 'soon-note' }, [
-        el('b', { text: 'Coming next: ' }),
-        el('code', { text: 'npx heresay connect' }),
-        ' links your repo to this app, so your coding agent can pick up the reports you accept and mark them fixed.',
-      ]),
     ]));
 
     var status = el('div', { class: 'wait', role: 'status' });
@@ -427,16 +431,30 @@
     var filters = el('nav', { class: 'filters', 'aria-label': 'Filter' });
     var list = el('div', { class: 'reports' });
     var empty = el('p', { class: 'empty' });
+    var ctx = { repos: [], briefs: {} };
+    var repoLine = el('p', { class: 'repos-line' });
     view.appendChild(el('div', { class: 'head' }, [
-      el('div', { class: 'title' }, [icon(platformOf(p.platform)), el('h1', { text: p.name })]),
+      el('div', { class: 'title' }, [icon(platformOf(p.platform)), el('div', {}, [el('h1', { text: p.name }),
+        p.framework ? el('span', { class: 'mute small', text: frameworkLabel(p.framework) + (p.framework_detected ? ' (detected)' : '') }) : null])]),
       el('a', { class: 'btn', href: '#/apps/' + p.id + '/setup', text: 'Install' }),
     ]));
+    view.appendChild(repoLine);
     view.appendChild(filters);
     view.appendChild(list);
     view.appendChild(empty);
 
     function load() {
-      return api('GET', '/projects/' + p.id + '/reports').then(function (b) { reports = b.reports; render(); });
+      return Promise.all([
+        api('GET', '/projects/' + p.id + '/reports'),
+        api('GET', '/projects/' + p.id + '/repos'),
+      ]).then(function (x) {
+        reports = x[0].reports; ctx.briefs = x[0].briefs || {}; ctx.repos = x[1].repos;
+        repoLine.textContent = '';
+        repoLine.appendChild(document.createTextNode(ctx.repos.length
+          ? 'Agents fix these in: ' + ctx.repos.join(', ') + ' · ' : 'No repo connected for agents yet · '));
+        repoLine.appendChild(el('a', { href: '#/connect?app=' + p.id, text: 'Connect a repo' }));
+        render();
+      });
     }
 
     function render() {
@@ -456,7 +474,7 @@
         empty.appendChild(document.createTextNode('No reports yet. '));
         empty.appendChild(el('a', { href: '#/apps/' + p.id + '/setup', text: 'Check the install' }));
       } else empty.textContent = filter === 'open' ? 'Nothing waiting. Every report has had its hearing.' : 'Nothing here.';
-      shown.forEach(function (r) { list.appendChild(row(p, r, load)); });
+      shown.forEach(function (r) { list.appendChild(row(p, r, load, ctx)); });
     }
 
     load();
@@ -469,7 +487,8 @@
       .filter(Boolean).join(' · ');
   }
 
-  function row(p, r, reload) {
+  function row(p, r, reload, ctx) {
+    var brief = ctx.briefs[r.id];
     var err = el('span', { class: 'err' });
     var actions = el('div', { class: 'actions' });
     var act = function (action, body) {
@@ -482,7 +501,13 @@
     function buttons() {
       actions.textContent = '';
       if (r.status === 'open') {
-        actions.appendChild(el('button', { class: 'btn primary', text: 'Accept', onclick: function () { act('accept'); } }));
+        // Several repos hold this app's code: say where the fix goes, defaulting to the first.
+        var pick = ctx.repos.length > 1 ? el('select', { 'aria-label': 'Where the fix goes' },
+          ctx.repos.map(function (x) { return el('option', { value: x, text: 'Fix in ' + x }); })) : null;
+        actions.appendChild(el('button', { class: 'btn primary', text: 'Accept', onclick: function () {
+          act('accept', pick ? { repo: pick.value } : undefined);
+        } }));
+        if (pick) actions.appendChild(pick);
         actions.appendChild(el('button', { class: 'btn', text: 'Decline…', onclick: declineForm }));
       }
       if (r.status === 'accepted') {
@@ -496,9 +521,21 @@
               .catch(function (x) { err.textContent = x.message; });
           },
         }));
-        actions.appendChild(el('button', { class: 'btn', text: 'Mark fixed', onclick: function () { act('fixed'); } }));
+        actions.appendChild(el('button', { class: 'btn', text: 'Mark fixed…', onclick: fixedForm }));
       }
       actions.appendChild(err);
+    }
+
+    function fixedForm() {
+      actions.textContent = '';
+      var note = el('textarea', { placeholder: 'What changed, in their words. The person who sent this will read it. Optional.', 'aria-label': 'Note for the reporter' });
+      actions.appendChild(note);
+      actions.appendChild(el('button', { class: 'btn primary', text: 'Mark fixed', onclick: function () {
+        act('fixed', note.value.trim() ? { note: note.value } : undefined);
+      } }));
+      actions.appendChild(el('button', { class: 'btn ghost', text: 'Cancel', onclick: buttons }));
+      actions.appendChild(err);
+      note.focus();
     }
 
     function declineForm() {
@@ -524,8 +561,83 @@
       el('p', { class: 'text', text: r.text }),
       el('div', { class: 'ctx', text: ctxLine(r.context) }),
       r.decline_reason ? el('div', { class: 'reason', text: 'Declined: ' + r.decline_reason }) : null,
+      r.fix_note ? el('div', { class: 'reason', text: 'Told them: ' + r.fix_note }) : null,
+      r.status === 'accepted' && brief ? el('div', { class: 'brief-line' }, [
+        brief.claimed_by ? el('b', { text: 'In progress in ' + brief.claimed_by }) : document.createTextNode(brief.repo ? 'Waiting for an agent in ' + brief.repo : 'Waiting for an agent in any connected repo'),
+      ]) : null,
+      brief && brief.notes.length ? el('details', { class: 'notes' }, [el('summary', { text: brief.notes.length + (brief.notes.length === 1 ? ' note' : ' notes') + ' from agents' })]
+        .concat(brief.notes.map(function (n) { return el('p', {}, [el('span', { class: 'mute', text: n.by.replace(/^agent:/, '') + ' · ' + new Date(n.at).toLocaleString() + ': ' }), n.text]); }))) : null,
       r.status === 'fixed' || r.status === 'declined' ? null : actions,
     ]);
+  }
+
+  // ---- connect a repo for coding agents ----------------------------------------------------
+
+  function connectView(view, query) {
+    view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'Connect a repo for your coding agent' })]));
+    view.appendChild(el('p', { class: 'mute', text: 'A token lets agents working in one repo see the accepted reports for the apps whose code is there, claim them, and mark them fixed. They never see open reports, and never accept or decline.' }));
+    var err = el('p', { class: 'err', role: 'alert' });
+    var out = el('div');
+    var boxes = el('div', { class: 'checks' });
+    var repo = el('input', { name: 'repo', required: true, placeholder: 'github.com/acme/web', value: query.get('repo') || '', autocomplete: 'off', spellcheck: 'false' });
+    var form = el('form', { class: 'form' }, [
+      el('label', {}, ['Repo', repo]),
+      el('p', { class: 'hint', html: 'As git knows it. <code>npx heresay connect</code> fills this in for you.' }),
+      el('div', { class: 'field' }, [el('span', { class: 'lbl', text: 'Apps whose code is in this repo' }), boxes,
+        el('p', { class: 'hint', text: 'A monorepo can have several. An agent can also add a new app from the repo later.' })]),
+      el('div', { class: 'row' }, [el('button', { class: 'btn primary', text: 'Create token' })]),
+      err,
+    ]);
+    view.appendChild(el('section', { class: 'card' }, [form, out]));
+    var list = el('ul', { class: 'members' });
+    view.appendChild(el('section', { class: 'card' }, [el('h2', { text: 'Connected repos' }), list]));
+
+    api('GET', '/projects').then(function (b) {
+      projects = b.projects;
+      var want = query.get('app');
+      if (!projects.length) boxes.appendChild(el('p', { class: 'hint', text: 'No apps yet. Connect anyway: your agent can create the app from the repo.' }));
+      projects.forEach(function (p) {
+        boxes.appendChild(el('label', { class: 'check' }, [
+          el('input', { type: 'checkbox', value: p.id, checked: want ? p.id === want : projects.length === 1 }),
+          ' ' + p.name, el('span', { class: 'mute', text: ' · ' + platformOf(p.platform).label }),
+        ]));
+      });
+      drawTokens();
+    });
+
+    function drawTokens() {
+      api('GET', '/agent-tokens').then(function (b) {
+        list.textContent = '';
+        if (!b.tokens.length) list.appendChild(el('li', { class: 'mute', text: 'None yet.' }));
+        b.tokens.forEach(function (t) {
+          var names = t.app_ids.map(function (id) { var p = projects.filter(function (x) { return x.id === id; })[0]; return p ? p.name : id; });
+          list.appendChild(el('li', {}, [
+            el('span', { class: 'picon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/></svg>' }),
+            el('div', {}, [el('b', { text: t.repo }), el('span', { class: 'mute', text: (names.join(', ') || 'no apps yet') + ' · by ' + t.created_by + ' · ' + (t.last_used_at ? 'last used ' + new Date(t.last_used_at).toLocaleDateString() : 'not used yet') })]),
+            el('button', { class: 'btn ghost', text: 'Revoke', onclick: function () {
+              api('DELETE', '/agent-tokens/' + t.id).then(drawTokens).catch(function (x) { err.textContent = x.message; });
+            } }),
+          ]));
+        });
+      });
+    }
+
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      err.textContent = '';
+      var ids = [].slice.call(boxes.querySelectorAll('input:checked')).map(function (i) { return i.value; });
+      api('POST', '/agent-tokens', { repo: repo.value, app_ids: ids }).then(function (b) {
+        form.hidden = true;
+        out.appendChild(el('div', { class: 'token-out' }, [
+          el('h2', { text: 'Token for ' + b.agent.repo }),
+          el('p', { text: 'Paste it where npx heresay connect asks for it. It is shown only once.' }),
+          codeBlock(b.token),
+          el('p', { class: 'hint', html: 'Haven’t started it? In the repo, run <code>npx heresay connect --url ' + location.origin + '</code>.' }),
+        ]));
+        drawTokens();
+      }).catch(function (x) { err.textContent = x.message; });
+    };
+    repo.focus();
   }
 
   // ---- team ------------------------------------------------------------------------------
@@ -536,6 +648,7 @@
     var err = el('p', { class: 'err', role: 'alert' });
     view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'Team' })]));
     view.appendChild(el('p', { class: 'mute', text: 'Everyone here can read and answer reports for every app. Owners can also change the team.' }));
+    view.appendChild(el('p', { class: 'mute' }, ['Coding agents get access per repo, not per person: ', el('a', { href: '#/connect', text: 'Connected repos' }), '.']));
 
     function draw(members) {
       list.textContent = '';

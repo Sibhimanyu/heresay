@@ -56,7 +56,7 @@
       <table><tr><th>Action</th><th>What happens</th></tr>
         <tr><td><b>Accept</b></td><td>The reporter sees "Accepted, being worked on". The report becomes available as a coding-agent prompt.</td></tr>
         <tr><td><b>Decline…</b></td><td>You must write a reason. The reporter reads it, so write it for them.</td></tr>
-        <tr><td><b>Mark fixed</b></td><td>For accepted reports. The reporter sees "Fixed".</td></tr>
+        <tr><td><b>Mark fixed…</b></td><td>For accepted reports. The reporter sees "Fixed", and your note if you write one.</td></tr>
         <tr><td><b>Copy prompt for agent</b></td><td>For accepted reports. See <a href="#agents">Coding agents</a>.</td></tr></table>
       <p>Open an app and choose <b>Install</b> to see its line again. Everyone on the <b>Team</b> page can read and answer reports for every app; owners can add and remove people. People sign in with Google or an email link, using the address an owner added.</p>
 
@@ -106,8 +106,26 @@ router.afterEach((to) =&gt; Heresay.setScreen(to.name));</code></pre>
         <tr><td>Declined</td><td>Declined, with your reason</td></tr></table>
 
       <h2 id="agents">Coding agents</h2>
-      <p>When you accept a report, <b>Copy prompt for agent</b> gives you a ready-made task for Claude Code, Cursor or any other coding agent: the type, the screen and version, the user's words, and your note.</p>
-      <p class="note">Only accepted reports can become prompts, and they're stored separately from everything else. The user's words are fenced off and labelled as a description, not instructions, so a report can't take over your agent.</p>
+      <p>Heresay can hand accepted reports to a coding agent (Claude Code, Cursor, Codex, anything with MCP or a shell). In your app's repo, run:</p>
+<pre><code>npx heresay connect --url ORIGIN</code></pre>
+      <p>It opens your dashboard to make a token for that repo, then adds three files you commit: <code>.mcp.json</code> (the Heresay MCP server), <code>.claude/skills/heresay/SKILL.md</code> (a short skill) and a section of <code>AGENTS.md</code>. The token itself stays in <code>~/.heresay</code> on your computer, never in the repo. Then ask your agent:</p>
+      <ul>
+        <li><b>"Add Heresay to this app"</b>: it creates the app if needed, puts the tag in the right place for your framework, and waits for the first report.</li>
+        <li><b>"Fix the next Heresay report"</b>: it picks an accepted brief, claims it, fixes it on a branch, and marks it fixed with a note the reporter reads.</li>
+      </ul>
+      <h3>What an agent can and can't do</h3>
+      <table><tr><th>Can</th><th>Can't</th></tr>
+        <tr><td>List, read, claim and add notes to accepted briefs for the apps in its repo</td><td>See open reports, or anything from other repos</td></tr>
+        <tr><td>Hand a brief to another repo connected to the same app, with what it found</td><td>Accept or decline. People do that.</td></tr>
+        <tr><td>Mark a brief fixed, with a note for the reporter</td><td>Keep working after you revoke its token (Connected repos in the dashboard)</td></tr></table>
+      <p class="note">Report text is fenced and labelled as a user's description, never instructions, in everything an agent reads, so a report can't take over your agent.</p>
+      <h3>One repo, or several</h3>
+      <p>Each repo gets its own token and sees only its apps. A monorepo links several apps to one token. If one app's code lives in two repos (say a web front end and an API), connect both: when you accept a report, the dashboard asks which repo the fix goes in. An agent that finds the fix belongs elsewhere hands it off, and a claimed brief shows as "In progress in …" so nobody does it twice. Claims lapse after a day without activity.</p>
+      <h3>Without MCP</h3>
+      <p>The same actions are commands: <code>npx heresay briefs</code>, <code>brief &lt;id&gt;</code>, <code>claim &lt;id&gt;</code>, <code>note</code>, <code>handoff</code>, <code>fixed &lt;id&gt; "note"</code>, and <code>guide &lt;topic&gt;</code>. Agents can also read <a href="/llms.txt">/llms.txt</a> and the guides under <a href="/guides/start.md">/guides/</a>.</p>
+      <h3>Keeping it current</h3>
+      <p>The skill in your repo is small and rarely changes. The detailed steps come from your own Heresay each time, so they match what you have deployed. When a newer skill ships, the agent is told to run <code>npx heresay connect --update</code>, and the change shows up in git.</p>
+      <p>You can still copy a single prompt from any accepted report in the dashboard with <b>Copy prompt for agent</b>.</p>
 
       <h2 id="security">Security and limits</h2>
       <ul>

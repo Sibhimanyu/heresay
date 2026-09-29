@@ -150,3 +150,17 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
   .who { display:none; }
   .top { gap:10px; padding:10px 14px; }
 }
+
+/* agents */
+.agent-steps { margin:4px 0 0; padding-left:20px; }
+.agent-steps li { margin-bottom:16px; }
+.agent-steps li::marker { font-weight:700; color:var(--deep); }
+.repos-line { margin:-10px 0 18px; font-size:13px; color:var(--mute); }
+.brief-line { margin-top:8px; font-size:13px; color:var(--deep); }
+.notes { margin-top:8px; font-size:13px; }
+.notes summary { cursor:pointer; color:var(--mute); }
+.notes p { margin:6px 0 0; }
+.checks { display:flex; flex-direction:column; gap:6px; margin-top:8px; font-weight:400; }
+.check { display:flex; align-items:center; gap:6px; }
+.token-out h2 { margin-bottom:6px; }
+.actions select { padding:7px 10px; }

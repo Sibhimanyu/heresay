@@ -1,12 +1,13 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Store, Transition } from '../../core/store.js';
-import type { Instance, Project, Report, ReportStatus, Task } from '../../core/types.js';
+import type { AgentToken, Instance, Project, Report, ReportStatus, Task } from '../../core/types.js';
 
 /**
  * meta/instance                              the team: members and roles
  * projects/{project_id}
  * projects/{project_id}/reports/{report_id}
  * projects/{project_id}/tasks/{report_id}    written only by accept(), read only by the prompt
+ * agent_tokens/{id}                          one per connected repo; secret stored hashed
  * rate/{bucket}                               has expire_at for a Firestore TTL policy
  *
  * Clients never touch Firestore directly (firestore.rules denies everything); all of it goes
@@ -46,6 +47,10 @@ export class FirestoreStore implements Store {
     const q = await this.projects().get();
     return q.docs.map((d) => d.data() as Project);
   }
+  async updateProject(id: string, patch: Partial<Project>) {
+    const { id: _ignored, ...rest } = patch;
+    await this.projects().doc(id).update(rest);
+  }
 
   async createReport(r: Report) { await this.reports(r.project_id).doc(r.id).create(r); }
   async getReport(project_id: string, id: string) {
@@ -77,7 +82,7 @@ export class FirestoreStore implements Store {
 
   async move(
     project_id: string, report_id: string, from: ReportStatus, to: ReportStatus,
-    patch: { decline_reason?: string; triaged_by: string; updated_at: string },
+    patch: { decline_reason?: string; fix_note?: string | null; triaged_by: string; updated_at: string },
   ): Promise<Transition> {
     const ref = this.reports(project_id).doc(report_id);
     return this.db.runTransaction(async (tx) => {
@@ -88,6 +93,7 @@ export class FirestoreStore implements Store {
       const next: Report = {
         ...r, status: to, triaged_by: patch.triaged_by, updated_at: patch.updated_at,
         decline_reason: patch.decline_reason ?? r.decline_reason,
+        fix_note: patch.fix_note !== undefined ? patch.fix_note : (r.fix_note ?? null),
       };
       tx.set(ref, next);
       return { ok: true, report: next } as const;
@@ -97,6 +103,35 @@ export class FirestoreStore implements Store {
   async getTask(project_id: string, report_id: string) {
     const s = await this.tasks(project_id).doc(report_id).get();
     return s.exists ? s.data() as Task : null;
+  }
+  async listTasks(project_id: string) {
+    const q = await this.tasks(project_id).limit(500).get();
+    return q.docs.map((d) => d.data() as Task);
+  }
+  async updateTask(project_id: string, report_id: string, fn: (t: Task) => Task) {
+    const ref = this.tasks(project_id).doc(report_id);
+    return this.db.runTransaction(async (tx) => {
+      const s = await tx.get(ref);
+      if (!s.exists) return null;
+      const next = fn(s.data() as Task);
+      tx.set(ref, next);
+      return next;
+    });
+  }
+
+  private tokens() { return this.db.collection('agent_tokens'); }
+  async createAgentToken(t: AgentToken) { await this.tokens().doc(t.id).create(t); }
+  async getAgentToken(id: string) {
+    const s = await this.tokens().doc(id).get();
+    return s.exists ? s.data() as AgentToken : null;
+  }
+  async listAgentTokens() {
+    const q = await this.tokens().get();
+    return q.docs.map((d) => d.data() as AgentToken);
+  }
+  async updateAgentToken(id: string, patch: Partial<AgentToken>) {
+    const { id: _ignored, ...rest } = patch;
+    await this.tokens().doc(id).update(rest);
   }
 
   async hit(bucket: string, limit: number, expires_at: number) {

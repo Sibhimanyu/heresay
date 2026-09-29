@@ -96,6 +96,29 @@
     return { os: os, browser: browser };
   }
 
+  /**
+   * Which framework built the page, from the marks each one leaves. Only used to show the team
+   * the right install steps; a wrong guess costs nothing. Checked most specific first.
+   */
+  function framework() {
+    try {
+      var w = window, d = document;
+      if (w.__NEXT_DATA__ || w.next || d.getElementById('__next') || d.querySelector('script[src*="/_next/"]')) return 'next';
+      if (w.__NUXT__ || w.useNuxtApp || d.getElementById('__nuxt')) return 'nuxt';
+      if (w.__sveltekit_dev || d.querySelector('[data-sveltekit-preload-data],[data-sveltekit-reload]') ||
+        Object.keys(w).some(function (k) { return k.indexOf('__sveltekit_') === 0; })) return 'svelte';
+      if (w.getAllAngularRootElements || d.querySelector('[ng-version]')) return 'angular';
+      if (w.__VUE__ || d.querySelector('[data-v-app]')) return 'vue';
+      var roots = d.querySelectorAll('body > div, #root, #app');
+      for (var i = 0; i < roots.length; i++) {
+        var n = roots[i];
+        if (n._reactRootContainer) return 'react';
+        for (var k in n) if (k.indexOf('__reactContainer') === 0 || k.indexOf('__reactFiber') === 0) return 'react';
+      }
+      return 'html';
+    } catch (e) { return null; }
+  }
+
   function context() {
     var p = platformInfo();
     return {
@@ -106,6 +129,7 @@
       browser: p.browser,
       user_id: state.userId,
       user_label: state.userLabel,
+      framework: framework(),
     };
   }
 
@@ -355,6 +379,8 @@
         el('div', { class: 'small', text: label + ' · ' + new Date(r.created_at).toLocaleDateString() }),
         r.status === 'declined' && r.decline_reason
           ? el('div', { class: 'reason', text: 'Why: ' + r.decline_reason }) : null,
+        r.status === 'fixed' && r.fix_note
+          ? el('div', { class: 'reason', text: r.fix_note }) : null,
       ]));
     });
   }
