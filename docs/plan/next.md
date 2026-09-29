@@ -2,6 +2,8 @@
 
 As of 2026-09-29. Live: Heresay 0.2.6 at https://heresay-sibhi-42b1.web.app. npm:
 `create-heresay` 0.2.6, `heresay` 0.2.3. Swift: `github.com/Sibhimanyu/heresay-swift` 0.2.6.
+Product page: https://sibhimanyu.github.io/heresay/ (from `site/`, published with
+`node scripts/publish-site.mjs`).
 
 ## To build
 
@@ -11,9 +13,6 @@ As of 2026-09-29. Live: Heresay 0.2.6 at https://heresay-sibhi-42b1.web.app. npm
   a branch in `installGuide()` in `packages/heresay/src/client.mjs`.
 - **Catalyst as a second backend** (decision 0004). This needs a `providers/catalyst/` adapter
   that passes `functions/test/store-contract.ts`, and a provider module in `create-heresay`.
-- **The landing page on each instance.** `/` on every Heresay is the Heresay marketing page.
-  A team's own instance should probably open on its dashboard, or on a short page about that
-  team's Heresay.
 
 ## Not verified yet
 
