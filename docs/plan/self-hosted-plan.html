@@ -182,7 +182,8 @@
 <span class="k">install_guide</span>(app, framework)       <span class="c">→ exact steps + snippet</span>
 <span class="k">check_install</span>(app)                 <span class="c">→ waits for the first report</span>
 <span class="c">// fix</span>
-<span class="k">list_briefs</span>()                      <span class="c">→ accepted, not yet fixed</span>
+<span class="k">list_briefs</span>()                      <span class="c">→ accepted, for this repo only</span>
+<span class="k">claim_brief</span>(id) · <span class="k">handoff</span>(id, repo, note)
 <span class="k">get_brief</span>(id)
 <span class="k">mark_fixed</span>(id, note)               <span class="c">→ the user sees "Fixed" + note</span>
 <span class="k">add_note</span>(id, note)                 <span class="c">→ private to your team</span></pre></div>
@@ -199,6 +200,18 @@ Now ask your agent:
         <p class="muted" style="font-size:15px;margin:12px 0 0">The token lives in the developer's environment, never in the repo. The "Ask your agent" step in the dashboard just says to run this command.</p></div>
     </div>
 
+
+    <h3 style="margin-top:36px">Scope: one token per repo</h3>
+    <p class="sub" style="margin-top:6px">An agent only sees reports it can fix in the code in front of it. Nobody reads three codebases to fix one bug.</p>
+    <div class="layers">
+      <div class="ly main"><div class="k">DEFAULT</div><h3>One repo, its own apps</h3><p><code>npx heresay connect</code> in a repo links the apps whose code lives there and makes a token for just those. <code>list_briefs</code> in the web repo shows web reports only; the iOS repo sees iOS reports only. A monorepo simply links several apps to one token.</p></div>
+      <div class="ly"><div class="k">APP SPREAD OVER REPOS</div><h3>Route at accept time</h3><p>If an app's code is split, for example a web frontend and an API, both repos are connected to it. When you accept, the dashboard asks <b>where the fix goes</b>, defaulting to the app's main repo. The brief appears only in that repo.</p></div>
+      <div class="ly"><div class="k">WRONG PLACE?</div><h3>Hand it off</h3><p>If the agent finds the fix belongs elsewhere, it calls <code>handoff(id, repo, note)</code>. The brief moves to that repo with the note, so the next agent starts from what the first one learned.</p></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card"><h3>No double work</h3><p class="muted" style="margin:8px 0 0">An agent calls <code>claim_brief(id)</code> before starting. Other agents and teammates see "In progress in acme-web" and skip it. Claims expire if nothing happens for a day.</p></div>
+      <div class="card"><h3>Seeing everything</h3><p class="muted" style="margin:8px 0 0">Only people in the dashboard see all apps. A read-only, account-wide token can come later for an orchestrator such as Flotilla. It lists and routes, but never edits code.</p></div>
+    </div>
     <h3 style="margin-top:36px">Keeping the skill up to date</h3>
     <p class="sub" style="margin-top:6px">The skill is split in two: a small part that lives in the repo and never needs to change, and the detailed steps, which the agent fetches fresh every time.</p>
     <div class="layers">
