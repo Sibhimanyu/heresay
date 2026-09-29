@@ -280,5 +280,6 @@ export async function agent(
 
 const appView = (p: Project) => ({
   id: p.id, name: p.name, platform: p.platform, framework: p.framework, sign_in: p.sign_in ?? null,
+  product_id: p.product_id ?? p.id,
   framework_detected: !!p.framework_detected, key: p.key, allowed_origins: p.allowed_origins,
 });
