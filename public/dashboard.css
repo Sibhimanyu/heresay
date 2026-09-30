@@ -226,3 +226,9 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .alt summary:hover { color:var(--fg); }
 .alt[open] summary { margin-bottom:10px; }
 .alt[open] { font-size:15px; }
+
+.update { background:var(--mist); border-bottom:1px solid var(--line); }
+.update-in { max-width:880px; margin:0 auto; padding:10px 24px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.update-in p { margin:0; flex:1 1 360px; font-size:14px; color:var(--deep); }
+.update-in b { margin-right:4px; }
+.update-in code { white-space:nowrap; }

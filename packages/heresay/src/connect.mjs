@@ -81,7 +81,9 @@ apps must call \`identify\`.
 Fix flow: \`npx heresay briefs\`, \`claim <id>\`, \`brief <id>\`, fix and test, \`fixed <id> "<note for the reporter>"\`.
 ${AGENTS_END}`;
 
-const MCP_ENTRY = { command: 'npx', args: ['-y', 'heresay@0', 'mcp'] };
+// @latest, not a pinned major: npx re-checks it on each start, so repos don't stay on an old
+// cached copy and miss new tools.
+const MCP_ENTRY = { command: 'npx', args: ['-y', 'heresay@latest', 'mcp'] };
 
 function writeJsonMerge(file, fn) {
   let cur = {};
