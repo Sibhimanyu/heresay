@@ -1,19 +1,23 @@
-# Publishes create-heresay and heresay to npm when a release PR bumps their versions. npm trusts
-# this workflow (trusted publishing, OIDC): no token is stored anywhere and nobody approves a
-# passkey. Versions already on npm are skipped, so re-running is safe.
-name: Release to npm
+# A release, end to end, when a release PR merges: publish to npm, deploy the instance, tag the
+# Swift package. Nothing here holds a long-lived secret except the Swift repo's deploy key:
+#   - npm trusts this workflow (trusted publishing, OIDC): no token, no passkey.
+#   - Google trusts it too (workload identity federation) and lets it act as heresay-deployer,
+#     which can only deploy. Only runs from Sibhimanyu/heresay are accepted.
+#   - SWIFT_DEPLOY_KEY writes to Sibhimanyu/heresay-swift and nothing else.
+# Every step skips what's already done, so re-running is safe.
+name: Release
 on:
   push:
     branches: [master]
-    paths: ['packages/*/package.json']
+    paths: ['packages/*/package.json', 'functions/src/core/version.ts']
   workflow_dispatch:
 permissions:
   contents: read
   id-token: write
 concurrency:
-  group: npm-release
+  group: release
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,5 +30,59 @@ jobs:
       - run: npm --prefix functions ci
       - run: npm test
       - run: npm --prefix packages/heresay ci
+      - run: npm --prefix packages/create-heresay ci
       - run: node scripts/build-release.mjs
-      - run: node scripts/publish-npm.mjs
+
+      - name: Publish to npm
+        run: node scripts/publish-npm.mjs
+
+      - name: Is the instance behind?
+        id: instance
+        run: |
+          want=$(node -p "require('fs').readFileSync('functions/src/core/version.ts','utf8').match(/'([^']+)'/)[1]")
+          have=$(curl -fsS "https://${{ vars.HERESAY_PROJECT }}.web.app/v1/health" | node -p "JSON.parse(require('fs').readFileSync(0)).version" || echo none)
+          echo "want=$want" >> "$GITHUB_OUTPUT"
+          echo "Instance is on $have; this release is $want."
+          [ "$have" != "$want" ] && echo "deploy=yes" >> "$GITHUB_OUTPUT" || true
+
+      - uses: google-github-actions/auth@v2
+        if: steps.instance.outputs.deploy == 'yes'
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - name: Deploy to the instance
+        if: steps.instance.outputs.deploy == 'yes'
+        env:
+          HERESAY_HOME: ${{ runner.temp }}/heresay
+        run: |
+          mkdir -p "$HERESAY_HOME"
+          # All `update` needs from the machine that set the instance up: its id, name and region.
+          printf '{"instances":{"%s":{"name":"%s","region":"%s"}}}' \
+            "${{ vars.HERESAY_PROJECT }}" "${{ vars.HERESAY_NAME }}" "${{ vars.HERESAY_REGION }}" > "$HERESAY_HOME/config.json"
+          for attempt in 1 2 3; do
+            node packages/create-heresay/bin/create-heresay.mjs update --yes --project-id "${{ vars.HERESAY_PROJECT }}" < /dev/null && exit 0
+            echo "Deploy attempt $attempt failed (a Firebase rules 409 is transient); retrying."
+            sleep 20
+          done
+          exit 1
+
+      - name: Tag the Swift package
+        env:
+          VERSION: ${{ steps.instance.outputs.want }}
+          SWIFT_DEPLOY_KEY: ${{ secrets.SWIFT_DEPLOY_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SWIFT_DEPLOY_KEY" > ~/.ssh/swift && chmod 600 ~/.ssh/swift
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/swift -o StrictHostKeyChecking=accept-new"
+          git clone -q git@github.com:Sibhimanyu/heresay-swift.git "$RUNNER_TEMP/swift"
+          cd "$RUNNER_TEMP/swift"
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then echo "Tag $VERSION exists; nothing to do."; exit 0; fi
+          # Mirror apple/, keeping the Swift repo's own .git and .gitignore.
+          rsync -a --delete --exclude .git --exclude .gitignore --exclude .build --exclude .swiftpm --exclude '*.xcodeproj' "$GITHUB_WORKSPACE/apple/" ./
+          if [ -z "$(git status --porcelain)" ]; then echo "apple/ hasn't changed since the last tag; no new Swift release."; exit 0; fi
+          git add -A
+          git -c user.name="heresay release" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Heresay $VERSION"
+          git tag "$VERSION"
+          git push -q origin HEAD "$VERSION"
+          echo "Tagged heresay-swift $VERSION."
