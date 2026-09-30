@@ -8,7 +8,8 @@
 </p>
 
 <p align="center"><b>Every report gets a hearing.</b><br>
-In-app feedback that reaches your coding agent, only after a person says yes.</p>
+In-app feedback that reaches your coding agent, only after a person says yes.<br>
+Made by <a href="https://github.com/Sibhimanyu">Sibhimanyu</a>. Open source, MIT.</p>
 
 <p align="center">
   <a href="https://sibhimanyu.github.io/heresay/">Website</a> ·
