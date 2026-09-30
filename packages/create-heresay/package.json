@@ -32,12 +32,29 @@
     "prepublishOnly": "node ../../scripts/build-release.mjs"
   },
   "keywords": [
+    "heresay",
     "feedback",
+    "user-feedback",
+    "in-app-feedback",
+    "feedback-widget",
     "bug-report",
+    "bug-reporting",
     "sdk",
+    "web-sdk",
+    "ios",
+    "macos",
+    "swiftui",
     "firebase",
     "self-hosted",
-    "heresay"
+    "coding-agent",
+    "mcp",
+    "create"
   ],
-  "author": "Sibhimanyu"
+  "author": {
+    "name": "Sibhimanyu",
+    "url": "https://github.com/Sibhimanyu"
+  },
+  "bugs": {
+    "url": "https://github.com/Sibhimanyu/heresay/issues"
+  }
 }
