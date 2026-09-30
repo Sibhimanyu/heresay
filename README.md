@@ -93,10 +93,10 @@ The Swift package lives in `apple/` and is published by copying that folder to t
 repo `github.com/Sibhimanyu/heresay-swift` and tagging it with the version (SwiftPM installs
 from tags).
 
-npm publishing is automatic: merging a release PR that bumps `packages/*/package.json` runs
-`.github/workflows/release.yml`, which tests, builds and publishes any version not on npm yet,
-authenticated by npm trusted publishing (no token, no passkey). Then `create-heresay update`
-deploys the new version to an instance.
+Releasing is automatic: `node scripts/release.mjs <x.y.z>` opens a release PR, and merging it runs
+`.github/workflows/release.yml`, which tests, publishes to npm (trusted publishing, no token),
+deploys the instance (Google workload identity federation, no key) and tags the Swift package
+when `apple/` changed.
 
 ## Product page
 

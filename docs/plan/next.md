@@ -46,13 +46,11 @@ Product page: https://sibhimanyu.github.io/heresay/ (from `site/`, published wit
 
 - **The old project `feedback-sdk-live`** is in "delete requested" with billing unlinked. Its
   static pages can load until Google purges it, around 2026-10-29. Nothing to do.
-- **Releasing** means:
-  1. Bump `functions/src/core/version.ts` and the package versions.
-  2. Run `node scripts/build-release.mjs`, open a release PR, merge it.
-  3. Merging publishes to npm by itself (`.github/workflows/release.yml`, npm trusted
-     publishing). By hand, if CI is down: `node scripts/publish-npm.mjs` after `npm login`.
-  4. Update the instance with `create-heresay update`.
-  5. For Swift, copy `apple/` to `heresay-swift` and add a tag.
+- **Releasing** means `node scripts/release.mjs <x.y.z>`, then merging the PR it opens. The merge
+  runs `.github/workflows/release.yml`: tests, publishes to npm (trusted publishing), deploys the
+  instance (workload identity federation as `heresay-deployer`, no key) and, if `apple/` changed,
+  copies it to `heresay-swift` and tags it (deploy key `SWIFT_DEPLOY_KEY`). Re-run it from the
+  Actions tab if a step fails; every step skips what's already done.
 - **Connectors.** Several Claude connectors aren't authorised (Asana, Notion, Linear, Zoho
   Projects, and others), and the Illustrator and Paper tools didn't connect. None of that
   affects Heresay.
