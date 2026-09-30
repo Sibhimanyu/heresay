@@ -1,1 +1,0 @@
-/Users/sibhi-zstch1643/.gstack/render/claude/qa/SKILL.md

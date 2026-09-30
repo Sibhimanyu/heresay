@@ -73,14 +73,18 @@ The Swift package lives in `apple/` and is published by copying that folder to t
 repo `github.com/Sibhimanyu/heresay-swift` and tagging it with the version (SwiftPM installs
 from tags).
 
+npm publishing is automatic: merging a release PR that bumps `packages/*/package.json` runs
+`.github/workflows/release.yml`, which tests, builds and publishes any version not on npm yet,
+authenticated by npm trusted publishing (no token, no passkey). Then `create-heresay update`
+deploys the new version to an instance.
+
 ## Product page
 
 The marketing page lives at https://sibhimanyu.github.io/heresay/, not on instances. Source:
 `site/` (static, relative links, a copy of the docs page with `https://<your-heresay>.web.app`
-in place of the instance address). Publish it with `node scripts/publish-site.mjs`, which copies
-`site/` to the public repo `github.com/Sibhimanyu/heresay` (GitHub Pages, `main` branch root),
-the same way `apple/` goes to `heresay-swift`. When `public/docs.html` changes, copy the change
-into `site/docs.html` too.
+in place of the instance address). Merging a change to `site/` deploys it
+(`.github/workflows/pages.yml`). When `public/docs.html` changes, copy the change into
+`site/docs.html` too.
 
 ## What's next
 

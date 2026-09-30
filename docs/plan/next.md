@@ -44,15 +44,13 @@ Product page: https://sibhimanyu.github.io/heresay/ (from `site/`, published wit
 
 ## Housekeeping
 
-- **This computer is signed in** to Firebase as sibhi.gv@gmail.com (used to set up and update
-  the instance) and to npm as `sibhimanyu`. Run `npx firebase logout` / `npm logout` if that's
-  not wanted.
 - **The old project `feedback-sdk-live`** is in "delete requested" with billing unlinked. Its
   static pages can load until Google purges it, around 2026-10-29. Nothing to do.
 - **Releasing** means:
   1. Bump `functions/src/core/version.ts` and the package versions.
-  2. Run `node scripts/build-release.mjs`.
-  3. Publish with `npx npm@11 publish --auth-type=web`; npm asks for the passkey.
+  2. Run `node scripts/build-release.mjs`, open a release PR, merge it.
+  3. Merging publishes to npm by itself (`.github/workflows/release.yml`, npm trusted
+     publishing). By hand, if CI is down: `node scripts/publish-npm.mjs` after `npm login`.
   4. Update the instance with `create-heresay update`.
   5. For Swift, copy `apple/` to `heresay-swift` and add a tag.
 - **Connectors.** Several Claude connectors aren't authorised (Asana, Notion, Linear, Zoho
