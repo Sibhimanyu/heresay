@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Heresay: what can a developer change?</title>
+<style>
+  :root{--ink:#15171c;--mute:#5b6472;--line:#e3e6ea;--soft:#f5f7f8;--acc:#0f766e;--acc-soft:#e6f4f2;--no:#b42318;--no-soft:#fdecea;--maybe:#8a5a00;--maybe-soft:#fdf3dc}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:#fff}
+  .page{display:grid;grid-template-columns:minmax(0,1fr) 480px;gap:28px;max-width:1480px;margin:0 auto;padding:28px 24px 40px}
+  h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+  .lede{color:var(--mute);margin:0 0 14px;max-width:720px}
+  .keys{display:flex;gap:14px;font-size:12px;color:var(--mute);flex-wrap:wrap;margin-bottom:6px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);margin:26px 0 8px}
+
+  /* option list */
+  .group{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .opt{display:grid;grid-template-columns:32px minmax(0,1fr) 82px;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:start}
+  .opt:last-child{border-bottom:0}
+  .opt.on{background:var(--acc-soft)}
+  .opt.locked{color:var(--mute);background:#fafbfb}
+  .opt input[type=checkbox]{width:20px;height:20px;margin:1px 0 0;accent-color:var(--acc);cursor:pointer}
+  .opt input[disabled]{cursor:not-allowed}
+  .t{font-weight:650}
+  .t small{font-weight:400;color:var(--mute);margin-left:6px;font-size:12.5px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:4px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+  .chip:hover{border-color:#b9c0c8}
+  .chip.sel{border-color:var(--acc);color:var(--acc);font-weight:600}
+  .chip.sel:before{content:"✓";font-size:11px}
+  .chip.pv{box-shadow:0 0 0 2px var(--acc)}
+  .chip .sw{width:12px;height:12px;border-radius:50%;display:inline-block}
+  .chip .d{font-size:10.5px;color:var(--mute);font-weight:400}
+  .chip[disabled]{cursor:not-allowed;opacity:.6}
+  .meta{font-size:12.5px;color:var(--mute)}
+  code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);border:1px solid var(--line);padding:1px 5px;border-radius:5px}
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;justify-self:end}
+  .yes{background:var(--acc-soft);color:var(--acc);border:1px solid #bfe3dd}
+  .no{background:var(--no-soft);color:var(--no)}
+  .maybe{background:var(--maybe-soft);color:var(--maybe)}
+  .have{background:var(--soft);color:var(--mute);border:1px solid var(--line)}
+
+  .bar{display:flex;gap:8px;align-items:center;margin-top:22px;flex-wrap:wrap}
+  .bar .count{color:var(--mute);margin-right:auto}
+  .bar .count b{color:var(--ink)}
+  button.go{border:0;background:var(--acc);color:#fff;font-weight:600;padding:9px 14px;border-radius:10px;cursor:pointer;font-size:13.5px}
+  button.ghost{border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer;font-size:13.5px}
+
+  /* sticky preview */
+  .side{position:sticky;top:16px;align-self:start;height:calc(100vh - 32px);display:flex;flex-direction:column;gap:10px}
+  .ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{border:0;background:#fff;padding:6px 10px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--mute)}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button.on{background:var(--ink);color:#fff}
+  .ctl label{font-size:12.5px;color:var(--mute);display:inline-flex;gap:5px;align-items:center}
+  .screen{position:relative;flex:1;min-height:420px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;font-family:Georgia,"Times New Roman",serif}
+  .screen.dark{background:#16181d;border-color:#2c313a}
+  .appbar{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:var(--soft);border-bottom:1px solid var(--line);font-weight:700;font-size:15px}
+  .dark .appbar{background:#20242b;border-color:#2c313a;color:#eceef1}
+  .appmenu{font:12px system-ui;font-weight:400;display:flex;gap:10px;color:var(--mute);align-items:center}
+  .own{padding:3px 9px;border-radius:6px;border:1px dashed var(--acc);color:var(--acc)}
+  .dark .own{color:#5eead4;border-color:#5eead4}
+  .blk{height:10px;border-radius:5px;background:var(--line);margin:14px 14px 0}
+  .dark .blk{background:#2c313a}
+  .chat{position:absolute;right:16px;bottom:16px;width:52px;height:52px;border-radius:50%;background:#2563eb;color:#fff;display:grid;place-items:center;font:20px system-ui;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:1}
+  .note{position:absolute;left:14px;top:52px;right:14px;font:12px system-ui;color:var(--mute);display:flex;gap:6px;flex-wrap:wrap}
+  .note span{background:var(--maybe-soft);color:var(--maybe);padding:2px 8px;border-radius:999px}
+  .code{background:#15171c;color:#d8dde3;border-radius:12px;padding:12px 14px;font:11.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-all;max-height:190px;overflow:auto}
+  .code .k{color:#5eead4}.code .s{color:#fcd34d}.code .c{color:#7d8591}
+  .cap{font-size:12px;color:var(--mute)}
+
+  /* the mock widget, drawn inside .screen */
+  .w{--bg:#fff;--fg:#15171c;--mu:#5b6472;--ln:#e3e6ea;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--fg)}
+  .w.dk{--bg:#16181d;--fg:#eceef1;--mu:#9aa1ad;--ln:#2c313a}
+  .w.inh{font-family:Georgia,"Times New Roman",serif}
+  .fab{position:absolute;z-index:2;display:flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid var(--ln);background:var(--bg);color:var(--fg);font-weight:600;white-space:nowrap;transition:all .2s}
+  .fab svg{display:block;flex:none}
+  .fab .dot{width:8px;height:8px;border-radius:50%;background:var(--a)}
+  .fab.tab{writing-mode:vertical-rl;padding:14px 8px}
+  .fab.pulse{animation:pulse 1.6s ease-out infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--a) 55%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
+  .kbd{position:absolute;z-index:3;font:11px system-ui;background:#15171c;color:#fff;padding:3px 7px;border-radius:6px}
+  .scrim{position:absolute;inset:0;z-index:4;display:flex;padding:12px}
+  .panel{background:var(--bg);border:1px solid var(--ln);box-shadow:0 12px 40px rgba(0,0,0,.3);padding:14px;overflow:auto;max-height:100%}
+  .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .tabs{display:flex;gap:2px}
+  .tabs span{padding:5px 8px;border-radius:8px;color:var(--mu);font-weight:600;font-size:13px}
+  .tabs span.on{background:var(--ln);color:var(--fg)}
+  .lg{font-weight:600;margin:0 0 6px}
+  .types{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+  .type{border:1px solid var(--ln);border-radius:10px;padding:7px 9px}
+  .type b{display:block;font-size:13px}
+  .type span{font-size:11px;color:var(--mu)}
+  .type.on{border-color:var(--a);box-shadow:inset 0 0 0 1px var(--a)}
+  .ta{border:1px solid var(--ln);border-radius:10px;padding:8px 10px;min-height:64px;color:var(--mu);font-size:13px}
+  .ta.fill{color:var(--fg)}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px}
+  .small{font-size:11px;color:var(--mu)}
+  .send{padding:8px 14px;border-radius:10px;background:var(--a);color:var(--af);font-weight:600;font-size:13px;white-space:nowrap}
+  .link{font-size:11.5px;color:var(--mu);text-decoration:underline}
+  .banner{background:color-mix(in srgb,var(--a) 14%,var(--bg));border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
+  .item{border:1px solid var(--ln);border-radius:10px;padding:9px 10px}
+  .item .st{font-size:11px;font-weight:700;color:var(--a)}
+  .intro{position:absolute;z-index:3;width:min(290px,calc(100% - 32px));padding:13px 15px;background:var(--bg);border:1px solid var(--ln);box-shadow:0 12px 32px rgba(0,0,0,.22)}
+  .intro b{display:block;margin-bottom:4px}
+  .intro p{margin:0 0 10px;color:var(--mu);font-size:12.5px}
+  .intro .row{justify-content:flex-end;margin:0}
+  .intro .when{font-size:11px;color:var(--mu);margin-top:8px;border-top:1px solid var(--ln);padding-top:6px}
+  .empty{position:absolute;inset:40px 0 0;display:grid;place-items:center;font:13px system-ui;color:var(--mute)}
+
+  @media (max-width:1100px){.page{grid-template-columns:1fr}.side{position:static;height:auto}.screen{height:520px;flex:none}}
+</style>
+</head>
+<body>
+<div class="page">
+  <main>
+    <h1>What can a developer change?</h1>
+    <p class="lede"><b>Tick a row</b> to let developers change that thing. <b>Click the choices</b> you'd offer them; the preview on the right shows the last one you clicked. The first choice in each row is the default.</p>
+    <div class="keys">
+      <span><span class="pill have">Have it</span> already works</span>
+      <span><span class="pill yes">Yes</span> Claude would add it</span>
+      <span><span class="pill maybe">Maybe</span> your call</span>
+      <span><span class="pill no">No</span> Claude would leave it out</span>
+      <span>🔒 locked by a product rule</span>
+    </div>
+    <div id="groups"></div>
+    <div class="bar">
+      <span class="count"><b id="n">0</b> of <span id="tot"></span> ticked</span>
+      <button class="ghost" id="rec">Use Claude's picks</button>
+      <button class="ghost" id="clear">Clear all</button>
+      <button class="go" id="copy">Copy my choices</button>
+    </div>
+  </main>
+
+  <aside class="side">
+    <div class="ctl">
+      <span class="seg" id="view"><button data-v="button" class="on">Button</button><button data-v="panel">Panel</button><button data-v="intro">Intro</button><button data-v="sent">After sending</button></span>
+    </div>
+    <div class="ctl">
+      <span class="seg" id="app"><button data-v="light" class="on">Light app</button><button data-v="dark">Dark app</button></span>
+      <span class="seg" id="device"><button data-v="light" class="on">Device light</button><button data-v="dark">Device dark</button></span>
+      <label><input type="checkbox" id="chat"> chat widget</label>
+    </div>
+    <div class="screen" id="screen"></div>
+    <div class="cap">What the developer would write:</div>
+    <div class="code" id="code"></div>
+  </aside>
+</div>
+
+<script>
+/* ---------- drawing helpers ---------- */
+const MARK = (c, eye = "#fff", s = 18) => `<svg viewBox="0 0 200 200" width="${s}" height="${s}"><path d="M100 26C125 44 160 30 164 63S178 100 174 131S145 150 121 180S85 160 57 164S30 137 36 113S12 80 41 61S70 20 100 26Z" fill="${c}"/><circle cx="80" cy="104" r="14" fill="${eye}"/><circle cx="122" cy="100" r="14" fill="${eye}"/></svg>`;
+const BUBBLE = (c, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>`;
+const OWN = (s = 18) => `<span style="width:${s}px;height:${s}px;border-radius:5px;background:linear-gradient(135deg,#f97316,#db2777);display:inline-block;flex:none"></span>`;
+
+const ACCENTS = { peacock: "#0f766e", purple: "#7c3aed", blue: "#2563eb", rose: "#e11d48", orange: "#ea580c", ink: "#15171c" };
+function onColor(hex) {
+  const lin = [1, 3, 5].map(i => { const c = parseInt(hex.slice(i, i + 2), 16) / 255; return c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); });
+  const L = .2126 * lin[0] + .7152 * lin[1] + .0722 * lin[2];
+  return 1.05 / (L + .05) >= (L + .05) / .0598 ? "#fff" : "#15171c";
+}
+
+/* ---------- words ---------- */
+const T = {
+  en: { report: "Report", tabs: ["Report", "Your reports", "Preferences"], legend: "What is it?", types: ["Broken", "Confusing", "Could be better", "Idea"], hints: ["Something does not work", "I could not tell how to do something", "It works, but it could be better", "Something that does not exist yet"], ph: "What happened, or what would you change?", send: "Send", att: "This page and the app version are attached.", it: "Something not right? Tell the team.", ib: "Use Report to say what is broken, confusing or could be better. A person reads every report, and you will see what happens to yours right here.", got: "Got it", tr: "Try it", open: "Open", name: "Add your name (optional)" },
+  fr: { report: "Signaler", tabs: ["Signaler", "Vos signalements", "Préférences"], legend: "De quoi s’agit-il ?", types: ["Cassé", "Déroutant", "Pourrait être mieux", "Idée"], hints: ["Quelque chose ne marche pas", "Je ne savais pas comment faire", "Ça marche, mais pourrait être mieux", "Quelque chose qui n’existe pas"], ph: "Que s’est-il passé ?", send: "Envoyer", att: "Cette page et la version de l’app sont jointes.", it: "Un souci ? Dites-le à l’équipe.", ib: "Une personne lit chaque signalement, et vous verrez ici ce qu’il devient.", got: "Compris", tr: "Essayer", open: "Ouvert", name: "Ajouter votre nom (facultatif)" },
+  es: { report: "Informar", tabs: ["Informar", "Tus informes", "Preferencias"], legend: "¿Qué es?", types: ["No funciona", "Confuso", "Podría mejorar", "Idea"], hints: ["Algo no funciona", "No supe cómo hacer algo", "Funciona, pero podría mejorar", "Algo que aún no existe"], ph: "¿Qué pasó o qué cambiarías?", send: "Enviar", att: "Se adjuntan esta página y la versión de la app.", it: "¿Algo va mal? Díselo al equipo.", ib: "Una persona lee cada informe y aquí verás qué pasa con el tuyo.", got: "Entendido", tr: "Probar", open: "Abierto", name: "Añade tu nombre (opcional)" },
+  de: { report: "Melden", tabs: ["Melden", "Deine Meldungen", "Einstellungen"], legend: "Worum geht es?", types: ["Kaputt", "Verwirrend", "Geht besser", "Idee"], hints: ["Etwas funktioniert nicht", "Ich wusste nicht, wie etwas geht", "Es geht, aber besser wäre gut", "Etwas, das es noch nicht gibt"], ph: "Was ist passiert?", send: "Senden", att: "Diese Seite und die App-Version werden angehängt.", it: "Stimmt etwas nicht? Sag es dem Team.", ib: "Jede Meldung wird von einem Menschen gelesen, und hier siehst du, was daraus wird.", got: "Verstanden", tr: "Ausprobieren", open: "Offen", name: "Namen hinzufügen (optional)" },
+  ja: { report: "報告", tabs: ["報告", "あなたの報告", "設定"], legend: "どんな内容ですか？", types: ["動かない", "わかりにくい", "改善できる", "アイデア"], hints: ["何かが動作しない", "やり方がわからなかった", "動くが、もっと良くできる", "まだ存在しないもの"], ph: "何が起きましたか？", send: "送信", att: "このページとアプリのバージョンが添付されます。", it: "何かおかしい？チームに伝えましょう。", ib: "すべての報告を人が読みます。結果はここで確認できます。", got: "OK", tr: "試す", open: "受付中", name: "名前を追加（任意）" },
+};
+
+/* ---------- the options ----------
+   choices[0] is the default. picks = what Claude would offer. rec: have | yes | maybe | no | lock */
+const GROUPS = [
+  { name: "The Report button", rows: [
+    { id: "pos", rec: "have", what: "Where it sits", sub: "left or right exists today", view: "button",
+      choices: [["br", "Bottom right"], ["bl", "Bottom left"], ["tr", "Top right"], ["tl", "Top left"], ["bc", "Bottom centre"]], picks: ["br", "bl"],
+      how: 'data-position', why: "Top corners fight app headers; bottom corners cover almost every app.", attr: v => ({ bl: "left", tr: "top-right", tl: "top-left", bc: "center" })[v] },
+    { id: "offset", rec: "yes", what: "Distance from the edge", sub: "clear a chat bubble or cookie banner", view: "button",
+      choices: [["20", "20px"], ["40", "40px"], ["96", "96px (above a chat bubble)"], ["any", "Any number"]], picks: ["20", "40", "96", "any"],
+      how: 'data-offset', why: "Turn on “chat widget” above the preview to see the clash.", attr: v => v === "any" ? "24,120" : v },
+    { id: "visible", rec: "yes", what: "When the button shows", sub: "", view: "button",
+      choices: [["always", "Always"], ["none", "Never (use own menu)"], ["desktop", "Not on phones"], ["scroll", "After first scroll"]], picks: ["always", "none"],
+      how: 'data-button', why: "Many apps already have a “Send feedback” menu item and just call Feedback.open().", attr: v => v },
+    { id: "label", rec: "yes", what: "Button text", sub: "", view: "button",
+      choices: [["Report", "Report"], ["Feedback", "Feedback"], ["Help us improve", "Help us improve"], ["Found a bug?", "Found a bug?"], ["custom", "Their own words"]], picks: ["Report", "Feedback", "Help us improve", "Found a bug?", "custom"],
+      how: 'data-label', why: "Cheap, and it matches the app's own voice.", attr: v => v === "custom" ? "Tell Acme" : v },
+    { id: "style", rec: "maybe", what: "Button style", sub: "", view: "button",
+      choices: [["pill", "Pill with text"], ["icon", "Icon only"], ["tab", "Tab on the side"]], picks: ["pill", "icon"],
+      how: 'data-style', why: "Icon only is quieter but easy to miss. The side tab is common on marketing sites.", attr: v => v },
+    { id: "size", rec: "maybe", what: "Button size", sub: "", view: "button",
+      choices: [["m", "Regular"], ["s", "Small"], ["l", "Large"]], picks: ["m", "s"],
+      how: 'data-size', why: "Small helps dense tools; large rarely needed.", attr: v => ({ s: "small", l: "large" })[v] },
+    { id: "icon", rec: "no", what: "Icon", sub: "", view: "button",
+      choices: [["mark", "Heresay mark"], ["bubble", "Speech bubble"], ["none", "No icon"], ["own", "Their own image"]], picks: ["mark"],
+      how: 'data-icon', why: "The mark is how reporters recognise Heresay across apps. Loading an image URL is also new attack surface.", attr: v => v === "own" ? "https://acme.com/icon.svg" : v },
+    { id: "fill", rec: "maybe", what: "Button colour", sub: "", view: "button",
+      choices: [["neutral", "White / dark"], ["accent", "Filled with accent"]], picks: ["neutral"],
+      how: 'data-fill', why: "Filled stands out more, but can look like an ad on busy pages.", attr: v => v },
+    { id: "shape", rec: "no", what: "Corner shape", sub: "button and panel", view: "panel",
+      choices: [["round", "Round"], ["soft", "Soft"], ["square", "Square"]], picks: ["round"],
+      how: 'data-shape', why: "Few people ask; each shape multiplies what we must keep looking right.", attr: v => v },
+    { id: "shadow", rec: "no", what: "Shadow", sub: "", view: "button",
+      choices: [["soft", "Soft"], ["none", "None"], ["strong", "Strong"]], picks: ["soft"],
+      how: 'data-shadow', why: "The soft shadow is what keeps it readable over any page.", attr: v => v },
+    { id: "dot", rec: "no", what: "Update dot", sub: "when a report changes status", view: "button",
+      choices: [["show", "Show"], ["hide", "Hide"]], picks: ["show"],
+      how: 'data-badge', why: "It's how reporters learn their report was fixed or declined.", attr: v => v },
+    { id: "pulse", rec: "no", what: "Draw attention", sub: "first visit only", view: "button",
+      choices: [["none", "Nothing"], ["pulse", "Gentle pulse"]], picks: ["none"],
+      how: 'data-attention', why: "The intro bubble does this job more politely.", attr: v => v },
+  ]},
+  { name: "Colour and type", rows: [
+    { id: "accent", rec: "have", what: "Accent colour", sub: "any hex; these are examples", view: "panel",
+      choices: Object.keys(ACCENTS).map(k => [k, k[0].toUpperCase() + k.slice(1)]), picks: Object.keys(ACCENTS),
+      how: 'data-accent', why: "Exists today. Only plain hex is accepted, so it can't inject CSS.", attr: v => ACCENTS[v] },
+    { id: "markacc", rec: "yes", what: "Logo colour", sub: "today the web logo ignores the accent", view: "button",
+      choices: [["teal", "Always teal"], ["accent", "Follows the accent"]], picks: ["accent"],
+      how: '(automatic)', why: "The Swift SDK already does this. On the web it's really a bug.", attr: () => null },
+    { id: "theme", rec: "yes", what: "Light or dark", sub: "try Light app + Device dark", view: "button",
+      choices: [["system", "Follow the device"], ["light", "Always light"], ["dark", "Always dark"], ["page", "Match the page"]], picks: ["system", "light", "dark"],
+      how: 'data-theme', why: "A dark app on a light-mode laptop gets a glaring white pill.", attr: v => v },
+    { id: "font", rec: "maybe", what: "Font", sub: "the preview app uses a serif", view: "panel",
+      choices: [["system", "System font"], ["inherit", "The page's font"]], picks: ["system"],
+      how: 'data-font', why: "Blends in, but some page fonts are unreadable at small sizes.", attr: v => v },
+    { id: "palette", rec: "no", what: "Every colour", sub: "background, text, borders", view: "panel",
+      choices: [["no", "Not offered"], ["yes", "Full palette"]], picks: ["no"],
+      how: 'data-bg, data-fg…', why: "Easy to end up with unreadable pairs. Accent plus theme covers most apps.", attr: () => null },
+    { id: "css", rec: "no", what: "Their own CSS", sub: "", view: "panel",
+      choices: [["no", "Not offered"], ["parts", "::part() hooks"], ["sheet", "Custom stylesheet"]], picks: ["no"],
+      how: '::part()', why: "Breaks the isolation that keeps Heresay working on any page; every update could break someone's styling.", attr: () => null },
+  ]},
+  { name: "Words", rows: [
+    { id: "lang", rec: "maybe", what: "Language", sub: "the whole widget", view: "panel",
+      choices: [["en", "English"], ["auto", "Follow the browser"], ["fr", "Français"], ["es", "Español"], ["de", "Deutsch"], ["ja", "日本語"]], picks: ["en"],
+      how: 'data-lang', why: "Worth doing, but we'd have to write and keep every translation. Could come later.", attr: v => v },
+    { id: "ph", rec: "maybe", what: "Question in the text box", sub: "", view: "panel",
+      choices: [["def", "Default"], ["custom", "Their own words"]], picks: ["def"],
+      how: 'data-placeholder', why: "Small change; the default is written to get useful reports.", attr: v => v === "custom" ? "What were you trying to do?" : null },
+    { id: "types", rec: "maybe", what: "Which report types show", sub: "", view: "panel",
+      choices: [["all", "All four"], ["noidea", "No “Idea”"], ["bc", "Only Broken + Confusing"]], picks: ["all", "noidea"],
+      how: 'data-types', why: "Fine, as long as the names and priorities stay the same.", attr: v => ({ noidea: "broken,confusing,improvement", bc: "broken,confusing" })[v] },
+    { id: "rename", rec: "lock", what: "Rename the report types", sub: "", view: "panel",
+      choices: [["no", "Fixed names"]], picks: ["no"],
+      how: "—", why: "🔒 The type sets the priority, and the reporter never picks a priority.", attr: () => null },
+    { id: "intro", rec: "maybe", what: "Intro bubble words", sub: "", view: "intro",
+      choices: [["def", "Default"], ["custom", "Their own words"]], picks: ["def"],
+      how: "Feedback.introduce({ title, body })", why: "The default already says what matters: a person reads every report.", attr: () => null },
+    { id: "thanks", rec: "maybe", what: "Message after sending", sub: "", view: "sent",
+      choices: [["def", "Show their reports"], ["custom", "Plus a thank-you line"]], picks: ["def"],
+      how: 'data-thanks', why: "A nice touch from the team; must not promise a fix.", attr: v => v === "custom" ? "Thanks! The Acme team reads every one." : null },
+  ]},
+  { name: "The panel", rows: [
+    { id: "place", rec: "no", what: "Where it opens", sub: "", view: "panel",
+      choices: [["corner", "Next to the button"], ["sheet", "Side sheet"], ["center", "Middle of the screen"]], picks: ["corner"],
+      how: 'data-panel', why: "The middle hides the page the reporter is trying to describe.", attr: v => v },
+    { id: "width", rec: "no", what: "Panel width", sub: "", view: "panel",
+      choices: [["380", "Regular"], ["320", "Narrow"], ["460", "Wide"]], picks: ["380"],
+      how: 'data-width', why: "One width we can test well beats three.", attr: v => v },
+    { id: "backdrop", rec: "maybe", what: "Behind the panel", sub: "", view: "panel",
+      choices: [["dim", "Dim the page"], ["none", "Leave the page clear"], ["blur", "Blur"]], picks: ["dim", "none"],
+      how: 'data-backdrop', why: "Clear lets reporters look at the page while they type.", attr: v => v },
+    { id: "prefs", rec: "maybe", what: "Preferences tab", sub: "name, email, a note about their setup", view: "panel",
+      choices: [["show", "Show"], ["hide", "Hide"]], picks: ["show", "hide"],
+      how: 'data-preferences', why: "Apps that call identify() already know who's signed in.", attr: v => v },
+    { id: "mine", rec: "lock", what: "“Your reports” tab", sub: "", view: "sent",
+      choices: [["show", "Always there"]], picks: ["show"],
+      how: "—", why: "🔒 Reporters must be able to read the reason a report was declined.", attr: () => null },
+  ]},
+  { name: "Behaviour (for developers, not seen)", rows: [
+    { id: "introWhen", rec: "have", what: "When the intro bubble appears", sub: "", view: "intro",
+      choices: [["manual", "When the app says"], ["auto", "3s after first visit"], ["auto10", "10s after first visit"], ["off", "Never"]], picks: ["manual", "auto"],
+      how: 'data-intro / Feedback.introduce()', why: "Exists today, once per device.", attr: v => ({ auto: "auto", auto10: "auto:10" })[v] },
+    { id: "shortcut", rec: "maybe", what: "Keyboard shortcut", sub: "", view: "button",
+      choices: [["none", "None"], ["shift?", "Shift + ?"], ["ctrlF", "Ctrl + Shift + F"]], picks: ["none"],
+      how: 'data-shortcut', why: "Handy for power users; easy to clash with the app's own keys.", attr: v => ({ "shift?": "shift+?", ctrlF: "ctrl+shift+f" })[v] },
+    { id: "prefill", rec: "maybe", what: "Open with text filled in", sub: "e.g. from an error screen", view: "panel",
+      choices: [["no", "Always empty"], ["yes", "Feedback.open({ type, text })"]], picks: ["no", "yes"],
+      how: "Feedback.open({…})", why: "Great for “Something went wrong — report it” screens. The reporter still reviews it.", attr: () => null },
+    { id: "events", rec: "yes", what: "Tell the app when a report is sent", sub: "", view: null,
+      choices: [["no", "No"], ["yes", "Feedback.on('sent', …)"]], picks: ["no", "yes"],
+      how: "Feedback.on('sent')", why: "Lets the app thank people or count reports in its own analytics.", attr: () => null },
+    { id: "extra", rec: "maybe", what: "Attach extra details", sub: "plan, account id, feature flags", view: null,
+      choices: [["no", "Page + version only"], ["yes", "Feedback.setContext({…})"]], picks: ["no"],
+      how: "Feedback.setContext()", why: "Useful for the team, but it's easy to leak personal data by accident.", attr: () => null },
+    { id: "pages", rec: "maybe", what: "Hide on some pages", sub: "e.g. checkout", view: "button",
+      choices: [["no", "Every page"], ["yes", "Skip listed paths"]], picks: ["no"],
+      how: 'data-hide-on', why: "Apps can already do this by not loading the script on those pages.", attr: v => v === "yes" ? "/checkout,/login" : null },
+  ]},
+];
+const ALL = GROUPS.flatMap(g => g.rows);
+const BY = Object.fromEntries(ALL.map(r => [r.id, r]));
+const def = r => r.choices[0][0];
+
+/* ---------- state ---------- */
+const KEY = "heresay.custom.decisions.v2";
+const claudePicks = () => ({
+  on: ALL.filter(r => r.rec === "have" || r.rec === "yes").map(r => r.id),
+  sel: Object.fromEntries(ALL.map(r => [r.id, [...new Set([def(r), ...r.picks])]])),
+  pv: {},
+});
+let S = JSON.parse(localStorage.getItem(KEY) || "null") || claudePicks();
+let P = { view: "button", app: "light", device: "light", chat: false };
+const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+const isOn = id => S.on.includes(id);
+const val = id => { const r = BY[id]; return isOn(id) && S.pv[id] && (S.sel[id] || []).includes(S.pv[id]) ? S.pv[id] : def(r); };
+
+/* ---------- option list ---------- */
+const tag = r => ({ have: '<span class="pill have">Have it</span>', yes: '<span class="pill yes">Yes</span>', maybe: '<span class="pill maybe">Maybe</span>', no: '<span class="pill no">No</span>', lock: '<span class="pill no">🔒 Locked</span>' })[r.rec];
+function drawList() {
+  document.getElementById("groups").innerHTML = GROUPS.map(g => `<h2>${g.name}</h2><div class="group">${g.rows.map(r => {
+    const on = isOn(r.id), lock = r.rec === "lock", sel = S.sel[r.id] || [];
+    return `<div class="opt ${on ? "on" : ""} ${lock ? "locked" : ""}" data-id="${r.id}">
+      <input type="checkbox" ${on ? "checked" : ""} ${lock ? "disabled" : ""} aria-label="${r.what}">
+      <div><div class="t">${r.what}${r.sub ? `<small>${r.sub}</small>` : ""}</div>
+        <div class="chips">${r.choices.map(([v, l], i) => `<button class="chip ${sel.includes(v) ? "sel" : ""} ${on && val(r.id) === v && r.choices.length > 1 ? "pv" : ""}" data-v="${v}" ${lock ? "disabled" : ""}>${r.id === "accent" ? `<span class="sw" style="background:${ACCENTS[v]}"></span>` : ""}${l}${i === 0 && r.choices.length > 1 ? ' <span class="d">default</span>' : ""}</button>`).join("")}</div>
+        <div class="meta"><code>${r.how}</code> · ${r.why}</div></div>
+      ${tag(r)}</div>`; }).join("")}</div>`).join("");
+  document.getElementById("n").textContent = S.on.length;
+  document.getElementById("tot").textContent = ALL.filter(r => r.rec !== "lock").length;
+}
+
+document.getElementById("groups").addEventListener("click", e => {
+  const opt = e.target.closest(".opt"); if (!opt) return;
+  const r = BY[opt.dataset.id]; if (r.rec === "lock") return;
+  const chip = e.target.closest(".chip");
+  if (e.target.matches("input[type=checkbox]")) {
+    if (e.target.checked) S.on.push(r.id); else S.on = S.on.filter(x => x !== r.id);
+  } else if (chip) {
+    const v = chip.dataset.v, sel = new Set(S.sel[r.id] || [def(r)]);
+    if (!isOn(r.id)) { S.on.push(r.id); sel.add(v); S.pv[r.id] = v; }
+    else if (v === def(r)) S.pv[r.id] = v;                    // the default is always offered
+    else if (sel.has(v) && S.pv[r.id] === v) { sel.delete(v); S.pv[r.id] = def(r); }
+    else { sel.add(v); S.pv[r.id] = v; }
+    S.sel[r.id] = [...sel];
+    if (r.view) setView(r.view);
+  } else return;
+  save(); drawList(); drawPreview();
+});
+
+/* ---------- preview ---------- */
+function setView(v) { P.view = v; document.querySelectorAll("#view button").forEach(b => b.classList.toggle("on", b.dataset.v === v)); }
+[["view", "view"], ["app", "app"], ["device", "device"]].forEach(([id, k]) => document.getElementById(id).addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  P[k] = b.dataset.v; document.querySelectorAll(`#${id} button`).forEach(x => x.classList.toggle("on", x === b)); drawPreview();
+}));
+document.getElementById("chat").onchange = e => { P.chat = e.target.checked; drawPreview(); };
+
+function drawPreview() {
+  const v = val, sc = document.getElementById("screen");
+  const lang = v("lang") === "auto" ? "en" : v("lang"), t = T[lang];
+  const acc = ACCENTS[v("accent")], af = onColor(acc);
+  const dark = v("theme") === "dark" || (v("theme") === "system" && P.device === "dark") || (v("theme") === "page" && P.app === "dark");
+  const radius = { round: [999, 14, 10], soft: [10, 10, 8], square: [3, 4, 3] }[v("shape")];
+  const pos = v("pos"), left = pos === "bl" || pos === "tl", top = pos === "tr" || pos === "tl";
+  const off = v("offset") === "any" ? 120 : +v("offset");
+  const markC = v("fill") === "accent" ? af : (v("markacc") === "accent" ? acc : (dark ? "#2dd4bf" : "#0f766e"));
+  const eye = v("fill") === "accent" ? acc : (dark ? "#16181d" : "#fff");
+  const sz = { s: [12, 14, "6px 10px"], m: [14, 18, "9px 14px"], l: [16, 22, "12px 18px"] }[v("size")];
+  const iconH = { mark: MARK(markC, eye, sz[1]), bubble: BUBBLE(markC, sz[1]), none: "", own: OWN(sz[1]) }[v("icon")];
+  const label = v("label") === "Report" ? t.report : v("label") === "custom" ? "Tell Acme" : v("label");
+  const style = v("style");
+
+  // the button
+  let fabCss = `font-size:${sz[0]}px;padding:${style === "icon" ? "10px" : sz[2]};border-radius:${style === "icon" ? "50%" : style === "tab" ? (left ? "0 10px 10px 0" : "10px 0 0 10px") : radius[0] + "px"};`;
+  if (style === "tab") fabCss += `${left ? "left" : "right"}:0;top:45%;padding:14px 8px;`;
+  else if (pos === "bc") fabCss += `left:50%;transform:translateX(-50%);bottom:${off}px;`;
+  else fabCss += `${left ? "left" : "right"}:${off}px;${top ? "top" : "bottom"}:${off}px;`;
+  if (v("fill") === "accent") fabCss += `background:${acc};color:${af};border-color:${acc};`;
+  fabCss += `box-shadow:${{ soft: "0 4px 14px rgba(0,0,0,.18)", none: "none", strong: "0 10px 30px rgba(0,0,0,.4)" }[v("shadow")]};`;
+  const showFab = v("visible") !== "none" && !(P.view !== "button" && P.view !== "intro" && false);
+  const fab = showFab ? `<div class="fab ${style === "tab" ? "tab" : ""} ${v("pulse") === "pulse" ? "pulse" : ""}" style="${fabCss}">${style === "tab" ? "" : iconH}${style === "icon" ? "" : `<span>${label}</span>`}${v("dot") === "show" ? '<span class="dot"></span>' : ""}</div>` : "";
+  const kbd = v("shortcut") !== "none" && P.view === "button" ? `<div class="kbd" style="${left ? "left" : "right"}:${off}px;${top ? "top" : "bottom"}:${off + 46}px">${v("shortcut") === "shift?" ? "⇧ ?" : "Ctrl ⇧ F"} opens it</div>` : "";
+
+  // notes for things with no visual
+  const notes = [];
+  if (v("visible") === "desktop") notes.push("Hidden on phones");
+  if (v("visible") === "scroll") notes.push("Appears after first scroll");
+  if (v("pages") === "yes") notes.push("Hidden on /checkout, /login");
+  if (v("visible") === "none") notes.push("No floating button: the app's own “Feedback” menu item opens it");
+
+  // the panel
+  const types = t.types.map((n, i) => [n, t.hints[i]]).filter((_, i) => v("types") === "all" || (v("types") === "noidea" ? i < 3 : i < 2));
+  const prefill = v("prefill") === "yes";
+  const tabs = `<div class="tabs"><span class="${P.view === "sent" ? "" : "on"}">${t.tabs[0]}</span><span class="${P.view === "sent" ? "on" : ""}">${t.tabs[1]}</span>${v("prefs") === "show" ? `<span>${t.tabs[2]}</span>` : ""}</div>`;
+  const body = P.view === "sent"
+    ? `${v("thanks") === "custom" ? '<div class="banner">Thanks! The Acme team reads every one.</div>' : ""}
+       <div class="item"><div class="st">${t.open}</div><div>${prefill ? "Export button does nothing" : "The export button does nothing"}</div><div class="small">${t.types[0]} · today</div></div>`
+    : `<div class="lg">${t.legend}</div><div class="types">${types.map(([n, h], i) => `<div class="type ${prefill && i === 0 ? "on" : ""}"><b>${n}</b><span>${h}</span></div>`).join("")}</div>
+       <div class="ta ${prefill ? "fill" : ""}">${prefill ? "Export button does nothing (error E42)" : v("ph") === "custom" ? "What were you trying to do?" : t.ph}</div>
+       <div class="row"><span class="small">${t.att}${v("prefs") === "show" ? `<br><span class="link">${t.name}</span>` : ""}</span><span class="send">${t.send}</span></div>`;
+  const w = Math.min(+v("width"), 440);
+  const place = v("place");
+  const scrimBg = { dim: "background:rgba(0,0,0,.35)", none: "", blur: "background:rgba(0,0,0,.15);backdrop-filter:blur(3px)" }[v("backdrop")];
+  const align = place === "center" ? "align-items:center;justify-content:center" : place === "sheet" ? `align-items:stretch;justify-content:${left ? "flex-start" : "flex-end"};padding:0` : `align-items:${top ? "flex-start" : "flex-end"};justify-content:${left ? "flex-start" : "flex-end"}`;
+  const panelR = place === "sheet" ? "0" : radius[1] + "px";
+  const panel = (P.view === "panel" || P.view === "sent")
+    ? `<div class="scrim" style="${scrimBg};${align}"><div class="panel" style="width:min(${w}px,100%);border-radius:${panelR};${place === "sheet" ? "height:100%;max-height:none" : ""}"><div class="head">${tabs}<span style="color:var(--mu);font-size:18px">×</span></div>${body}</div></div>` : "";
+
+  // the intro bubble
+  const iw = v("introWhen");
+  const intro = P.view === "intro" ? (iw === "off" ? `<div class="empty" style="z-index:3">No intro bubble.</div>` :
+    `<div class="intro" style="border-radius:${radius[1]}px;${left ? "left" : "right"}:${off}px;${top ? "top" : "bottom"}:${off + 50}px">
+      <b>${v("intro") === "custom" ? "New: tell Acme what you think" : t.it}</b><p>${v("intro") === "custom" ? "Spotted something odd? Two clicks and our team sees it." : t.ib}</p>
+      <div class="row"><span class="link">${t.got}</span><span class="send" style="border-radius:${radius[2]}px">${t.tr}</span></div>
+      <div class="when">Appears: ${{ manual: "when the app calls Feedback.introduce()", auto: "3 seconds after the first visit", auto10: "10 seconds after the first visit" }[iw]} · once per device</div></div>`) : "";
+
+  sc.className = "screen" + (P.app === "dark" ? " dark" : "");
+  sc.innerHTML = `<div class="appbar">Acme Notes<span class="appmenu">Docs · Settings${v("visible") === "none" ? '<span class="own">Feedback</span>' : ""}</span></div>
+    <div class="blk" style="width:55%;margin-top:${notes.length ? 44 : 18}px"></div><div class="blk" style="width:38%"></div><div class="blk" style="width:66%"></div><div class="blk" style="width:48%"></div>
+    <div style="margin:18px 14px;color:${P.app === "dark" ? "#9aa1ad" : "#5b6472"};font-size:14px">A paragraph in the app's own font, so you can see whether the widget matches it.</div>
+    ${notes.length ? `<div class="note">${notes.map(n => `<span>${n}</span>`).join("")}</div>` : ""}
+    ${P.chat ? '<div class="chat">💬</div>' : ""}
+    <div class="w ${dark ? "dk" : ""} ${v("font") === "inherit" ? "inh" : ""}" style="--a:${acc};--af:${af}">${fab}${kbd}${intro}${panel}</div>`;
+  sc.querySelectorAll(".send").forEach(s => { if (!s.style.borderRadius) s.style.borderRadius = radius[2] + "px"; });
+  sc.querySelectorAll(".type,.ta,.item").forEach(s => s.style.borderRadius = radius[2] + "px");
+
+  drawCode();
+}
+
+/* ---------- the snippet ---------- */
+function drawCode() {
+  const a = [['data-key', 'pk_…']];
+  const js = [];
+  for (const r of ALL) {
+    const x = val(r.id);
+    if (x === def(r) || !isOn(r.id)) continue;
+    const out = r.attr(x);
+    if (out != null && r.how.startsWith("data-")) a.push([r.how.split(" ")[0], out]);
+  }
+  if (isOn("prefill") && val("prefill") === "yes") js.push(`Heresay.open({ type: <span class="s">'broken'</span>, text: <span class="s">'Error E42'</span> })`);
+  if (isOn("events") && val("events") === "yes") js.push(`Heresay.on(<span class="s">'sent'</span>, r => analytics.track(<span class="s">'feedback'</span>))`);
+  if (isOn("extra") && val("extra") === "yes") js.push(`Heresay.setContext({ plan: <span class="s">'pro'</span> })`);
+  if (isOn("intro") && val("intro") === "custom") js.push(`Heresay.introduce({ title: <span class="s">'New: tell Acme…'</span> })`);
+  if (val("visible") === "none") js.push(`menuItem.onclick = () => Heresay.open()`);
+  const attrs = a.map(([k, x]) => `\n        <span class="k">${k}</span>=<span class="s">"${x}"</span>`).join("");
+  document.getElementById("code").innerHTML = `&lt;script src="https://your-heresay.web.app/sdk/v1.js"${attrs} defer&gt;&lt;/script&gt;` +
+    (js.length ? `\n\n<span class="c">// optional, from the app's code</span>\n` + js.join("\n") : "");
+}
+
+/* ---------- buttons ---------- */
+document.getElementById("rec").onclick = () => { S = claudePicks(); save(); drawList(); drawPreview(); };
+document.getElementById("clear").onclick = () => { S = { on: [], sel: Object.fromEntries(ALL.map(r => [r.id, [def(r)]])), pv: {} }; save(); drawList(); drawPreview(); };
+document.getElementById("copy").onclick = async e => {
+  const lines = ["Heresay web SDK: what a developer can change", ""];
+  for (const g of GROUPS) {
+    lines.push(g.name);
+    for (const r of g.rows) {
+      const on = isOn(r.id), sel = (S.sel[r.id] || [def(r)]);
+      const names = r.choices.filter(([v]) => sel.includes(v)).map(([v, l], i) => l + (v === def(r) ? " (default)" : ""));
+      lines.push(`  [${on ? "x" : " "}] ${r.what}${r.rec === "lock" ? " (locked)" : ""}${on && r.choices.length > 1 ? ": " + names.join(", ") : ""}`);
+    }
+    lines.push("");
+  }
+  await navigator.clipboard.writeText(lines.join("\n"));
+  e.target.textContent = "Copied ✓"; setTimeout(() => e.target.textContent = "Copy my choices", 1500);
+};
+
+drawList(); drawPreview();
+</script>
+</body>
+</html>

@@ -54,10 +54,27 @@ or an idea. A person on the team accepts or declines each report. Accepted repor
    nobody is asked their name.
 4. \`check_install\` returns an empty \`todo\` list. Its items are required, not suggestions.
 
+## Changing how it looks
+
+**The defaults are the recommended setup.** Leave them unless the person asks, or the app
+clearly needs a change: its own feedback button or menu item, something else in the same
+corner, a brand colour, a dark-only or light-only app.
+
+- Web: every option is a \`data-\` attribute on the script tag (\`data-button="none"\` and call
+  \`window.Heresay?.open()\`, \`data-position\`, \`data-offset\`, \`data-accent\`,
+  \`data-theme\`). Guide \`customize-web\` lists them all.
+- iOS and macOS: one \`HeresayStyle(...)\` passed to \`Heresay.configure(…, style:)\`, plus
+  \`accent:\`. Guide \`customize-apple\` lists them all.
+ If the person pasted a prompt from the dashboard's **Design**
+page, apply exactly that. Never restyle the widget with CSS, and never hide the Heresay mark, the
+"Your reports" tab or "Powered by Heresay": people should know the app uses an outside tool.
+
 ## Common asks
 
 - "Add Heresay to this app": guide \`install-web\` (or \`install-apple\`), then list_apps /
   create_app, install_guide, edit the code, check_install until \`todo\` is empty.
+- "Make the Report button match our app": guide \`customize-web\` (or \`customize-apple\`), or
+  suggest the dashboard's Design page, where they can see each choice before it goes in the code.
 - "Fix the next Heresay report": guide \`fix-brief\`, then list_briefs, claim_brief, get_brief,
   fix on a branch with tests, mark_fixed.
 - "What's new in Heresay?": whats_new, then ask which to add.
@@ -78,6 +95,9 @@ Heresay features this app doesn't use, tell the person and ask before adding any
 Installing is done only when \`npx heresay check <app>\` shows the key found and an empty \`todo\`:
 people must be told Heresay exists (\`introduce()\`, once, on the main screen), and signed-in
 apps must call \`identify\`.
+Look and placement are \`data-\` attributes on the web tag (guide \`customize-web\`) and a
+\`HeresayStyle\` in Swift (guide \`customize-apple\`); the defaults are recommended, so change
+them only when asked or clearly needed, never with CSS or by covering Heresay's views.
 Fix flow: \`npx heresay briefs\`, \`claim <id>\`, \`brief <id>\`, fix and test, \`fixed <id> "<note for the reporter>"\`.
 ${AGENTS_END}`;
 

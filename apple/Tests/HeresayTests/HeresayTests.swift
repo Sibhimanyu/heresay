@@ -272,3 +272,103 @@ final class IntroductionTests: XCTestCase {
         XCTAssertTrue(h.introMessage.contains("A person reads every report"))
     }
 }
+
+@MainActor
+final class StyleTests: XCTestCase {
+    private func fresh() -> Heresay { Heresay(defaults: UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!) }
+
+    func testEveryLanguageSaysEverything() {
+        for lang in Words.languages {
+            let t = Words.tables[lang]!
+            XCTAssertEqual(Set(t.keys), Set(W.allCases), "\(lang) is missing words")
+            XCTAssertTrue(t.values.allSatisfy { !$0.trimmed.isEmpty }, lang)
+            XCTAssertTrue(t[.introBody]!.contains("{reach}"), lang)
+            XCTAssertTrue(t[.powered]!.contains("Heresay"), "\(lang) names Heresay")
+        }
+    }
+
+    func testTheLanguageIsTheAppsUnlessTheStyleSaysOtherwise() {
+        XCTAssertEqual(Words("ta").lang, "ta")
+        XCTAssertEqual(Words("hi-IN").lang, "hi")
+        XCTAssertEqual(Words("de").lang, "en", "a language Heresay doesn't speak falls back to English")
+        XCTAssertEqual(Words(nil).lang, "en", "the test bundle is English")
+        XCTAssertEqual(Words("fr")(.straightToApp, ["app": "Notes"]), "Directement à l’équipe Notes")
+    }
+
+    func testTheDefaultsAreTheRecommendedSetup() {
+        let s = HeresayStyle()
+        XCTAssertEqual(s.position, .bottomTrailing)
+        XCTAssertEqual(s.fill, .accent)
+        XCTAssertTrue(s.markFollowsAccent)
+        XCTAssertTrue(s.showsPreferences)
+        XCTAssertEqual(s.types, ReportType.allCases)
+        XCTAssertNil(s.colorScheme)
+    }
+
+    func testTextIsTrimmedAndCutAndTypesKeepTheirNames() {
+        let s = HeresayStyle(offset: 900, label: "  " + String(repeating: "x", count: 60), types: [.confusing, .broken, .confusing])
+        XCTAssertEqual(s.label?.count, 40)
+        XCTAssertEqual(s.offset, 200)
+        XCTAssertEqual(s.types, [.confusing, .broken], "order kept, repeats dropped")
+        XCTAssertEqual(HeresayStyle(label: "   ", types: []).label, nil)
+        XCTAssertEqual(HeresayStyle(types: []).types, ReportType.allCases, "none means all four")
+    }
+
+    func testTheButtonHidesOnTheScreensTheStyleNames() {
+        let h = fresh()
+        h.setStyle(HeresayStyle(hiddenOnScreens: ["Checkout"]))
+        XCTAssertTrue(h.buttonVisible)
+        Heresay.shared.setStyle(HeresayStyle(hiddenOnScreens: ["Checkout"]))
+        Heresay.setScreen("Checkout")
+        XCTAssertFalse(Heresay.shared.buttonVisible)
+        Heresay.setScreen("Notes")
+        XCTAssertTrue(Heresay.shared.buttonVisible)
+        Heresay.shared.setStyle(HeresayStyle())
+        Heresay.setScreen(nil)
+    }
+
+    func testTheLabelAndTheIntroductionSpeakTheStylesLanguageAndSayPoweredByHeresay() {
+        let h = fresh()
+        h.setStyle(HeresayStyle(language: "hi"))
+        XCTAssertEqual(h.buttonLabel, "रिपोर्ट करें")
+        XCTAssertTrue(h.introMessage.hasSuffix("Heresay द्वारा संचालित"))
+        h.setStyle(HeresayStyle(label: "Feedback"))
+        XCTAssertEqual(h.buttonLabel, "Feedback")
+        XCTAssertTrue(h.introMessage.contains("“Feedback”"))
+        XCTAssertTrue(h.introMessage.hasSuffix("Powered by Heresay"))
+    }
+
+    func testTheAppsOwnIntroductionWordsStillSayPoweredByHeresay() {
+        let h = fresh()
+        XCTAssertTrue(h.introduce(title: "New: tell us", message: "Two taps and we see it."))
+        XCTAssertEqual(h.introTitle, "New: tell us")
+        XCTAssertEqual(h.introMessage, "Two taps and we see it.\n\nPowered by Heresay")
+    }
+
+    func testTheMarkKeepsTheTealWhenAsked() {
+        let h = fresh()
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1", accent: .purple,
+                    style: HeresayStyle(markFollowsAccent: false), session: StubProtocol.session())
+        XCTAssertEqual(h.markColor, .heresayMark)
+        h.setStyle(HeresayStyle())
+        XCTAssertEqual(h.markColor, .purple)
+    }
+
+    func testPresentFillsTheFormIn() {
+        Heresay.present(type: .broken, text: "Export failed (E42)")
+        XCTAssertEqual(Heresay.shared.draft.type, .broken)
+        XCTAssertEqual(Heresay.shared.draft.text, "Export failed (E42)")
+        XCTAssertEqual(Heresay.shared.requestedTab, .report)
+        Heresay.shared.isPresented = false
+        Heresay.shared.draft = (nil, "")
+    }
+
+    func testOnSentGetsTheIdAndTypeNeverTheText() async throws {
+        StubProtocol.handler = { _, _ in (201, Data(#"{"report":\#(sample)}"#.utf8)) }
+        var got: [SentEvent] = []
+        Heresay.shared.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1", accent: nil, session: StubProtocol.session())
+        Heresay.onSent { got.append($0) }
+        _ = try await Heresay.send(.broken, text: "Export does nothing")
+        XCTAssertEqual(got, [SentEvent(id: "r_1", type: .broken)])
+    }
+}

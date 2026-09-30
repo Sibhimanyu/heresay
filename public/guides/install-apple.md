@@ -71,9 +71,11 @@ build a custom dialog for this; `introduce()` is the one.
 
 - Screens: `Heresay.setScreen("Checkout")` in `.onAppear` of the main screens.
 - The app version is read from the bundle (`CFBundleShortVersionString` and build).
-- A brand colour: `Heresay.configure(key:url:accent: .purple)`.
+- A brand colour: `Heresay.configure(key:url:accent: .purple)`. The mark follows it.
 
-Change nothing else in the app.
+Everything else about the look (corner, text, size, theme, language, sheet size) is optional and
+has a recommended default: leave it unless the person asks. Guide `customize-apple` lists every
+option; the dashboard's **Design** page shows them. Change nothing else in the app.
 
 ## 7. Prove it
 

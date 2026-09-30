@@ -41,9 +41,42 @@ macOS: use `ContentView().heresay()` and add `.commands { HeresayCommands() }` t
 | `Heresay.presentPreferences()` | Open the sheet on Preferences: a note about their setup (and a name and email when not signed in). |
 | `Heresay.setScreen(_:)` | Name the screen, so reports say where they came from. |
 | `Heresay.setVersion(_:)` | Override the version read from the bundle. |
-| `Heresay.present()` | Open the sheet from your own button. Use `.heresay()` instead of the corner button. |
+| `Heresay.present(type:text:)` | Open the sheet from your own button, optionally filled in. Use `.heresay()` instead of the corner button. |
+| `Heresay.onSent { event in }` | After each report is sent: `event.id` and `event.type`, never the text. |
 | `Heresay.send(_:text:)` | Send from your own UI. |
-| `configure(…, accent:)` | Your brand colour. Defaults to Heresay peacock. |
+| `configure(…, accent:)` | Your brand colour; the mark follows it. Defaults to Heresay peacock. |
+| `configure(…, style:)` | How it looks: see below. `Heresay.setStyle(_:)` changes it later. |
+
+## How it looks
+
+The defaults are the recommended setup; change only what your app needs. The dashboard's
+**Design** page shows each choice and gives the code.
+
+```swift
+Heresay.configure(key: "pk_…", url: url, accent: .purple, style: HeresayStyle(
+    position: .bottomLeading,        // .bottomTrailing, .topTrailing, .topLeading, .bottom
+    offset: 16,                      // points from the edges
+    label: "Feedback",               // default "Report", in the sheet's language
+    button: .pill,                   // or .icon
+    size: .regular,                  // .small, .large
+    fill: .accent,                   // or .neutral: system material, the mark in your colour
+    shadow: .soft,                   // .none, .strong
+    hiddenOnScreens: ["Checkout"],   // names from Heresay.setScreen
+    markFollowsAccent: true,
+    theme: .system,                  // .light, .dark
+    typeface: .system,               // .rounded, .serif
+    language: nil,                   // the app's; or "en", "fr", "ta" (Tamil), "hi" (Hindi)
+    placeholder: nil,
+    types: [.broken, .confusing, .improvement, .idea],
+    thanks: nil,                     // a line after "Sent. Thank you."
+    sheet: .regular,                 // .compact (half height on iPhone), .large (full screen)
+    showsPreferences: true
+))
+```
+
+Always there: the Heresay mark, the report types' names (the type sets the priority), the Your
+reports tab, and "Powered by Heresay" in the sheet and the introduction, so people can tell the
+app uses an outside tool.
 
 The key is public: it can only send reports. Each device gets a random id (kept in
 `UserDefaults`), which is how people see their own reports and nobody else's; no accounts.

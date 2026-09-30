@@ -2,6 +2,24 @@
   "about": "Features added to Heresay since apps were first installed. An agent in a connected repo checks these with whats_new, tells the person what's new, and asks before adding any. `detect` is what the code contains once a feature is in; `platforms` limits it to those apps; `sign_in` limits it to apps that answered that.",
   "changes": [
     {
+      "id": "design-apple",
+      "since": "0.2.11",
+      "title": "Make Heresay fit the app",
+      "summary": "The Swift package takes a HeresayStyle: another corner or clear a tab bar, say “Feedback” instead of “Report”, a quieter button, the app's light or dark theme, French, Tamil or Hindi, a half-height or full-screen sheet, or only some report types. The dashboard's Design page shows each choice and gives the Swift.",
+      "platforms": ["ios", "macos"],
+      "detect": ["HeresayStyle("],
+      "how": { "ios": "guide customize-apple", "macos": "guide customize-apple" }
+    },
+    {
+      "id": "design-web",
+      "since": "0.2.11",
+      "title": "Make the Report button fit the app",
+      "summary": "The web widget can take the app's colour (the logo follows it), sit in another corner or clear a chat bubble, say “Feedback” instead of “Report”, follow the app's light or dark theme, speak French, Tamil or Hindi, or have no floating button when the app has its own feedback menu item. The dashboard's Design page shows each choice on the real widget.",
+      "platforms": ["web"],
+      "detect": ["data-accent", "data-hide-on", "data-backdrop", "data-preferences"],
+      "how": { "web": "guide customize-web" }
+    },
+    {
       "id": "introduce",
       "since": "0.2.7",
       "title": "Tell people Heresay is there",

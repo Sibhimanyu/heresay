@@ -199,12 +199,14 @@
     });
     var view = $('view');
     view.textContent = '';
+    view.classList.remove('wide');
     if (parts[0] === 'team') return teamView(view);
     if (parts[0] === 'connect') return connectView(view, query);
     if (parts[0] === 'new') return newAppView(view, parts[1], query);
     if (parts[0] === 'apps' && parts[1]) {
       return withProject(parts[1], function (p) {
         if (parts[2] === 'setup') setupView(view, p);
+        else if (parts[2] === 'design' && (p.platform === 'web' || platformOf(p.platform).apple)) designView(view, p);
         else if (parts[2] === 'delete') deleteView(view, p);
         else reportsView(view, p);
       });
@@ -235,6 +237,8 @@
     { id: 'flutter', label: 'Flutter', note: 'Dart, any platform',
       icon: '<path d="M14 3 5 12l3 3L20 3zM14 12l-5 5 5 5h6l-5-5 5-5z"/>' },
   ];
+  /** Platforms with an SDK whose look can be designed. */
+  var designable = function (p) { return p.platform === 'web' || !!platformOf(p.platform).apple; };
   var platformOf = function (id) { return PLATFORMS.filter(function (x) { return x.id === id; })[0] || PLATFORMS[0]; };
   /** Apps that are platforms of one product share its id: the first app's. */
   var productOf = function (p) { return p.product_id || p.id; };
@@ -431,6 +435,422 @@
     }
     form.name.focus();
   }
+
+  // ---- design ----------------------------------------------------------------------------
+
+  /**
+   * What a developer can change about the web widget, and the value we recommend first. Only
+   * what differs from the recommendation goes in the tag. The full list: public/guides/customize-web.md.
+   */
+  var DESIGN = [
+    { group: 'The button', items: [
+      { a: 'position', label: 'Where it sits', c: [['', 'Bottom right'], ['left', 'Bottom left'], ['top-right', 'Top right'], ['top-left', 'Top left'], ['center', 'Bottom centre']] },
+      { a: 'offset', label: 'Distance from the edge', c: [['', '20px'], ['40', '40px'], ['96', '96px, above a chat bubble']], text: 'or x,y like 24,96', pattern: /^\d{1,3}(\s*,\s*\d{1,3})?$/ },
+      { a: 'button', label: 'When it shows', c: [['', 'Always'], ['none', 'Never: my app has its own menu item'], ['desktop', 'Not on phones'], ['scroll', 'After the first scroll']] },
+      { a: 'label', label: 'Text', c: [['', 'Report'], ['Feedback', 'Feedback'], ['Help us improve', 'Help us improve'], ['Found a bug?', 'Found a bug?']], text: 'or your own words', max: 40 },
+      { a: 'style', label: 'Style', c: [['', 'Pill with text'], ['icon', 'Icon only'], ['tab', 'Tab on the side']] },
+      { a: 'size', label: 'Size', c: [['', 'Regular'], ['small', 'Small'], ['large', 'Large']] },
+      { a: 'fill', label: 'Button colour', c: [['', 'White, or dark in dark mode'], ['accent', 'Filled with your colour']] },
+      { a: 'shadow', label: 'Shadow', c: [['', 'Soft'], ['none', 'None'], ['strong', 'Strong']] },
+      { a: 'hide-on', label: 'Hide it on these pages', c: [], text: '/checkout, /login', max: 300, hint: 'That path and everything under it.' },
+    ]},
+    { group: 'Look', items: [
+      { a: 'accent', label: 'Your colour', color: true, c: [['', 'Heresay peacock', '#0f766e'], ['#7c3aed', 'Purple', '#7c3aed'], ['#2563eb', 'Blue', '#2563eb'], ['#e11d48', 'Rose', '#e11d48'], ['#15171c', 'Ink', '#15171c']] },
+      { a: 'mark', label: 'Logo colour', c: [['', 'Follows your colour'], ['heresay', 'Heresay teal']] },
+      { a: 'theme', label: 'Light or dark', c: [['', 'Follow the device'], ['light', 'Always light'], ['dark', 'Always dark']] },
+      { a: 'font', label: 'Font', c: [['', 'System font'], ['inherit', 'My page’s font']] },
+    ]},
+    { group: 'Words', items: [
+      { a: 'lang', label: 'Language', c: [['', 'My page’s language'], ['auto', 'The browser’s'], ['en', 'English'], ['fr', 'Français'], ['ta', 'தமிழ்'], ['hi', 'हिन्दी']], hint: 'English, French, Tamil and Hindi today; any other language shows English.' },
+      { a: 'placeholder', label: 'Question in the text box', c: [['', 'What happened, or what would you change?']], text: 'or your own words', max: 120 },
+      { a: 'types', label: 'Report types', c: [['', 'All four'], ['broken,confusing,improvement', 'No “Idea”'], ['broken,confusing', 'Only Broken and Confusing']], hint: 'Their names can’t change: the type sets the priority.' },
+      { a: 'thanks', label: 'Thank-you line after sending', c: [['', 'None']], text: 'e.g. Thanks! We read every one.', max: 160 },
+    ]},
+    { group: 'The panel', items: [
+      { a: 'panel', label: 'Where it opens', c: [['', 'Next to the button'], ['sheet', 'Side sheet'], ['center', 'Middle of the screen']] },
+      { a: 'width', label: 'Width', c: [['', 'Regular'], ['narrow', 'Narrow'], ['wide', 'Wide']] },
+      { a: 'backdrop', label: 'Behind it', c: [['', 'Dim the page'], ['clear', 'Leave the page clear'], ['blur', 'Blur']] },
+      { a: 'preferences', label: 'Preferences tab', c: [['', 'Show'], ['hide', 'Hide']], hint: 'Hide it if your app calls identify() and asks nothing else.' },
+      { a: 'intro', label: 'Introduce the button', c: [['', 'When my app calls introduce()'], ['auto', '3 seconds after the first visit']] },
+    ]},
+  ];
+  var DESIGN_ITEMS = [].concat.apply([], DESIGN.map(function (g) { return g.items; }));
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+  /** The data- attributes a design adds to the tag, in the order the list shows them. */
+  function designAttrs(cfg) {
+    return DESIGN_ITEMS.filter(function (it) { return cfg[it.a]; }).map(function (it) { return ['data-' + it.a, cfg[it.a]]; });
+  }
+
+  function designTag(p, cfg) {
+    var a = designAttrs(cfg);
+    if (!a.length) return tag(p);
+    return '<script src="' + SDK_URL + '"\n        data-key="' + p.key + '"' +
+      a.map(function (x) { return '\n        ' + x[0] + '="' + esc(x[1]) + '"'; }).join('') + '\n        defer></scr' + 'ipt>';
+  }
+
+  /** A made-up page in the app's name, with the real widget on it in preview mode. */
+  function previewDoc(p, cfg, show, dark) {
+    var own = cfg.button === 'none';
+    var attrs = designAttrs(cfg).map(function (x) { return ' ' + x[0] + '="' + esc(x[1]) + '"'; }).join('');
+    var then = {
+      panel: 'H.open();',
+      intro: 'if(!H.introduce())document.getElementById("note").hidden=false;',
+      sent: 'H.open({type:"broken",text:"The export button does nothing."});' +
+        'document.querySelector("[data-feedback-sdk]").shadowRoot.querySelector(".send").click();',
+    }[show] || '';
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><style>' +
+      'body{margin:0;min-height:1400px;font:15px/1.6 Georgia,serif;background:' + (dark ? '#111317;color:#e6e8eb' : '#fff;color:#1d2127') + '}' +
+      'header{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;border-bottom:1px solid ' + (dark ? '#262a31' : '#e6e8eb') + ';font-weight:700;font-size:17px}' +
+      'nav{display:flex;gap:16px;font:14px system-ui;font-weight:400;opacity:.8}nav a{color:inherit;text-decoration:none}nav a.own{border:1px dashed currentColor;padding:1px 8px;border-radius:6px}' +
+      'main{padding:22px;max-width:620px}.bar{height:12px;border-radius:6px;margin:12px 0;background:' + (dark ? '#262a31' : '#eceef1') + '}' +
+      '#note{position:fixed;left:22px;bottom:22px;font:13px system-ui;opacity:.7}</style></head><body>' +
+      '<header>' + esc(productName(p)) + '<nav><a>Docs</a><a>Settings</a>' + (own ? '<a class="own" href="#" onclick="Heresay.open();return false">Feedback</a>' : '') + '</nav></header>' +
+      '<main><h2 style="margin:0 0 8px">Welcome back</h2><p>A paragraph in this page’s own font, so you can see whether the widget matches it.</p>' +
+      '<div class="bar" style="width:70%"></div><div class="bar" style="width:52%"></div><div class="bar" style="width:84%"></div></main>' +
+      '<p id="note" hidden>' + (own ? 'No button, so no introduction. People open it from “Feedback” in your menu.' : 'No introduction here: the button is hidden on this page.') + '</p>' +
+      '<script src="' + SDK_URL + '" data-key="' + p.key + '" data-preview' + attrs + '></scr' + 'ipt>' +
+      '<script>var H=window.Heresay;' + then + '</scr' + 'ipt></body></html>';
+  }
+
+  /** The web kit: the real sdk.js in a sandboxed iframe, and a script tag. */
+  function webKit(p) {
+    return {
+      groups: DESIGN,
+      shows: [['button', 'Button'], ['panel', 'Panel'], ['intro', 'Introduction'], ['sent', 'After sending']],
+      darkLabel: 'Dark app',
+      changes: function (cfg) { return designAttrs(cfg).length; },
+      preview: function () {
+        var frame = el('iframe', { class: 'design-frame', title: 'Preview', sandbox: 'allow-scripts allow-popups allow-popups-to-escape-sandbox' });
+        return { el: frame, draw: function (cfg, show, dark) { frame.srcdoc = previewDoc(p, cfg, show, dark); } };
+      },
+      code: function (cfg) {
+        var out = [codeBlock(designTag(p, cfg))];
+        if (cfg.button === 'none') {
+          out.push(el('p', { class: 'hint', text: 'Then open it from your own menu item:' }));
+          out.push(codeBlock('window.Heresay?.open();'));
+        }
+        return out;
+      },
+      prompt: function (cfg) {
+        var a = designAttrs(cfg);
+        return 'Update the Heresay script tag in this app (the one with data-key="' + p.key + '") so it looks like this. ' +
+          'Keep it where it is and keep the framework\'s own way of writing it (for example next/script in Next.js). ' +
+          'Remove any other design attributes it has (data-position, data-offset, data-button, data-label, data-style, data-size, data-fill, data-shadow, data-hide-on, data-accent, data-mark, data-theme, data-font, data-lang, data-placeholder, data-types, data-thanks, data-panel, data-width, data-backdrop, data-preferences, data-intro); keep data-key, data-version and anything about the signed-in user.\n\n' +
+          designTag(p, cfg) + '\n' +
+          (cfg.button === 'none' ? '\nThere is no floating button now, so add a "Send feedback" item to the app\'s own help or account menu that calls window.Heresay?.open().\n' : '') +
+          (a.some(function (x) { return x[0] === 'data-intro'; }) ? '' : '\nIf the app doesn\'t call window.Heresay?.introduce() yet, call it once the main screen appears.\n') +
+          '\nFor what each option does, read the Heresay guide customize-web (heresay_guide, or npx -y heresay@latest guide customize-web).';
+      },
+      fixed: 'Always there, whatever you choose: the Heresay mark on the button, the “Your reports” tab (people read why a report was declined), and “Powered by Heresay”, so people can tell your app uses an outside tool.',
+    };
+  }
+
+  function designView(view, p) {
+    var apple = platformOf(p.platform).apple;
+    var kit = apple ? appleKit(p) : webKit(p);
+    var KEY = 'heresay.design.' + p.id;
+    var cfg = {};
+    try { cfg = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { cfg = {}; }
+    var show = kit.shows[0][0], dark = false;
+
+    view.classList.add('wide');
+    view.appendChild(el('a', { class: 'back', href: '#/apps/' + p.id, text: '← ' + productName(p) }));
+    view.appendChild(el('div', { class: 'head' }, [el('div', {}, [
+      el('h1', { text: 'Design the Report button' }),
+      el('p', { class: 'mute', text: apple
+        ? 'Every choice starts on what we recommend. Change what your app needs, then copy the Swift or the prompt for your coding agent. The preview is a close likeness of the ' + platformOf(p.platform).label + ' sheet, with your choices.'
+        : 'Every choice starts on what we recommend. Change what your app needs, then copy the tag or the prompt for your coding agent.' }),
+    ])]));
+
+    var controls = el('div', { class: 'design-controls' });
+    var preview = kit.preview();
+    var codeBox = el('div');
+    var changed = el('span', { class: 'hint' });
+
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { /* private mode */ } }
+    function redraw() {
+      save();
+      preview.draw(cfg, show, dark);
+      var n = kit.changes(cfg);
+      changed.textContent = n ? n + ' change' + (n === 1 ? '' : 's') + ' from the recommended setup' : 'The recommended setup';
+      codeBox.textContent = '';
+      kit.code(cfg).forEach(function (x) { codeBox.appendChild(x); });
+    }
+
+    kit.groups.forEach(function (g) {
+      controls.appendChild(el('h2', { class: 'design-group', text: g.group }));
+      g.items.forEach(function (it) {
+        var chips = el('div', { class: 'filters' });
+        var input = it.text ? el('input', { type: 'text', placeholder: it.text, maxlength: String(it.max || 20), 'aria-label': it.label }) : null;
+        var colour = it.color ? el('input', { type: 'color', 'aria-label': 'Any colour', value: cfg[it.a] || '#0f766e' }) : null;
+        function sync() {
+          var v = cfg[it.a] || '';
+          var known = it.c.some(function (c) { return c[0] === v; });
+          chips.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === v)); });
+          if (input && document.activeElement !== input) input.value = known ? '' : v;
+        }
+        it.c.forEach(function (c) {
+          chips.appendChild(el('button', { type: 'button', 'data-v': c[0], onclick: function () { cfg[it.a] = c[0]; sync(); redraw(); } },
+            [c[2] ? el('span', { class: 'swatch', style: 'background:' + c[2] }) : null, c[1] + (c[0] === '' && it.c.length > 1 ? ' ' : ''),
+              c[0] === '' && it.c.length > 1 ? el('span', { class: 'n', text: '· recommended' }) : null]));
+        });
+        if (colour) {
+          colour.oninput = function () { cfg[it.a] = colour.value; sync(); redraw(); };
+          chips.appendChild(el('label', { class: 'pick-colour' }, [colour, 'Any colour']));
+        }
+        if (input) {
+          input.oninput = function () {
+            var v = input.value.trim();
+            if (!v) cfg[it.a] = '';
+            else if (!it.pattern || it.pattern.test(v)) cfg[it.a] = it.list ? v.split(',').map(function (s) { return s.trim(); }).filter(Boolean).join(',') : v;
+            else return;
+            sync(); redraw();
+          };
+          chips.appendChild(input);
+        }
+        controls.appendChild(el('div', { class: 'design-item' }, [el('b', { text: it.label }), chips, it.hint ? el('p', { class: 'hint', text: it.hint }) : null]));
+        sync();
+      });
+    });
+    controls.appendChild(el('p', { class: 'hint design-fixed', text: kit.fixed }));
+
+    var showSeg = el('div', { class: 'seg', role: 'tablist', 'aria-label': 'Show' });
+    kit.shows.forEach(function (s) {
+      showSeg.appendChild(el('button', { type: 'button', role: 'tab', 'aria-selected': String(s[0] === show), text: s[1], onclick: function () {
+        show = s[0];
+        showSeg.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-selected', String(b === this)); }, this);
+        redraw();
+      } }));
+    });
+    var darkBox = el('input', { type: 'checkbox', onchange: function () { dark = darkBox.checked; redraw(); } });
+
+    view.appendChild(el('div', { class: 'design' }, [
+      controls,
+      el('div', { class: 'design-side' }, [
+        el('div', { class: 'row tight design-toolbar' }, [showSeg, el('label', { class: 'small mute' }, [darkBox, ' ' + kit.darkLabel])]),
+        preview.el,
+        el('div', { class: 'row tight' }, [changed, el('span', { class: 'spacer' }),
+          el('button', { class: 'btn ghost', type: 'button', text: 'Start over', onclick: function () { try { localStorage.removeItem(KEY); } catch (e) { /* private mode */ } view.textContent = ''; designView(view, p); } }),
+          copyButton(function () { return kit.prompt(cfg); }, 'Copy prompt for your agent')]),
+        codeBox,
+      ]),
+    ]));
+    redraw();
+  }
+
+  // ---- design, iOS and macOS ------------------------------------------------------------
+
+  /**
+   * The same choices for the Swift package, as `HeresayStyle`. Keys are the Swift parameter
+   * names; the order is HeresayStyle.init's, which Swift requires.
+   */
+  function appleDesign(mac) {
+    return [
+      { group: 'The button', items: [
+        { a: 'entry', label: mac ? 'How people open it' : 'The button', c: mac
+          ? [['', 'Help › Report a Problem… (⌥⌘R)'], ['button', 'That, and a corner button'], ['none', 'My own button or menu item']]
+          : [['', 'A button in the corner'], ['none', 'No button: my own button or menu item']],
+          hint: mac ? 'Mac apps usually keep it in the Help menu, where people look for it.' : null },
+        { a: 'position', label: 'Where the button sits', c: [['', 'Bottom right'], ['bottomLeading', 'Bottom left'], ['topTrailing', 'Top right'], ['topLeading', 'Top left'], ['bottom', 'Bottom centre']] },
+        { a: 'offset', label: 'Distance from the edge', c: [['', '16 pt'], ['24', '24 pt'], ['80', '80 pt, above a tab bar']], text: 'or any number', pattern: /^\d{1,3}$/ },
+        { a: 'label', label: 'Text', c: [['', 'Report'], ['Feedback', 'Feedback'], ['Help us improve', 'Help us improve'], ['Found a bug?', 'Found a bug?']], text: 'or your own words', max: 40 },
+        { a: 'button', label: 'Style', c: [['', 'Pill with text'], ['icon', 'Icon only']] },
+        { a: 'size', label: 'Size', c: [['', 'Regular'], ['small', 'Small'], ['large', 'Large']] },
+        { a: 'fill', label: 'Button colour', c: [['', 'Filled with your colour'], ['neutral', 'System background']] },
+        { a: 'shadow', label: 'Shadow', c: [['', 'Soft'], ['none', 'None'], ['strong', 'Strong']] },
+        { a: 'hiddenOnScreens', label: 'Hide it on these screens', c: [], text: 'Checkout, Sign in', max: 200, list: true, hint: 'Screen names as your app sets them with Heresay.setScreen(…).' },
+      ]},
+      { group: 'Look', items: [
+        { a: 'accent', label: 'Your colour', color: true, c: [['', 'Heresay peacock', '#0f766e'], ['#7c3aed', 'Purple', '#7c3aed'], ['#2563eb', 'Blue', '#2563eb'], ['#e11d48', 'Rose', '#e11d48'], ['#15171c', 'Ink', '#15171c']] },
+        { a: 'markFollowsAccent', label: 'Logo colour', c: [['', 'Follows your colour'], ['false', 'Heresay teal']] },
+        { a: 'theme', label: 'Light or dark', c: [['', 'Follow the app'], ['light', 'Always light'], ['dark', 'Always dark']] },
+        { a: 'typeface', label: 'Typeface', c: [['', 'System'], ['rounded', 'Rounded'], ['serif', 'Serif']] },
+      ]},
+      { group: 'Words', items: [
+        { a: 'language', label: 'Language', c: [['', 'My app’s language'], ['en', 'English'], ['fr', 'Français'], ['ta', 'தமிழ்'], ['hi', 'हिन्दी']], hint: 'English, French, Tamil and Hindi today; any other language shows English.' },
+        { a: 'placeholder', label: 'Question in the text box', c: [['', 'What happened, or what would you change?']], text: 'or your own words', max: 120 },
+        { a: 'types', label: 'Report types', c: [['', 'All four'], ['broken,confusing,improvement', 'No “Idea”'], ['broken,confusing', 'Only Broken and Confusing']], hint: 'Their names can’t change: the type sets the priority.' },
+        { a: 'thanks', label: 'Thank-you line after sending', c: [['', 'None']], text: 'e.g. Thanks! We read every one.', max: 160 },
+      ]},
+      { group: 'The sheet', items: [
+        { a: 'sheet', label: 'Size', c: mac ? [['', 'Regular'], ['compact', 'Narrow'], ['large', 'Wide']]
+          : [['', 'Full height'], ['compact', 'Half height, pull up for more'], ['large', 'Full screen']] },
+        { a: 'showsPreferences', label: 'Preferences tab', c: [['', 'Show'], ['false', 'Hide']], hint: 'Hide it if your app calls identify() and asks nothing else.' },
+      ]},
+    ];
+  }
+
+  var SWIFT_ORDER = ['position', 'offset', 'label', 'button', 'size', 'fill', 'shadow', 'hiddenOnScreens', 'markFollowsAccent',
+    'theme', 'typeface', 'language', 'placeholder', 'types', 'thanks', 'sheet', 'showsPreferences'];
+
+  function swiftString(s) { return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'; }
+
+  /** One HeresayStyle argument, in Swift. */
+  function swiftArg(k, v) {
+    if (k === 'offset') return k + ': ' + (+v);
+    if (k === 'label' || k === 'placeholder' || k === 'thanks' || k === 'language') return k + ': ' + swiftString(v);
+    if (k === 'hiddenOnScreens') return k + ': [' + v.split(',').map(swiftString).join(', ') + ']';
+    if (k === 'types') return k + ': [' + v.split(',').map(function (t) { return '.' + t; }).join(', ') + ']';
+    if (k === 'markFollowsAccent' || k === 'showsPreferences') return k + ': ' + v;
+    return k + ': .' + v;
+  }
+
+  function swiftColor(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    var c = [n >> 16 & 255, n >> 8 & 255, n & 255].map(function (x) { return (x / 255).toFixed(3).replace(/0+$/, '').replace(/\.$/, '.0'); });
+    return 'Color(red: ' + c[0] + ', green: ' + c[1] + ', blue: ' + c[2] + ')';
+  }
+
+  function swiftConfigure(p, cfg) {
+    var args = SWIFT_ORDER.filter(function (k) { return cfg[k]; }).map(function (k) { return swiftArg(k, cfg[k]); });
+    var lines = ['key: "' + p.key + '"', 'url: URL(string: "' + location.origin + '")!'];
+    if (cfg.accent) lines.push('accent: ' + swiftColor(cfg.accent));
+    if (args.length) lines.push('style: HeresayStyle(\n        ' + args.join(',\n        ') + '\n    )');
+    return 'Heresay.configure(\n    ' + lines.join(',\n    ') + '\n)';
+  }
+
+  /** Where the sheet (and the button) attach: the root view, and on the Mac the menu. */
+  function swiftAttach(p, cfg) {
+    var mac = p.platform === 'macos';
+    var button = mac ? cfg.entry === 'button' : cfg.entry !== 'none';
+    var view = 'ContentView().' + (button ? 'heresayReportButton()' : 'heresay()');
+    if (mac && cfg.entry !== 'none') return 'WindowGroup {\n    ' + view + '\n}\n.commands { HeresayCommands() }   // Help › Report a Problem… (⌥⌘R)';
+    return 'WindowGroup {\n    ' + view + '\n}' + (button ? '' : '\n\n// Then, from your own button or menu item:\nHeresay.present()');
+  }
+
+  function appleKit(p) {
+    var mac = p.platform === 'macos';
+    var groups = appleDesign(mac);
+    return {
+      groups: groups,
+      shows: [['button', mac ? 'Window' : 'Button'], ['panel', 'Sheet'], ['intro', 'Introduction'], ['sent', 'After sending']],
+      darkLabel: 'Dark mode',
+      changes: function (cfg) { return Object.keys(cfg).filter(function (k) { return cfg[k]; }).length; },
+      preview: function () {
+        var box = el('div', { class: 'design-frame apple-frame', role: 'img', 'aria-label': 'Preview' });
+        // The phone is drawn at its real size, then zoomed to fit the box.
+        var fit = function () {
+          var ph = box.querySelector('.am-phone');
+          if (ph) ph.style.zoom = String(Math.min(1, (box.clientHeight - 28) / 630));
+        };
+        window.addEventListener('resize', fit);
+        return { el: box, draw: function (cfg, show, dark) { box.innerHTML = appleMock(p, cfg, show, dark); fit(); } };
+      },
+      code: function (cfg) {
+        return [el('p', { class: 'hint', text: 'In your App’s init():' }), codeBlock(swiftConfigure(p, cfg)),
+          el('p', { class: 'hint', text: 'And on the root view:' }), codeBlock(swiftAttach(p, cfg))];
+      },
+      prompt: function (cfg) {
+        return 'Update how Heresay is set up in this ' + (mac ? 'macOS' : 'iOS') + ' app (the Heresay.configure call with key "' + p.key + '") so it matches this. ' +
+          'Keep the key, the URL and anything else it passes (version, session). Replace any existing accent: and style: arguments with these. ' +
+          'Heresay 0.2.11 or later is needed for style:; update the Swift package if it is older.\n\n' +
+          swiftConfigure(p, cfg) + '\n\nThe root view and scene:\n\n' + swiftAttach(p, cfg) + '\n' +
+          (cfg.hiddenOnScreens ? '\nThe button hides on screens named with Heresay.setScreen(…). Make sure those screens call it with exactly these names: ' + cfg.hiddenOnScreens + '.\n' : '') +
+          '\nIf the app doesn\'t call Heresay.introduce() yet, call it once the main screen appears.' +
+          '\nFor what each option does, read the Heresay guide customize-apple (heresay_guide, or npx -y heresay@latest guide customize-apple).';
+      },
+      fixed: 'Always there, whatever you choose: the Heresay mark, the “Your reports” tab (people read why a report was declined), and “Powered by Heresay” in the sheet and the introduction, so people can tell your app uses an outside tool.',
+    };
+  }
+
+  /** The words the preview shows, from Words.swift. Only a likeness needs these few. */
+  var APPLE_WORDS = {
+    en: { report: 'Report', send: 'Send', sendFeedback: 'Send feedback', straight: 'Straight to the {app} team', tabs: ['Report', 'Your reports', 'Preferences'],
+      what: 'What is it?', happened: 'What happened?', ph: 'What happened, or what would you change?', attached: 'Sent with this screen and the app version.',
+      types: [['Broken', 'Something doesn’t work'], ['Confusing', 'I couldn’t tell how'], ['Could be better', 'It works, and could be better'], ['Idea', 'Something that isn’t there yet']],
+      powered: 'Powered by Heresay', introTitle: 'Something not right? Tell the team.',
+      introBody: '{reach} to tell the team what’s broken, confusing or could be better. A person reads every report, and you’ll see what happens to yours.',
+      reachTap: 'Tap {label} in the corner any time', reachClick: 'Click {label} any time', reachMenu: 'Choose Help › Report a Problem… (⌥⌘R) any time', reachUse: 'Use {label} any time',
+      tryIt: 'Try it', gotIt: 'Got it', cancel: 'Cancel', sentTitle: 'Sent. Thank you.', sentBody: 'A person on the team reads every report. You’ll see what happens to it under Your reports.',
+      another: 'Send another', see: 'See your reports', menu: 'Report a Problem…' },
+    fr: { report: 'Signaler', send: 'Envoyer', sendFeedback: 'Envoyer un retour', straight: 'Directement à l’équipe {app}', tabs: ['Signaler', 'Vos signalements', 'Préférences'],
+      what: 'De quoi s’agit-il ?', happened: 'Que s’est-il passé ?', ph: 'Que s’est-il passé, ou que changeriez-vous ?', attached: 'Envoyé avec cet écran et la version de l’app.',
+      types: [['Cassé', 'Quelque chose ne marche pas'], ['Déroutant', 'Je ne voyais pas comment faire'], ['Pourrait être mieux', 'Ça marche, mais ça pourrait être mieux'], ['Idée', 'Quelque chose qui n’existe pas encore']],
+      powered: 'Propulsé par Heresay', introTitle: 'Un souci ? Dites-le à l’équipe.',
+      introBody: '{reach} pour dire à l’équipe ce qui ne marche pas, ce qui est déroutant ou ce qui pourrait être mieux. Une personne lit chaque signalement, et vous verrez ce qu’il devient.',
+      reachTap: 'Touchez {label} dans le coin à tout moment', reachClick: 'Cliquez sur {label} à tout moment', reachMenu: 'Choisissez Aide › Signaler un problème… (⌥⌘R) à tout moment', reachUse: 'Utilisez {label} à tout moment',
+      tryIt: 'Essayer', gotIt: 'Compris', cancel: 'Annuler', sentTitle: 'Envoyé. Merci.', sentBody: 'Une personne de l’équipe lit chaque signalement. Vous verrez ce qu’il devient dans Vos signalements.',
+      another: 'En envoyer un autre', see: 'Voir vos signalements', menu: 'Signaler un problème…' },
+    ta: { report: 'தெரிவி', send: 'அனுப்பு', sendFeedback: 'கருத்து அனுப்பு', straight: 'நேராக {app} குழுவுக்கு', tabs: ['தெரிவி', 'உங்கள் புகார்கள்', 'விருப்பங்கள்'],
+      what: 'இது என்ன வகை?', happened: 'என்ன நடந்தது?', ph: 'என்ன நடந்தது, அல்லது எதை மாற்ற விரும்புகிறீர்கள்?', attached: 'இந்தத் திரை மற்றும் ஆப் பதிப்புடன் அனுப்பப்படும்.',
+      types: [['வேலை செய்யவில்லை', 'ஏதோ ஒன்று சரியாக இயங்கவில்லை'], ['குழப்பமாக உள்ளது', 'எப்படிச் செய்வது என்று புரியவில்லை'], ['இன்னும் சிறப்பாக்கலாம்', 'வேலை செய்கிறது, ஆனால் மேம்படுத்தலாம்'], ['யோசனை', 'இன்னும் இல்லாத ஒன்று']],
+      powered: 'Heresay மூலம் இயங்குகிறது', introTitle: 'ஏதாவது சரியில்லையா? குழுவிடம் சொல்லுங்கள்.',
+      introBody: 'எது வேலை செய்யவில்லை, எது குழப்பமாக உள்ளது, எதை மேம்படுத்தலாம் என்று குழுவிடம் சொல்ல, {reach}. ஒவ்வொரு புகாரையும் ஒருவர் படிக்கிறார்; உங்களுடையதற்கு என்ன ஆனது என்பதைப் பார்க்கலாம்.',
+      reachTap: 'எப்போது வேண்டுமானாலும் மூலையில் உள்ள {label} ஐத் தட்டுங்கள்', reachClick: 'எப்போது வேண்டுமானாலும் {label} ஐக் கிளிக் செய்யுங்கள்', reachMenu: 'எப்போது வேண்டுமானாலும் Help › சிக்கலைத் தெரிவி… (⌥⌘R) என்பதைத் தேர்ந்தெடுங்கள்', reachUse: 'எப்போது வேண்டுமானாலும் {label} ஐப் பயன்படுத்துங்கள்',
+      tryIt: 'முயன்று பாருங்கள்', gotIt: 'சரி', cancel: 'ரத்துசெய்', sentTitle: 'அனுப்பப்பட்டது. நன்றி.', sentBody: 'குழுவில் ஒருவர் ஒவ்வொரு புகாரையும் படிக்கிறார். அதற்கு என்ன ஆனது என்பதை “உங்கள் புகார்கள்” பகுதியில் பார்க்கலாம்.',
+      another: 'இன்னொன்று அனுப்பு', see: 'உங்கள் புகார்களைப் பார்', menu: 'சிக்கலைத் தெரிவி…' },
+    hi: { report: 'रिपोर्ट करें', send: 'भेजें', sendFeedback: 'फ़ीडबैक भेजें', straight: 'सीधे {app} टीम को', tabs: ['रिपोर्ट', 'आपकी रिपोर्ट', 'प्राथमिकताएँ'],
+      what: 'यह क्या है?', happened: 'क्या हुआ?', ph: 'क्या हुआ, या आप क्या बदलना चाहेंगे?', attached: 'इस स्क्रीन और ऐप के वर्शन के साथ भेजा जाता है।',
+      types: [['टूटा हुआ', 'कुछ काम नहीं कर रहा'], ['उलझन भरा', 'समझ नहीं आया कि कैसे करें'], ['बेहतर हो सकता है', 'काम करता है, पर बेहतर हो सकता है'], ['सुझाव', 'कुछ ऐसा जो अभी नहीं है']],
+      powered: 'Heresay द्वारा संचालित', introTitle: 'कुछ ठीक नहीं लग रहा? टीम को बताइए।',
+      introBody: 'टीम को यह बताने के लिए कि क्या टूटा है, क्या उलझन भरा है या क्या बेहतर हो सकता है, {reach}। हर रिपोर्ट कोई इंसान पढ़ता है, और आपकी रिपोर्ट का क्या हुआ, यह आप देखेंगे।',
+      reachTap: 'कभी भी कोने में {label} पर टैप करें', reachClick: 'कभी भी {label} पर क्लिक करें', reachMenu: 'कभी भी Help › समस्या की रिपोर्ट करें… (⌥⌘R) चुनें', reachUse: 'कभी भी {label} का इस्तेमाल करें',
+      tryIt: 'आज़माएँ', gotIt: 'ठीक है', cancel: 'रद्द करें', sentTitle: 'भेज दिया गया। धन्यवाद।', sentBody: 'टीम का कोई व्यक्ति हर रिपोर्ट पढ़ता है। इसका क्या हुआ, यह आप “आपकी रिपोर्ट” में देखेंगे।',
+      another: 'एक और भेजें', see: 'अपनी रिपोर्ट देखें', menu: 'समस्या की रिपोर्ट करें…' },
+  };
+  var TYPE_IDS = ['broken', 'confusing', 'improvement', 'idea'];
+  var TYPE_ICON = { broken: '⚠︎', confusing: '?', improvement: '✦', idea: '💡' };
+
+  /** A likeness of the Swift package's button, sheet, alert and sent view, as HTML. */
+  function appleMock(p, cfg, show, darkMode) {
+    var mac = p.platform === 'macos';
+    var w = APPLE_WORDS[cfg.language] || APPLE_WORDS.en;
+    var fmt = function (s, o) { return s.replace(/\{(\w+)\}/g, function (_, k) { return o[k]; }); };
+    var acc = cfg.accent || '#0f766e';
+    var dark = cfg.theme === 'dark' || (cfg.theme !== 'light' && darkMode);
+    var markC = cfg.markFollowsAccent === 'false' || !cfg.accent ? (dark ? '#2dd4bf' : '#0b5e57') : acc;
+    var mark = function (c, s) { return '<span class="am-mark" style="width:' + s + 'px;height:' + s + 'px;background:' + c + '"></span>'; };
+    var label = cfg.label || w.report;
+    var hasButton = mac ? cfg.entry === 'button' : cfg.entry !== 'none';
+    var face = { rounded: 'ui-rounded,"SF Pro Rounded",system-ui', serif: 'ui-serif,Georgia,serif' }[cfg.typeface] || '-apple-system,system-ui,sans-serif';
+    var off = +(cfg.offset || 16);
+    var pos = cfg.position || 'bottomTrailing';
+    var place = (/top/.test(pos) ? 'top:' + (off + (mac ? 34 : 54)) + 'px;' : 'bottom:' + (off + (mac ? 0 : 20)) + 'px;') +
+      (pos === 'bottom' ? 'left:50%;transform:translateX(-50%);' : /Leading/.test(pos) ? 'left:' + off + 'px;' : 'right:' + off + 'px;');
+    var sz = { small: [11, 10, 6, 13], large: [16, 18, 12, 21] }[cfg.size] || [13, 14, 9, 17];
+    var neutral = cfg.fill === 'neutral';
+    var icon = cfg.button === 'icon';
+    var btnDark = dark || darkMode;
+    var shadow = { none: 'none', strong: '0 6px 16px rgba(0,0,0,.35)' }[cfg.shadow] || '0 3px 8px rgba(0,0,0,.18)';
+    var button = hasButton && show !== 'panel' && show !== 'sent'
+      ? '<div class="am-btn" style="' + place + 'font-size:' + sz[0] + 'px;padding:' + (icon ? (sz[2] + 1) + 'px' : sz[2] + 'px ' + sz[1] + 'px') + ';border-radius:999px;box-shadow:' + shadow + ';' +
+        (neutral ? 'background:' + (btnDark ? 'rgba(40,42,48,.92)' : 'rgba(255,255,255,.92)') + ';color:' + (btnDark ? '#f2f2f7' : '#111') + ';border:1px solid rgba(127,127,127,.25)' : 'background:' + acc + ';color:#fff') + '">' +
+        mark(neutral ? markC : '#fff', sz[3]) + (icon ? '' : '<b>' + esc(label) + '</b>') + '</div>' : '';
+
+    var types = (cfg.types || TYPE_IDS.join(',')).split(',');
+    var typeCards = types.map(function (t) {
+      var tw = w.types[TYPE_IDS.indexOf(t)];
+      return '<div class="am-type"><span class="am-ti" style="color:' + acc + ';background:' + acc + '1f">' + TYPE_ICON[t] + '</span><span><b>' + esc(tw[0]) + '</b><i>' + esc(tw[1]) + '</i></span></div>';
+    }).join('');
+    var tabs = [w.tabs[0], w.tabs[1]].concat(cfg.showsPreferences === 'false' ? [] : [w.tabs[2]]);
+    var powered = '<div class="am-powered">' + mark(markC, 11) + esc(w.powered) + '</div>';
+    var head = '<div class="am-head">' + mark(markC, 28) + '<div><b>' + esc(w.sendFeedback) + '</b><span>' + esc(fmt(w.straight, { app: productName(p) })) + '</span></div>' + (mac ? '' : '<em>✕</em>') + '</div>' +
+      '<div class="am-seg">' + tabs.map(function (t, i) { return '<span' + (i === 0 ? ' class="on"' : '') + '>' + esc(t) + '</span>'; }).join('') + '</div>';
+    var form = '<div class="am-body"><p class="am-lab">' + esc(w.what) + '</p><div class="am-types' + (mac ? ' grid' : '') + '">' + typeCards + '</div>' +
+      '<p class="am-lab">' + esc(w.happened) + '</p><div class="am-text">' + esc(cfg.placeholder || w.ph) + '</div></div>' + powered +
+      '<div class="am-foot"><span>' + esc(w.attached) + '</span>' + (mac ? '<u>' + esc(w.cancel) + '</u>' : '') + '<strong style="background:' + acc + '">' + esc(w.send) + '</strong></div>';
+    var sent = '<div class="am-body am-sent">' + mark(markC, 56) + '<b>' + esc(w.sentTitle) + '</b>' + (cfg.thanks ? '<p>' + esc(cfg.thanks) + '</p>' : '') +
+      '<p class="mute">' + esc(w.sentBody) + '</p><div><u>' + esc(w.another) + '</u><strong style="background:' + acc + '">' + esc(w.see) + '</strong></div></div>' + powered;
+    var sheetSize = cfg.sheet || '';
+    var sheet = show === 'panel' || show === 'sent'
+      ? '<div class="am-dim"></div><div class="am-sheet ' + (mac ? 'mac ' : '') + (sheetSize || 'regular') + '">' + head + (show === 'sent' ? sent : form) + '</div>' : '';
+    var reach = mac ? (cfg.entry !== 'none' ? w.reachMenu : fmt(hasButton ? w.reachClick : w.reachUse, { label: cfg.label ? '“' + cfg.label + '”' : w.report }))
+      : fmt(hasButton ? w.reachTap : w.reachUse, { label: cfg.label ? '“' + cfg.label + '”' : w.report });
+    var alert = show === 'intro'
+      ? '<div class="am-dim"></div><div class="am-alert"><b>' + esc(w.introTitle) + '</b><p>' + esc(fmt(w.introBody, { reach: reach })) + '</p><p>' + esc(w.powered) + '</p>' +
+        '<div><span>' + esc(w.gotIt) + '</span><span>' + esc(w.tryIt) + '</span></div></div>' : '';
+    var menu = mac && cfg.entry !== 'none' && show === 'button'
+      ? '<div class="am-menu"><span>' + esc(w.menu) + '</span><kbd>⌥⌘R</kbd></div>' : '';
+    var rows = ['Groceries', 'Trip to Ooty', 'Quarterly plan', 'Book list'].map(function (r) { return '<li>' + r + '</li>'; }).join('');
+    var app = mac
+      ? '<div class="am-menubar"><b></b><b>' + esc(productName(p)) + '</b><span>File</span><span>Edit</span><span' + (menu ? ' class="on"' : '') + '>Help</span></div>' + menu +
+        '<div class="am-window"><div class="am-titlebar"><i></i><i></i><i></i><span>' + esc(productName(p)) + '</span></div><div class="am-content"><h3>Notes</h3><ul>' + rows + '</ul></div>' + button + sheet + alert + '</div>'
+      : '<div class="am-phone"><div class="am-status"><span>9:41</span><i></i></div><div class="am-content"><h3>Notes</h3><ul>' + rows + '</ul></div>' + button + sheet + alert + '</div>';
+    return '<div class="am ' + (mac ? 'am-mac' : 'am-ios') + (darkMode ? ' app-dark' : '') + (dark ? ' dark' : '') + '" style="--acc:' + acc + ';font-family:' + face + '">' + app + '</div>';
+  }
+
 
   // ---- install and test ------------------------------------------------------------------
 
@@ -773,6 +1193,7 @@
             : (p.framework ? frameworkLabel(p.framework) + (p.framework_detected ? ' (detected)' : '') : platformOf(p.platform).label) })])]));
       head.appendChild(el('div', { class: 'row tight' }, [
         el('a', { class: 'btn ghost', href: '#/new?product=' + productOf(p), text: '+ Add a platform' }),
+        many || !designable(p) ? null : el('a', { class: 'btn ghost', href: '#/apps/' + p.id + '/design', text: 'Design' }),
         many ? null : el('a', { class: 'btn', href: '#/apps/' + p.id + '/setup', text: 'Install' }),
         many ? null : el('a', { class: 'btn ghost', href: '#/apps/' + p.id + '/delete', text: 'Delete…' }),
       ]));
@@ -790,6 +1211,8 @@
           el('a', { href: '#/connect?app=' + x.id, text: 'Connect a repo' }),
           many ? document.createTextNode(' · ') : null,
           many ? el('a', { href: '#/apps/' + x.id + '/setup', text: 'Install' }) : null,
+          many && designable(x) ? document.createTextNode(' · ') : null,
+          many && designable(x) ? el('a', { href: '#/apps/' + x.id + '/design', text: 'Design' }) : null,
           many ? document.createTextNode(' · ') : null,
           many ? el('a', { href: '#/apps/' + x.id + '/delete', text: 'Delete…' }) : null,
         ]));

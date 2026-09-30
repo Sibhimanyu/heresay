@@ -39,6 +39,15 @@ public final class Heresay: ObservableObject {
     @Published var requestedTab: SheetTab?
     /// The one-time introduction is waiting to be shown.
     @Published var introPending = false
+    /// The app's own words for the introduction, if it gave any.
+    var introWords: (title: String?, message: String?) = (nil, nil)
+    /// What `present(type:text:)` filled in, for the sheet to start with.
+    var draft: (type: ReportType?, text: String) = (nil, "")
+    /// How it looks. The defaults are the recommended setup.
+    @Published public private(set) var style = HeresayStyle()
+    /// The sheet's language, from the style or the app.
+    @Published private(set) var words = Words(nil)
+    private var sentHandlers: [@MainActor (SentEvent) -> Void] = []
     /// How people reach it, so the introduction can say where to look.
     var hasButton = false
     nonisolated(unsafe) static var hasMenuCommand = false
@@ -47,9 +56,10 @@ public final class Heresay: ObservableObject {
     var accent: Color = .heresayPeacock
     /// The app chose its own accent; then the mark follows it too.
     var customAccent = false
-    var markColor: Color { customAccent ? accent : .heresayMark }
+    var markColor: Color { customAccent && style.markFollowsAccent ? accent : .heresayMark }
     private var version: String?
-    private var screen: String?
+    /// The screen named with `setScreen`, which also decides `style.hiddenOnScreens`.
+    @Published private(set) var screen: String?
     private var userId: String?
     @Published private(set) var userLabel: String?
     @Published private(set) var userEmail: String?
@@ -68,19 +78,38 @@ public final class Heresay: ObservableObject {
     ///   - key: The app's key from your Heresay dashboard. It is public; it can't read anything.
     ///   - url: Your Heresay's address, e.g. `https://your-heresay.web.app`.
     ///   - version: Attached to every report. Defaults to the bundle's version and build.
-    ///   - accent: Your brand colour for the Send button and selections. Defaults to Heresay peacock.
+    ///   - accent: Your brand colour for the button, Send and selections; the mark follows it too.
+    ///     Defaults to Heresay peacock.
+    ///   - style: Where the button sits, its text, size, theme, language and more. The defaults
+    ///     are the recommended setup.
     public static func configure(key: String, url: URL, version: String? = nil, accent: Color? = nil,
-                                 session: URLSession = .shared) {
-        shared.configure(key: key, url: url, version: version, accent: accent, session: session)
+                                 style: HeresayStyle = HeresayStyle(), session: URLSession = .shared) {
+        shared.configure(key: key, url: url, version: version, accent: accent, style: style, session: session)
     }
 
-    func configure(key: String, url: URL, version: String?, accent: Color?, session: URLSession) {
+    func configure(key: String, url: URL, version: String?, accent: Color?, style: HeresayStyle = HeresayStyle(),
+                   session: URLSession) {
         client = Client(base: url, key: key, session: session)
         isDisabled = false
         self.version = version ?? Self.bundleVersion()
         if let accent { self.accent = accent; customAccent = true }
+        setStyle(style)
         Task { await refresh() }
     }
+
+    /// Change the look after `configure`, for example when the app's theme changes.
+    public static func setStyle(_ style: HeresayStyle) { shared.setStyle(style) }
+
+    func setStyle(_ style: HeresayStyle) {
+        self.style = style
+        words = Words(style.language)
+    }
+
+    /// The button's text: the app's own, or "Report" in the sheet's language.
+    var buttonLabel: String { style.label ?? words[.report] }
+
+    /// The corner button shows here: not on the screens the style hides it on.
+    var buttonVisible: Bool { !isDisabled && !(screen.map(style.hiddenOnScreens.contains) ?? false) }
 
     /// Who is signed in, in your system. Call after sign-in; call with no arguments after sign-out.
     /// Then nobody is asked their name to send a report, and with `email` the team can reply.
@@ -98,15 +127,23 @@ public final class Heresay: ObservableObject {
     var isSignedIn: Bool { userId != nil || userLabel != nil || userEmail != nil }
 
     /// A name to show for the signed-in person.
-    var signedInAs: String? { userLabel ?? userEmail ?? (userId != nil ? "your account" : nil) }
+    var signedInAs: String? { userLabel ?? userEmail ?? (userId != nil ? words[.yourAccount] : nil) }
 
     public static func setVersion(_ version: String?) { shared.version = version }
 
     /// Name the screen people are on, so reports say where they came from.
     public static func setScreen(_ name: String?) { shared.screen = name }
 
-    /// Open the report sheet from your own button or menu item.
-    public static func present() { shared.present() }
+    /// Open the report sheet from your own button or menu item. `type` and `text` fill it in,
+    /// for example from an error screen; the person still reviews and sends it.
+    public static func present(type: ReportType? = nil, text: String? = nil) {
+        if type != nil || text != nil { shared.draft = (type, String((text ?? "").prefix(2000))) }
+        shared.present(.report)
+    }
+
+    /// Called after each report is sent, with its id and type (never its text), for example to
+    /// thank people or count it in your analytics.
+    public static func onSent(_ handler: @escaping @MainActor (SentEvent) -> Void) { shared.sentHandlers.append(handler) }
 
     func present(_ tab: SheetTab? = nil) {
         guard !isDisabled else { return }
@@ -117,25 +154,32 @@ public final class Heresay: ObservableObject {
     /// Once per install: tell people Heresay is there and how to reach it. Call it where the app
     /// is settled, e.g. `.onAppear` of the main screen after sign-in or onboarding. Later calls do
     /// nothing, so it's safe on every launch. Returns whether it showed.
+    /// `title` and `message` are optional, to use your own words.
     @discardableResult
-    public static func introduce() -> Bool { shared.introduce() }
+    public static func introduce(title: String? = nil, message: String? = nil) -> Bool {
+        shared.introduce(title: title, message: message)
+    }
 
-    func introduce() -> Bool {
+    func introduce(title: String? = nil, message: String? = nil) -> Bool {
         guard !isDisabled, !defaults.bool(forKey: Keys.introduced) else { return false }
         defaults.set(true, forKey: Keys.introduced)
+        introWords = (title.map { String($0.trimmed.prefix(80)) }?.nilIfEmpty, message.map { String($0.trimmed.prefix(280)) }?.nilIfEmpty)
         introPending = true
         return true
     }
 
-    /// Where to find it, in this app.
+    var introTitle: String { introWords.title ?? words[.introTitle] }
+
+    /// Where to find it, in this app, and who it's from.
     var introMessage: String {
+        let label = style.label.map { "“\($0)”" } ?? words[.report]
         let reach: String
         #if os(macOS)
-        reach = Self.hasMenuCommand ? "Choose Help › Report a Problem… (⌥⌘R) any time" : (hasButton ? "Click Report any time" : "Use Report any time")
+        reach = Self.hasMenuCommand ? words[.reachMenu] : words(hasButton ? .reachClick : .reachUse, ["label": label])
         #else
-        reach = hasButton ? "Tap Report in the corner any time" : "Use Report any time"
+        reach = words(hasButton ? .reachTap : .reachUse, ["label": label])
         #endif
-        return "\(reach) to tell the team what’s broken, confusing or could be better. A person reads every report, and you’ll see what happens to yours."
+        return (introWords.message ?? words(.introBody, ["reach": reach])) + "\n\n" + words[.powered]
     }
 
     /// Open straight to Preferences: name, email for replies, a note about their setup.
@@ -160,6 +204,7 @@ public final class Heresay: ObservableObject {
         do {
             let r = try await client.submit(deviceId: deviceId, type: type, text: text, context: context(), reporter: prefs.reporter(signedIn: isSignedIn))
             reports.insert(r, at: 0)
+            for h in sentHandlers { h(SentEvent(id: r.id, type: r.type)) }
             return r
         } catch let f as Client.Failure where f.status == 404 {
             disable(client)
@@ -275,6 +320,12 @@ public final class Heresay: ObservableObject {
         static let prefs = "heresay.prefs"
         static let introduced = "heresay.introduced"
     }
+}
+
+/// A report was sent: which one, and what kind. Never its text.
+public struct SentEvent: Sendable, Equatable {
+    public let id: String
+    public let type: ReportType
 }
 
 /// The sheet's three tabs.

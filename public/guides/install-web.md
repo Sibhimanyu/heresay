@@ -61,9 +61,13 @@ Don't build a custom dialog for this; `introduce()` is the one.
 
 - A version: add `data-version="<version>"` to the tag (from package.json, a build env var, ...).
 - Screens that change without the URL changing: `window.Heresay?.setScreen("<name>")` on each change.
-- A brand colour: `data-accent="#rrggbb"` (hex only).
+- A brand colour: `data-accent="#rrggbb"` (hex only). The logo follows it.
+- The app has its own feedback or help menu item: `data-button="none"`, and make that item call
+  `window.Heresay?.open()`.
 
-Change nothing else in the app.
+Everything else about the look is optional and has a recommended default: leave it unless the
+person asks. Guide `customize-web` lists every option; the dashboard's **Design** page shows
+them on the real widget. Change nothing else in the app.
 
 ## 6. Prove it
 

@@ -23,7 +23,11 @@
     s.src = '/sdk/v1.js';
     s.dataset.key = q.get('key') || '';
     s.dataset.version = '0.0.1-demo';
-    if (q.get('accent')) s.dataset.accent = q.get('accent');
+    // The design options, so a look can be tried here before it goes in the app's code.
+    ['accent', 'position', 'offset', 'button', 'label', 'style', 'size', 'fill', 'shadow', 'mark', 'theme',
+      'font', 'lang', 'placeholder', 'types', 'thanks', 'panel', 'width', 'backdrop', 'preferences', 'intro']
+      .forEach(function (k) { if (q.get(k) != null) s.setAttribute('data-' + k, q.get(k)); });
+    if (q.has('preview')) s.setAttribute('data-preview', '');
     document.body.appendChild(s);
   </script>
 </body>
