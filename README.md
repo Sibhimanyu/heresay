@@ -1,3 +1,22 @@
+<p align="center">
+  <a href="https://sibhimanyu.github.io/heresay/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="brand/svg/heresay-logo-white.svg">
+      <img src="brand/svg/heresay-logo.svg" alt="Heresay" width="320">
+    </picture>
+  </a>
+</p>
+
+<p align="center"><b>Every report gets a hearing.</b><br>
+In-app feedback that reaches your coding agent, only after a person says yes.</p>
+
+<p align="center">
+  <a href="https://sibhimanyu.github.io/heresay/">Website</a> ·
+  <a href="https://sibhimanyu.github.io/heresay/how-it-works.html">How it works</a> ·
+  <a href="https://sibhimanyu.github.io/heresay/docs.html">Docs</a> ·
+  <a href="https://www.npmjs.com/package/create-heresay">npm</a>
+</p>
+
 # Heresay
 
 People using your app can report something from inside it: broken, confusing, could be better,
