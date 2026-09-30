@@ -6,12 +6,19 @@ import SwiftUI
 public struct HeresayMark: Shape {
     public init() {}
 
-    public func path(in rect: CGRect) -> Path {
+    public func path(in rect: CGRect) -> Path { Self.path(in: rect) }
+
+    /// The mark with its eyes moved by (dx, dy) and squashed to `open` of their height (1 is open).
+    static func path(in rect: CGRect, dx: CGFloat = 0, dy: CGFloat = 0, open: CGFloat = 1) -> Path {
         var p = Path()
         p.addLines(Self.outline.map { CGPoint(x: $0.0, y: $0.1) })
         p.closeSubpath()
-        p.addPath(Self.eye, transform: Self.eyeAt(x: 80, y: 106))
-        p.addPath(Self.eye, transform: Self.eyeAt(x: 124, y: 101))
+        for (x, y) in [(CGFloat(80), CGFloat(106)), (124, 101)] {
+            // Blink about the eye's own centre, then glance.
+            let pose = CGAffineTransform(translationX: -x, y: -y).concatenating(CGAffineTransform(scaleX: 1, y: open))
+                .concatenating(CGAffineTransform(translationX: x + dx, y: y + dy))
+            p.addPath(Self.eye, transform: Self.eyeAt(x: x, y: y).concatenating(pose))
+        }
         let side = min(rect.width, rect.height)
         return p.applying(CGAffineTransform(translationX: rect.midX - side / 2, y: rect.midY - side / 2)
             .scaledBy(x: side / 200, y: side / 200))
@@ -83,5 +90,49 @@ extension HeresayMark {
     /// Filled with the eyes cut out.
     static func filled(_ color: Color) -> some View {
         HeresayMark().fill(color, style: FillStyle(eoFill: true))
+    }
+}
+
+/// The loader: the mark's eyes look left, look right, then blink. Same motion as the web widget and
+/// `brand/svg/loaders/heresay-loader-glance.svg`. Holds still under Reduce Motion.
+public struct HeresayGlance: View {
+    var color: Color
+    var period: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    public init(_ color: Color, period: Double = 1.6) {
+        self.color = color
+        self.period = period
+    }
+
+    public var body: some View {
+        TimelineView(.animation(paused: reduceMotion)) { ctx in
+            let t = reduceMotion ? 0 : ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
+            Pose(phase: t).fill(color, style: FillStyle(eoFill: true))
+        }
+        .accessibilityHidden(true)
+    }
+
+    private struct Pose: Shape {
+        let phase: Double
+        func path(in rect: CGRect) -> Path {
+            let (dx, dy) = Self.look(phase)
+            return HeresayMark.path(in: rect, dx: dx, dy: dy, open: Self.blink(phase))
+        }
+        /// Rest, look left, look right, rest; eased between holds.
+        static func look(_ t: Double) -> (CGFloat, CGFloat) {
+            let keys: [(Double, CGFloat, CGFloat)] = [(0, 0, 0), (0.10, 0, 0), (0.25, -9, 1), (0.40, -9, 1),
+                                                     (0.55, 9, -1), (0.70, 9, -1), (0.85, 0, 0), (1, 0, 0)]
+            for i in 1..<keys.count where t <= keys[i].0 {
+                let (t0, x0, y0) = keys[i - 1], (t1, x1, y1) = keys[i]
+                let u = CGFloat((t - t0) / (t1 - t0)), e = u * u * (3 - 2 * u)
+                return (x0 + (x1 - x0) * e, y0 + (y1 - y0) * e)
+            }
+            return (0, 0)
+        }
+        static func blink(_ t: Double) -> CGFloat {
+            let d = abs(t - 0.92)
+            return d >= 0.04 ? 1 : 0.1 + 0.9 * CGFloat(d / 0.04)
+        }
     }
 }

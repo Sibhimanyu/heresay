@@ -204,13 +204,27 @@ try {
   await sdk.getByRole('button', { name: /Confusing/ }).click();
   await sdk.getByLabel('What happened?').fill('I could not work out how to cancel my plan.');
   await app.screenshot({ path: `${SHOTS}e2e-2-report-form.png` });
+  // Hold the send a moment so the Send button's Glance loader can be seen.
+  const hold = async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); };
+  await app.route('**/reports', hold);
   await sdk.getByRole('button', { name: 'Send' }).click();
+  await sdk.locator('.send.busy .glance').waitFor();
+  await app.screenshot({ path: `${SHOTS}e2e-2g-sending.png` });
   await sdk.getByText('Waiting for the developer').waitFor();
+  await app.unroute('**/reports', hold);
 
   step('developer sees it with screen and version, declines with a reason');
   await dash.goto(`${BASE}/app/#/`);
+  // A slow inbox shows the Glance loader in the list, and only there.
+  const slow = async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); };
+  await dash.route('**/reports', slow);
   await dash.locator('.app-card', { hasText: 'Acme Notes' }).click();
+  await dash.locator('.reports .loading img').waitFor();
+  await dash.waitForTimeout(700);
+  await dash.screenshot({ path: `${SHOTS}e2e-3a-inbox-loading.png` });
+  await dash.unroute('**/reports', slow);
   await dash.locator('.filters button', { hasText: 'Open' }).click();
+  assert.equal(await dash.locator('.loading:visible').count(), 0, 'the loader goes once the inbox arrives');
   const row = dash.locator('article.report').first();
   await row.waitFor();
   const ctxText = await row.locator('.ctx').first().textContent();

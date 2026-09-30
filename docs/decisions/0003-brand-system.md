@@ -11,6 +11,9 @@ Date: 2026-09-28
   Mono (code). All free on Google Fonts.
 - **Widget:** neutral; peacock only on Send, selection and the update dot; `data-accent` lets the
   host swap it. The mark on the button keeps its own colour.
+- **Loader:** Glance. The mark holds still; its eyes look left, look right, blink. Web widget Send
+  button, dashboard (`public/loader.svg`), and `HeresayGlance` in the Apple SDK. Six other loaders
+  were drawn and passed over; all seven are in `brand/svg/loaders/` from `scripts/brand_loaders.py`.
 - **Files:** `brand/svg/`, `brand/png/`, `brand/heresay-brand-guidelines.pdf` (Illustrator opens
   it as one artboard per page). Regenerate with `scripts/brand_assets.py` and
   `scripts/brand_guidelines.py`.

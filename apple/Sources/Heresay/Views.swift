@@ -425,10 +425,13 @@ struct ReportSheet: View {
                 Button {
                     Task { await submit() }
                 } label: {
-                    Text(sending ? w[.sending] : w[.send]).fontWeight(.semibold)
-                        #if os(iOS)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        #endif
+                    HStack(spacing: 6) {
+                        if sending { HeresayGlance(.white).frame(width: 16, height: 16) }
+                        Text(sending ? w[.sending] : w[.send]).fontWeight(.semibold)
+                    }
+                    #if os(iOS)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    #endif
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(heresay.accent)
