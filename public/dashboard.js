@@ -42,7 +42,12 @@
   }
 
   function show(which) {
-    ['gate', 'blocked', 'app'].forEach(function (id) { $(id).hidden = id !== which; });
+    ['boot', 'gate', 'blocked', 'app'].forEach(function (id) { $(id).hidden = id !== which; });
+  }
+
+  /** The Glance loader. It shows only while it is alone in its box, so a view's first content hides it. */
+  function loading() {
+    return el('div', { class: 'loading', role: 'status', 'aria-label': 'Loading' }, [el('img', { src: '/loader.svg', alt: '' })]);
   }
 
   function copyButton(getText, label) {
@@ -199,6 +204,7 @@
     });
     var view = $('view');
     view.textContent = '';
+    view.appendChild(loading());
     view.classList.remove('wide');
     if (parts[0] === 'team') return teamView(view);
     if (parts[0] === 'connect') return connectView(view, query);
@@ -1175,7 +1181,7 @@
     var where = 'all';
     var filters = el('nav', { class: 'filters', 'aria-label': 'Filter' });
     var platformBar = el('nav', { class: 'filters platforms-filter', 'aria-label': 'Platform' });
-    var list = el('div', { class: 'reports' });
+    var list = el('div', { class: 'reports' }, [loading()]);
     var empty = el('p', { class: 'empty' });
     var ctxs = {};
     var head = el('div', { class: 'head' });
