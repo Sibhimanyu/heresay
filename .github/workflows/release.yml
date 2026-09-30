@@ -1,0 +1,30 @@
+# Publishes create-heresay and heresay to npm when a release PR bumps their versions. npm trusts
+# this workflow (trusted publishing, OIDC): no token is stored anywhere and nobody approves a
+# passkey. Versions already on npm are skipped, so re-running is safe.
+name: Release to npm
+on:
+  push:
+    branches: [master]
+    paths: ['packages/*/package.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: npm-release
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@latest
+      - run: npm --prefix functions ci
+      - run: npm test
+      - run: npm --prefix packages/heresay ci
+      - run: node scripts/build-release.mjs
+      - run: node scripts/publish-npm.mjs

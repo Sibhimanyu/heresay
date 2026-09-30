@@ -4,6 +4,12 @@
   "description": "Connect a repo to your Heresay so coding agents can install it and fix the reports your team accepts. MCP server, skill and CLI.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sibhimanyu/heresay.git",
+    "directory": "packages/heresay"
+  },
+  "homepage": "https://sibhimanyu.github.io/heresay/",
   "author": "Sibhimanyu",
   "bin": {
     "heresay": "bin/heresay.mjs"

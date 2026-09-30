@@ -4,6 +4,12 @@
   "description": "Set up your own Heresay: in-app feedback that every report gets a hearing. Creates a Firebase project in your Google account and deploys the dashboard, API and SDK to it.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sibhimanyu/heresay.git",
+    "directory": "packages/create-heresay"
+  },
+  "homepage": "https://sibhimanyu.github.io/heresay/",
   "bin": {
     "create-heresay": "bin/create-heresay.mjs"
   },

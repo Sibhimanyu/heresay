@@ -1,1 +1,0 @@
-/Users/sibhi-zstch1643/.gstack/render/claude/deslop-shared-libs/SKILL.md
