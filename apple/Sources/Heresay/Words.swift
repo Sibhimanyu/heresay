@@ -38,8 +38,8 @@ struct Words: Sendable {
     static let en: [W: String] = [
         .report: "Report", .reportA11y: "Report a problem", .reportA11yUpdate: "Report a problem. You have an update.",
         .menuItem: "Report a Problem…",
-        .introTitle: "Something not right? Tell the team.",
-        .introBody: "{reach} to tell the team what’s broken, confusing or could be better. A person reads every report, and you’ll see what happens to yours.",
+        .introTitle: "Help make this app better",
+        .introBody: "{reach} to share an idea or tell the team what you’d change. A real person reads every report, and you’ll see what happens to yours.",
         .reachMenu: "Choose Help › Report a Problem… (⌥⌘R) any time", .reachClick: "Click {label} any time",
         .reachTap: "Tap {label} in the corner any time", .reachUse: "Use {label} any time",
         .tryIt: "Try it", .gotIt: "Got it",
@@ -72,8 +72,8 @@ struct Words: Sendable {
     static let fr: [W: String] = [
         .report: "Signaler", .reportA11y: "Signaler un problème", .reportA11yUpdate: "Signaler un problème. Vous avez du nouveau.",
         .menuItem: "Signaler un problème…",
-        .introTitle: "Un souci ? Dites-le à l’équipe.",
-        .introBody: "{reach} pour dire à l’équipe ce qui ne marche pas, ce qui est déroutant ou ce qui pourrait être mieux. Une personne lit chaque signalement, et vous verrez ce qu’il devient.",
+        .introTitle: "Aidez à améliorer cette app",
+        .introBody: "{reach} pour partager une idée ou dire à l’équipe ce que vous changeriez. Une vraie personne lit chaque signalement, et vous verrez ce qu’il devient.",
         .reachMenu: "Choisissez Aide › Signaler un problème… (⌥⌘R) à tout moment", .reachClick: "Cliquez sur {label} à tout moment",
         .reachTap: "Touchez {label} dans le coin à tout moment", .reachUse: "Utilisez {label} à tout moment",
         .tryIt: "Essayer", .gotIt: "Compris",
@@ -106,8 +106,8 @@ struct Words: Sendable {
     static let ta: [W: String] = [
         .report: "தெரிவி", .reportA11y: "சிக்கலைத் தெரிவிக்கவும்", .reportA11yUpdate: "சிக்கலைத் தெரிவிக்கவும். உங்களுக்குப் புதிய தகவல் உள்ளது.",
         .menuItem: "சிக்கலைத் தெரிவி…",
-        .introTitle: "ஏதாவது சரியில்லையா? குழுவிடம் சொல்லுங்கள்.",
-        .introBody: "எது வேலை செய்யவில்லை, எது குழப்பமாக உள்ளது, எதை மேம்படுத்தலாம் என்று குழுவிடம் சொல்ல, {reach}. ஒவ்வொரு புகாரையும் ஒருவர் படிக்கிறார்; உங்களுடையதற்கு என்ன ஆனது என்பதைப் பார்க்கலாம்.",
+        .introTitle: "இந்த ஆப்பை இன்னும் சிறப்பாக்க உதவுங்கள்",
+        .introBody: "ஒரு யோசனையைப் பகிர அல்லது நீங்கள் எதை மாற்ற விரும்புகிறீர்கள் என்று குழுவிடம் சொல்ல, {reach}. ஒவ்வொரு கருத்தையும் ஒருவர் படிக்கிறார்; உங்களுடையதற்கு என்ன ஆனது என்பதைப் பார்க்கலாம்.",
         .reachMenu: "எப்போது வேண்டுமானாலும் Help › சிக்கலைத் தெரிவி… (⌥⌘R) என்பதைத் தேர்ந்தெடுங்கள்",
         .reachClick: "எப்போது வேண்டுமானாலும் {label} ஐக் கிளிக் செய்யுங்கள்",
         .reachTap: "எப்போது வேண்டுமானாலும் மூலையில் உள்ள {label} ஐத் தட்டுங்கள்",
@@ -142,8 +142,8 @@ struct Words: Sendable {
     static let hi: [W: String] = [
         .report: "रिपोर्ट करें", .reportA11y: "समस्या की रिपोर्ट करें", .reportA11yUpdate: "समस्या की रिपोर्ट करें। आपके लिए नई जानकारी है।",
         .menuItem: "समस्या की रिपोर्ट करें…",
-        .introTitle: "कुछ ठीक नहीं लग रहा? टीम को बताइए।",
-        .introBody: "टीम को यह बताने के लिए कि क्या टूटा है, क्या उलझन भरा है या क्या बेहतर हो सकता है, {reach}। हर रिपोर्ट कोई इंसान पढ़ता है, और आपकी रिपोर्ट का क्या हुआ, यह आप देखेंगे।",
+        .introTitle: "इस ऐप को और बेहतर बनाने में मदद करें",
+        .introBody: "कोई आइडिया बताने या टीम को यह बताने के लिए कि आप क्या बदलना चाहेंगे, {reach}। हर रिपोर्ट कोई इंसान पढ़ता है, और आपकी रिपोर्ट का क्या हुआ, यह आप देखेंगे।",
         .reachMenu: "कभी भी Help › समस्या की रिपोर्ट करें… (⌥⌘R) चुनें", .reachClick: "कभी भी {label} पर क्लिक करें",
         .reachTap: "कभी भी कोने में {label} पर टैप करें", .reachUse: "कभी भी {label} का इस्तेमाल करें",
         .tryIt: "आज़माएँ", .gotIt: "ठीक है",

@@ -171,7 +171,10 @@ public final class Heresay: ObservableObject {
     var introTitle: String { introWords.title ?? words[.introTitle] }
 
     /// Where to find it, in this app, and who it's from.
-    var introMessage: String {
+    var introMessage: String { introBody + "\n\n" + words[.powered] }
+
+    /// Where to find it, in this app.
+    var introBody: String {
         let label = style.label.map { "“\($0)”" } ?? words[.report]
         let reach: String
         #if os(macOS)
@@ -179,7 +182,7 @@ public final class Heresay: ObservableObject {
         #else
         reach = words(hasButton ? .reachTap : .reachUse, ["label": label])
         #endif
-        return (introWords.message ?? words(.introBody, ["reach": reach])) + "\n\n" + words[.powered]
+        return introWords.message ?? words(.introBody, ["reach": reach])
     }
 
     /// Open straight to Preferences: name, email for replies, a note about their setup.

@@ -273,7 +273,7 @@ try {
   await intro.waitForFunction(() => window.Heresay && window.Heresay.introduce);
   assert.equal(await intro.evaluate(() => window.Heresay.introduce()), true);
   const iw = intro.locator('[data-feedback-sdk]');
-  await iw.getByText('Something not right? Tell the team.').waitFor();
+  await iw.getByText('Help make this app better').waitFor();
   await intro.waitForTimeout(400); // past the fade-in
   await intro.screenshot({ path: `${SHOTS}e2e-2d-introduce.png` });
   await iw.getByRole('button', { name: 'Try it' }).click();
@@ -449,6 +449,9 @@ try {
   await dash.locator('.apple-frame').getByText('Heresay மூலம் இயங்குகிறது').waitFor();
   assert.equal(await dash.locator('.apple-frame .am-type').count(), 2);
   await dash.screenshot({ path: `${SHOTS}e2e-1j-design-ios-sheet.png` });
+  await dash.getByRole('tab', { name: 'Introduction' }).click();
+  await dash.locator('.apple-frame .am-intro:not(.mac)').waitFor();
+  await dash.locator('.apple-frame .am-intro').screenshot({ path: `${SHOTS}e2e-1j-design-ios-intro.png` });
   await dash.getByRole('button', { name: 'Copy prompt for your agent' }).click();
   const iosPrompt = await dash.evaluate(() => navigator.clipboard.readText());
   assert.match(iosPrompt, /guide customize-apple/);
@@ -468,6 +471,9 @@ try {
   await dash.locator('.apple-frame .am-sheet.mac.large').waitFor();
   assert.match(await dash.locator('.code pre').first().textContent(), /sheet: \.large/);
   await dash.screenshot({ path: `${SHOTS}e2e-1k-design-mac.png` });
+  await dash.getByRole('tab', { name: 'Introduction' }).click();
+  await dash.locator('.apple-frame .am-intro.mac').getByText('Help make this app better').waitFor();
+  await dash.locator('.apple-frame').screenshot({ path: `${SHOTS}e2e-1k-design-mac-intro.png` });
 
   step('one product on two platforms: add iOS to Acme Notes; one card, one inbox, each report marked');
   await dash.goto(`${BASE}/app/#/`);

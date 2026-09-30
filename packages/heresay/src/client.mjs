@@ -345,7 +345,7 @@ export async function verifyInstall(api, app, { wait = 0, root = repoAt().root }
   const todo = [];
   if (file && !findInRepo(root, ['introduce(', 'data-intro'], { code: true })) {
     todo.push(apple(app)
-      ? 'Tell people Heresay is there: call Heresay.introduce() once the main screen appears (after sign-in and onboarding). It shows a one-time alert saying where to find it. Required; see guide install-apple, step 5.'
+      ? 'Tell people Heresay is there: call Heresay.introduce() once the main screen appears (after sign-in and onboarding). It shows a one-time welcome sheet (iOS) or window (macOS) saying where to find it. Required; see guide install-apple, step 5.'
       : 'Tell people Heresay is there: add data-intro="auto" to the tag, or call window.Heresay?.introduce() once the main screen appears (after sign-in and onboarding). Required; see guide install-web, step 4.');
   }
   if (file && app.sign_in === 'yes' && !findInRepo(root, ['identify('], { code: true })) {
