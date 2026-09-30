@@ -269,7 +269,7 @@ final class IntroductionTests: XCTestCase {
         h.introPending = false
         XCTAssertFalse(h.introduce(), "never twice")
         XCTAssertFalse(Heresay(defaults: d).introduce(), "not after a relaunch either")
-        XCTAssertTrue(h.introMessage.contains("A person reads every report"))
+        XCTAssertTrue(h.introMessage.contains("A real person reads every report"))
     }
 }
 

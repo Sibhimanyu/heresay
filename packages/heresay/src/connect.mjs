@@ -47,8 +47,8 @@ or an idea. A person on the team accepts or declines each report. Accepted repor
 2. **People are told it exists.** A Report button under a menu or in a corner goes unnoticed.
    Call \`introduce()\` once the main screen appears, after sign-in and onboarding: web
    \`window.Heresay?.introduce()\` (or \`data-intro="auto"\` on the tag), Swift
-   \`Heresay.introduce()\`. It shows a one-time bubble or alert saying where Heresay is and what
-   it's for. Use it; don't build your own dialog. If the app has a "What's new" area, add a line
+   \`Heresay.introduce()\`. It shows a one-time bubble, sheet or window saying where Heresay is and
+   what it's for. Use it; don't build your own dialog. If the app has a "What's new" area, add a line
    there too.
 3. **If people sign in, the app says who they are** with \`identify\` (id, label, email), so
    nobody is asked their name.

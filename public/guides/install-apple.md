@@ -55,8 +55,8 @@ Then nobody is asked their name to send a report, and the team can reply to them
 
 On macOS the report window lives under Help, and on iOS it's a small button; people who have never
 seen it won't go looking. Call `Heresay.introduce()` once the person reaches the app's main
-screen: after sign-in and after any onboarding, never over a login or first-run screen. It shows a
-native alert, once per install, that says where to find it (Help › Report a Problem… (⌥⌘R) on
+screen: after sign-in and after any onboarding, never over a login or first-run screen. Once per
+install it shows a welcome sheet on iOS, or a small window of its own on macOS, that says where to find it (Help › Report a Problem… (⌥⌘R) on
 macOS, the Report button on iOS) and offers to open it. Later calls do nothing, so this is fine:
 
 ```swift

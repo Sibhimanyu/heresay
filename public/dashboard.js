@@ -760,32 +760,32 @@
     en: { report: 'Report', send: 'Send', sendFeedback: 'Send feedback', straight: 'Straight to the {app} team', tabs: ['Report', 'Your reports', 'Preferences'],
       what: 'What is it?', happened: 'What happened?', ph: 'What happened, or what would you change?', attached: 'Sent with this screen and the app version.',
       types: [['Broken', 'Something doesn’t work'], ['Confusing', 'I couldn’t tell how'], ['Could be better', 'It works, and could be better'], ['Idea', 'Something that isn’t there yet']],
-      powered: 'Powered by Heresay', introTitle: 'Something not right? Tell the team.',
-      introBody: '{reach} to tell the team what’s broken, confusing or could be better. A person reads every report, and you’ll see what happens to yours.',
+      powered: 'Powered by Heresay', introTitle: 'Help make this app better',
+      introBody: '{reach} to share an idea or tell the team what you’d change. A real person reads every report, and you’ll see what happens to yours.',
       reachTap: 'Tap {label} in the corner any time', reachClick: 'Click {label} any time', reachMenu: 'Choose Help › Report a Problem… (⌥⌘R) any time', reachUse: 'Use {label} any time',
       tryIt: 'Try it', gotIt: 'Got it', cancel: 'Cancel', sentTitle: 'Sent. Thank you.', sentBody: 'A person on the team reads every report. You’ll see what happens to it under Your reports.',
       another: 'Send another', see: 'See your reports', menu: 'Report a Problem…' },
     fr: { report: 'Signaler', send: 'Envoyer', sendFeedback: 'Envoyer un retour', straight: 'Directement à l’équipe {app}', tabs: ['Signaler', 'Vos signalements', 'Préférences'],
       what: 'De quoi s’agit-il ?', happened: 'Que s’est-il passé ?', ph: 'Que s’est-il passé, ou que changeriez-vous ?', attached: 'Envoyé avec cet écran et la version de l’app.',
       types: [['Cassé', 'Quelque chose ne marche pas'], ['Déroutant', 'Je ne voyais pas comment faire'], ['Pourrait être mieux', 'Ça marche, mais ça pourrait être mieux'], ['Idée', 'Quelque chose qui n’existe pas encore']],
-      powered: 'Propulsé par Heresay', introTitle: 'Un souci ? Dites-le à l’équipe.',
-      introBody: '{reach} pour dire à l’équipe ce qui ne marche pas, ce qui est déroutant ou ce qui pourrait être mieux. Une personne lit chaque signalement, et vous verrez ce qu’il devient.',
+      powered: 'Propulsé par Heresay', introTitle: 'Aidez à améliorer cette app',
+      introBody: '{reach} pour partager une idée ou dire à l’équipe ce que vous changeriez. Une vraie personne lit chaque signalement, et vous verrez ce qu’il devient.',
       reachTap: 'Touchez {label} dans le coin à tout moment', reachClick: 'Cliquez sur {label} à tout moment', reachMenu: 'Choisissez Aide › Signaler un problème… (⌥⌘R) à tout moment', reachUse: 'Utilisez {label} à tout moment',
       tryIt: 'Essayer', gotIt: 'Compris', cancel: 'Annuler', sentTitle: 'Envoyé. Merci.', sentBody: 'Une personne de l’équipe lit chaque signalement. Vous verrez ce qu’il devient dans Vos signalements.',
       another: 'En envoyer un autre', see: 'Voir vos signalements', menu: 'Signaler un problème…' },
     ta: { report: 'தெரிவி', send: 'அனுப்பு', sendFeedback: 'கருத்து அனுப்பு', straight: 'நேராக {app} குழுவுக்கு', tabs: ['தெரிவி', 'உங்கள் புகார்கள்', 'விருப்பங்கள்'],
       what: 'இது என்ன வகை?', happened: 'என்ன நடந்தது?', ph: 'என்ன நடந்தது, அல்லது எதை மாற்ற விரும்புகிறீர்கள்?', attached: 'இந்தத் திரை மற்றும் ஆப் பதிப்புடன் அனுப்பப்படும்.',
       types: [['வேலை செய்யவில்லை', 'ஏதோ ஒன்று சரியாக இயங்கவில்லை'], ['குழப்பமாக உள்ளது', 'எப்படிச் செய்வது என்று புரியவில்லை'], ['இன்னும் சிறப்பாக்கலாம்', 'வேலை செய்கிறது, ஆனால் மேம்படுத்தலாம்'], ['யோசனை', 'இன்னும் இல்லாத ஒன்று']],
-      powered: 'Heresay மூலம் இயங்குகிறது', introTitle: 'ஏதாவது சரியில்லையா? குழுவிடம் சொல்லுங்கள்.',
-      introBody: 'எது வேலை செய்யவில்லை, எது குழப்பமாக உள்ளது, எதை மேம்படுத்தலாம் என்று குழுவிடம் சொல்ல, {reach}. ஒவ்வொரு புகாரையும் ஒருவர் படிக்கிறார்; உங்களுடையதற்கு என்ன ஆனது என்பதைப் பார்க்கலாம்.',
+      powered: 'Heresay மூலம் இயங்குகிறது', introTitle: 'இந்த ஆப்பை இன்னும் சிறப்பாக்க உதவுங்கள்',
+      introBody: 'ஒரு யோசனையைப் பகிர அல்லது நீங்கள் எதை மாற்ற விரும்புகிறீர்கள் என்று குழுவிடம் சொல்ல, {reach}. ஒவ்வொரு கருத்தையும் ஒருவர் படிக்கிறார்; உங்களுடையதற்கு என்ன ஆனது என்பதைப் பார்க்கலாம்.',
       reachTap: 'எப்போது வேண்டுமானாலும் மூலையில் உள்ள {label} ஐத் தட்டுங்கள்', reachClick: 'எப்போது வேண்டுமானாலும் {label} ஐக் கிளிக் செய்யுங்கள்', reachMenu: 'எப்போது வேண்டுமானாலும் Help › சிக்கலைத் தெரிவி… (⌥⌘R) என்பதைத் தேர்ந்தெடுங்கள்', reachUse: 'எப்போது வேண்டுமானாலும் {label} ஐப் பயன்படுத்துங்கள்',
       tryIt: 'முயன்று பாருங்கள்', gotIt: 'சரி', cancel: 'ரத்துசெய்', sentTitle: 'அனுப்பப்பட்டது. நன்றி.', sentBody: 'குழுவில் ஒருவர் ஒவ்வொரு புகாரையும் படிக்கிறார். அதற்கு என்ன ஆனது என்பதை “உங்கள் புகார்கள்” பகுதியில் பார்க்கலாம்.',
       another: 'இன்னொன்று அனுப்பு', see: 'உங்கள் புகார்களைப் பார்', menu: 'சிக்கலைத் தெரிவி…' },
     hi: { report: 'रिपोर्ट करें', send: 'भेजें', sendFeedback: 'फ़ीडबैक भेजें', straight: 'सीधे {app} टीम को', tabs: ['रिपोर्ट', 'आपकी रिपोर्ट', 'प्राथमिकताएँ'],
       what: 'यह क्या है?', happened: 'क्या हुआ?', ph: 'क्या हुआ, या आप क्या बदलना चाहेंगे?', attached: 'इस स्क्रीन और ऐप के वर्शन के साथ भेजा जाता है।',
       types: [['टूटा हुआ', 'कुछ काम नहीं कर रहा'], ['उलझन भरा', 'समझ नहीं आया कि कैसे करें'], ['बेहतर हो सकता है', 'काम करता है, पर बेहतर हो सकता है'], ['सुझाव', 'कुछ ऐसा जो अभी नहीं है']],
-      powered: 'Heresay द्वारा संचालित', introTitle: 'कुछ ठीक नहीं लग रहा? टीम को बताइए।',
-      introBody: 'टीम को यह बताने के लिए कि क्या टूटा है, क्या उलझन भरा है या क्या बेहतर हो सकता है, {reach}। हर रिपोर्ट कोई इंसान पढ़ता है, और आपकी रिपोर्ट का क्या हुआ, यह आप देखेंगे।',
+      powered: 'Heresay द्वारा संचालित', introTitle: 'इस ऐप को और बेहतर बनाने में मदद करें',
+      introBody: 'कोई आइडिया बताने या टीम को यह बताने के लिए कि आप क्या बदलना चाहेंगे, {reach}। हर रिपोर्ट कोई इंसान पढ़ता है, और आपकी रिपोर्ट का क्या हुआ, यह आप देखेंगे।',
       reachTap: 'कभी भी कोने में {label} पर टैप करें', reachClick: 'कभी भी {label} पर क्लिक करें', reachMenu: 'कभी भी Help › समस्या की रिपोर्ट करें… (⌥⌘R) चुनें', reachUse: 'कभी भी {label} का इस्तेमाल करें',
       tryIt: 'आज़माएँ', gotIt: 'ठीक है', cancel: 'रद्द करें', sentTitle: 'भेज दिया गया। धन्यवाद।', sentBody: 'टीम का कोई व्यक्ति हर रिपोर्ट पढ़ता है। इसका क्या हुआ, यह आप “आपकी रिपोर्ट” में देखेंगे।',
       another: 'एक और भेजें', see: 'अपनी रिपोर्ट देखें', menu: 'समस्या की रिपोर्ट करें…' },
@@ -838,9 +838,14 @@
       ? '<div class="am-dim"></div><div class="am-sheet ' + (mac ? 'mac ' : '') + (sheetSize || 'regular') + '">' + head + (show === 'sent' ? sent : form) + '</div>' : '';
     var reach = mac ? (cfg.entry !== 'none' ? w.reachMenu : fmt(hasButton ? w.reachClick : w.reachUse, { label: cfg.label ? '“' + cfg.label + '”' : w.report }))
       : fmt(hasButton ? w.reachTap : w.reachUse, { label: cfg.label ? '“' + cfg.label + '”' : w.report });
-    var alert = show === 'intro'
-      ? '<div class="am-dim"></div><div class="am-alert"><b>' + esc(w.introTitle) + '</b><p>' + esc(fmt(w.introBody, { reach: reach })) + '</p><p>' + esc(w.powered) + '</p>' +
-        '<div><span>' + esc(w.gotIt) + '</span><span>' + esc(w.tryIt) + '</span></div></div>' : '';
+    // The introduction: a welcome sheet on iPhone, its own small window on the Mac.
+    var badge = '<span class="am-badge" style="background:' + markC + '24">' + mark(markC, 32) + '</span>';
+    var introText = badge + '<b>' + esc(w.introTitle) + '</b><p>' + esc(fmt(w.introBody, { reach: reach })) + '</p>';
+    var alert = show !== 'intro' ? '' : mac
+      ? '<div class="am-intro mac"><div class="am-intro-bar"><i></i></div><div class="am-intro-text">' + introText + '</div>' +
+        '<div class="am-intro-foot">' + powered + '<u>' + esc(w.gotIt) + '</u><strong style="background:' + acc + '">' + esc(w.tryIt) + '</strong></div></div>'
+      : '<div class="am-dim"></div><div class="am-intro"><div class="am-intro-text">' + introText + '</div>' +
+        '<strong style="background:' + acc + '">' + esc(w.tryIt) + '</strong><u style="color:' + acc + '">' + esc(w.gotIt) + '</u>' + powered + '</div>';
     var menu = mac && cfg.entry !== 'none' && show === 'button'
       ? '<div class="am-menu"><span>' + esc(w.menu) + '</span><kbd>⌥⌘R</kbd></div>' : '';
     var rows = ['Groceries', 'Trip to Ooty', 'Quarterly plan', 'Book list'].map(function (r) { return '<li>' + r + '</li>'; }).join('');

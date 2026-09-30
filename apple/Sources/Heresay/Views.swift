@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: - Entry points
 
@@ -37,6 +40,9 @@ struct ReportButtonModifier: ViewModifier {
     @ObservedObject var heresay = Heresay.shared
     let alignment: Alignment?
     let showsButton: Bool
+    #if os(iOS)
+    @State private var tryAfterIntro = false
+    #endif
 
     func body(content: Content) -> some View {
         content
@@ -44,15 +50,153 @@ struct ReportButtonModifier: ViewModifier {
                 if showsButton && heresay.buttonVisible { ReportButton(heresay: heresay).padding(heresay.style.offset) }
             }
             .modifier(SheetPresenter(heresay: heresay))
-            .alert(heresay.introTitle, isPresented: $heresay.introPending) {
-                Button(heresay.words[.tryIt]) { heresay.present(.report) }
-                Button(heresay.words[.gotIt], role: .cancel) {}
-            } message: {
-                Text(heresay.introMessage)
+            #if os(iOS)
+            // A welcome sheet, like the ones apps show for what's new. The report sheet waits
+            // until it has gone, since only one sheet can be up.
+            .sheet(isPresented: $heresay.introPending, onDismiss: {
+                if tryAfterIntro { tryAfterIntro = false; heresay.present(.report) }
+            }) {
+                IntroView(heresay: heresay) { tryIt in tryAfterIntro = tryIt; heresay.introPending = false }
+                    .heresayTypeface(heresay.style.typeface)
+                    .preferredColorScheme(heresay.style.colorScheme)
+                    .presentationDetents([.medium])
             }
+            #else
+            // Its own small window, like an app's welcome window, rather than an alert.
+            .onReceive(heresay.$introPending) { pending in
+                if pending { DispatchQueue.main.async { IntroWindow.show(heresay) } }
+            }
+            #endif
             .onAppear { if showsButton { heresay.hasButton = true } }
     }
 }
+
+// MARK: - The introduction
+
+/// The one-time introduction: the mark, what Heresay is for and where to find it, and a way in.
+struct IntroView: View {
+    @ObservedObject var heresay: Heresay
+    /// Close it; `true` opens the report sheet next.
+    let finish: (Bool) -> Void
+
+    private var badge: some View {
+        HeresayMark.filled(heresay.markColor)
+            .frame(width: 34, height: 34)
+            .frame(width: 60, height: 60)
+            .background(Circle().fill(heresay.markColor.opacity(0.14)))
+            .accessibilityHidden(true)
+    }
+
+    private var words: some View {
+        VStack(spacing: 8) {
+            Text(heresay.introTitle)
+                .font(.title2.weight(.bold))
+            Text(heresay.introBody)
+                .foregroundStyle(.secondary)
+        }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    var body: some View {
+        #if os(iOS)
+        VStack(spacing: 16) {
+            Spacer(minLength: 12)
+            badge
+            words
+            Spacer(minLength: 12)
+            Button { finish(true) } label: {
+                Text(heresay.words[.tryIt]).fontWeight(.semibold).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(heresay.accent)
+            Button(heresay.words[.gotIt]) { finish(false) }
+                .tint(heresay.accent)
+            PoweredBy(heresay: heresay)
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 8)
+        #else
+        VStack(spacing: 0) {
+            VStack(spacing: 14) {
+                badge
+                words
+            }
+            .padding(.horizontal, 36)
+            .padding(.top, 40)
+            .padding(.bottom, 28)
+            HStack(spacing: 10) {
+                PoweredBy(heresay: heresay).fixedSize()
+                Spacer()
+                Button(heresay.words[.gotIt]) { finish(false) }
+                    .keyboardShortcut(.cancelAction)
+                Button(heresay.words[.tryIt]) { finish(true) }
+                    .keyboardShortcut(.defaultAction)
+                    .tint(heresay.accent)
+            }
+            .controlSize(.large)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+        }
+        .frame(width: 440)
+        #endif
+    }
+}
+
+#if os(macOS)
+/// The introduction's window: small, titled, centred on the app's window, closed by either button,
+/// Escape or the close button. One at a time, however many windows the app has open.
+@MainActor
+enum IntroWindow {
+    private static var window: NSWindow?
+    private static var closing: NSObjectProtocol?
+
+    static func show(_ heresay: Heresay) {
+        guard heresay.introPending, window == nil else { return }
+        heresay.introPending = false
+        let parent = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.orderedWindows.first { $0.isVisible && $0.canBecomeMain }
+        let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .fullSizeContentView],
+                         backing: .buffered, defer: false)
+        w.title = heresay.introTitle
+        w.titleVisibility = .hidden
+        w.titlebarAppearsTransparent = true
+        w.isMovableByWindowBackground = true
+        w.isReleasedWhenClosed = false
+        w.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        w.standardWindowButton(.zoomButton)?.isHidden = true
+        switch heresay.style.colorScheme {
+        case .light?: w.appearance = NSAppearance(named: .aqua)
+        case .dark?: w.appearance = NSAppearance(named: .darkAqua)
+        default: break
+        }
+        var openSheet = false
+        let host = NSHostingController(rootView: IntroView(heresay: heresay) { tryIt in
+            openSheet = tryIt
+            w.close()
+        }.heresayTypeface(heresay.style.typeface))
+        w.contentViewController = host
+        w.setContentSize(host.view.fittingSize)
+        if let parent {
+            let p = parent.frame, s = w.frame.size
+            w.setFrameOrigin(NSPoint(x: p.midX - s.width / 2, y: p.midY - s.height / 2 + p.height / 8))
+        } else {
+            w.center()
+        }
+        closing = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                if let closing { NotificationCenter.default.removeObserver(closing) }
+                closing = nil
+                window = nil
+                parent?.makeKeyAndOrderFront(nil)
+                if openSheet { heresay.present(.report) }
+            }
+        }
+        window = w
+        w.makeKeyAndOrderFront(nil)
+    }
+}
+#endif
 
 /// A sheet, or on iPhone and iPad a full-screen cover when the style asks for `.large`.
 struct SheetPresenter: ViewModifier {
