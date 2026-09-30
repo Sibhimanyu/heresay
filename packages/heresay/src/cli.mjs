@@ -16,7 +16,7 @@ const HELP = `
     npx heresay disconnect [--yes]                            undo connect in this repo
 
   For agents (the same actions as the MCP tools)
-    heresay guide [topic]                  start | install-web | install-apple | fix-brief | write-note | uninstall
+    heresay guide [topic]                  start | install-web | customize-web | install-apple | customize-apple | fix-brief | write-note | uninstall
     heresay apps                           apps connected to this repo
     heresay create-app <name> [--site <origin>]… [--platform web]
     heresay install <app>                  install steps with this app's tag

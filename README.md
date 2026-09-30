@@ -41,6 +41,13 @@ gives you:
 <script src="https://<your-heresay>.web.app/sdk/v1.js" data-key="pk_..." defer></script>
 ```
 
+The defaults are the recommended look. To fit the app (colour, corner, text, light or dark,
+French, Tamil or Hindi, no floating button), open the app in the dashboard and choose
+**Design**: it previews the widget and gives the tag, or the Swift for iOS and macOS. Web
+options are `data-` attributes (`public/guides/customize-web.md`); Swift takes a `HeresayStyle`
+(`public/guides/customize-apple.md`). "Powered by Heresay" always shows. See
+`docs/decisions/0006-web-sdk-customisation.md`.
+
 Later: `npx create-heresay update` deploys a new version, `status` shows what's where, `remove`
 deletes a Heresay. The setup UX is specified in `docs/plan/cli-ux.md`; the code is
 `packages/create-heresay/`.

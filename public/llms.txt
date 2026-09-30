@@ -8,7 +8,9 @@ This site is one team's own Heresay. Its guides for coding agents are plain Mark
 
 - [Start here](/guides/start.md): what Heresay is and the rules
 - [Install on the web](/guides/install-web.md): where the script tag goes, per framework
+- [Change how it looks on the web](/guides/customize-web.md): every option, and the recommended defaults
 - [Install on iOS and macOS](/guides/install-apple.md): the Swift package and one line of setup
+- [Change how it looks on iOS and macOS](/guides/customize-apple.md): HeresayStyle, and the recommended defaults
 - [Fix a brief](/guides/fix-brief.md): claim, fix, hand off, mark fixed
 - [Write the fix note](/guides/write-note.md): the note the reporter reads
 - [Docs](/docs.html): script tag options, JavaScript API, limits

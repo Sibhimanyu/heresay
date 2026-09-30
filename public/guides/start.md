@@ -31,6 +31,9 @@ yes; on a no, `skip_update` so nobody asks again.
 ## Which topic next
 
 - Adding Heresay to an app: `install-web` for web apps, `install-apple` for iOS and macOS.
+- Making the web widget fit the app (colour, corner, text, language, no floating button):
+  `customize-web`; for iOS and macOS, `customize-apple`. The defaults are the recommended setup;
+  change them only when asked.
 - Fixing reports: `fix-brief`, then `write-note`.
 - Removing Heresay from an app: `uninstall`.
 - New features for an app that already has Heresay: `whats-new`.

@@ -67,8 +67,8 @@ export async function serve() {
 
   server.registerTool('heresay_guide', {
     title: 'Read a Heresay guide',
-    description: 'Current steps for a Heresay task, from this repo\'s own Heresay. Call before any Heresay task. Topics: start, install-web, install-apple, fix-brief, write-note, uninstall.',
-    inputSchema: { topic: z.string().default('start').describe('start | install-web | install-apple | fix-brief | write-note | uninstall') },
+    description: 'Current steps for a Heresay task, from this repo\'s own Heresay. Call before any Heresay task. Topics: start, install-web, customize-web, install-apple, customize-apple, fix-brief, write-note, uninstall.',
+    inputSchema: { topic: z.string().default('start').describe('start | install-web | customize-web | install-apple | customize-apple | fix-brief | write-note | uninstall') },
   }, tool(async ({ topic }) => text((await guide(connection() ?? fail0(), topic)).text)));
 
   // ---- install ---------------------------------------------------------------------------

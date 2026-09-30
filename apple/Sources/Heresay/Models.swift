@@ -6,24 +6,6 @@ public enum ReportType: String, Codable, CaseIterable, Sendable, Identifiable {
     case broken, confusing, improvement, idea
     public var id: String { rawValue }
 
-    var label: String {
-        switch self {
-        case .broken: "Broken"
-        case .confusing: "Confusing"
-        case .improvement: "Could be better"
-        case .idea: "Idea"
-        }
-    }
-
-    var hint: String {
-        switch self {
-        case .broken: "Something doesn’t work"
-        case .confusing: "I couldn’t tell how"
-        case .improvement: "It works, and could be better"
-        case .idea: "Something that isn’t there yet"
-        }
-    }
-
     var symbol: String {
         switch self {
         case .broken: "exclamationmark.triangle"
@@ -36,15 +18,6 @@ public enum ReportType: String, Codable, CaseIterable, Sendable, Identifiable {
 
 public enum ReportStatus: String, Codable, Sendable {
     case open, accepted, fixed, declined
-
-    var label: String {
-        switch self {
-        case .open: "Waiting for the developer"
-        case .accepted: "Accepted, being worked on"
-        case .fixed: "Fixed"
-        case .declined: "Declined"
-        }
-    }
 }
 
 /// A report as its sender sees it: no other device's reports, no triager identity.
