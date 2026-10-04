@@ -452,8 +452,8 @@
     'box-shadow:0 4px 14px rgba(0,0,0,.18);cursor:pointer;font-weight:600;white-space:nowrap}',
     '.fab.r{right:var(--fb-x)}.fab.l{left:var(--fb-x)}.fab.c{left:50%;transform:translateX(-50%)}',
     '.fab.b{bottom:var(--fb-y)}.fab.t{top:var(--fb-y)}',
-    '.fab.sz-small{padding:6px 10px;font-size:12.5px}.fab.sz-small svg{width:14px;height:14px}',
-    '.fab.sz-large{padding:12px 18px;font-size:16px}.fab.sz-large svg{width:22px;height:22px}',
+    '.fab.sz-small{padding:6px 10px;font-size:12.5px}.fab.sz-small svg{width:17px;height:17px}',
+    '.fab.sz-large{padding:12px 18px;font-size:16px}.fab.sz-large svg{width:27px;height:27px}',
     '.fab.st-icon{padding:10px;border-radius:50%}.fab.st-icon.sz-small{padding:7px}.fab.st-icon.sz-large{padding:13px}',
     '.fab.st-icon .lbl{display:none}',
     '.fab.st-tab{writing-mode:vertical-rl;top:50%;bottom:auto;transform:translateY(-50%);padding:14px 8px;right:0;border-radius:10px 0 0 10px;border-right:0}',
@@ -522,7 +522,7 @@
     '.small{font-size:12px;color:var(--fb-mute)}',
     '.send{padding:9px 16px;border:0;border-radius:10px;background:var(--fb-acc);color:var(--fb-acc-fg);font-weight:600;cursor:pointer}',
     '.send[disabled]{opacity:.5;cursor:default}',
-    '.send.busy{opacity:1;display:inline-flex;align-items:center;gap:7px}.send .mark{color:var(--fb-acc-fg)}.send .eye{fill:var(--fb-acc)}',
+    '.send.busy{opacity:1;display:inline-flex;align-items:center;gap:7px}.send .mark{color:var(--fb-acc-fg)}.send .mark svg{width:20px;height:20px}.send .eye{fill:var(--fb-acc)}',
     // The loader: the mark's eyes look left, look right, blink (brand/svg/loaders/heresay-loader-glance.svg, faster).
     '.glance svg *{transform-box:view-box}.glance .eyes{animation:fb-look 1.6s ease-in-out infinite}.glance .e{animation:fb-blink 1.6s infinite}',
     '@keyframes fb-look{0%,10%{transform:none}25%,40%{transform:translate(-9px,1px)}55%,70%{transform:translate(9px,-1px)}85%,100%{transform:none}}',
@@ -541,7 +541,7 @@
     '.by{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:14px;padding-top:10px;',
     'border-top:1px solid var(--fb-line);font-size:11.5px;color:var(--fb-mute)}',
     '.by a{display:inline-flex;align-items:center;gap:4px;margin-left:auto;color:inherit;text-decoration:none;font-weight:600;white-space:nowrap}',
-    '.by a:hover{text-decoration:underline}.by .mark svg{width:13px;height:13px}',
+    '.by a:hover{text-decoration:underline}.by .mark svg{width:16px;height:16px}',
   ].join('');
 
   /**
@@ -594,7 +594,7 @@
   function markEl(glance) {
     var s = document.createElement('span');
     s.className = glance ? 'mark glance' : 'mark';
-    s.innerHTML = '<svg viewBox="0 0 200 200" width="18" height="18" aria-hidden="true"><path d="M174 100L177 105L180 110L181 116L180 121L178 126L174 131L169 134L164 137L159 139L154 141L149 143L146 146L143 149L141 154L139 159L137 164L134 169L131 174L126 178L121 180L116 181L110 180L105 177L100 174L95 170L91 167L87 164L83 163L79 162L74 162L69 163L63 164L57 164L51 164L46 162L41 159L38 154L36 149L36 143L36 137L37 131L38 126L38 121L37 117L36 113L33 109L30 105L26 100L23 95L20 90L19 84L20 79L22 74L26 69L31 66L36 63L41 61L46 59L51 57L54 54L57 51L59 46L61 41L63 36L66 31L69 26L74 22L79 20L84 19L90 20L95 23L100 26L105 30L109 33L113 36L117 37L121 38L126 38L131 37L137 36L143 36L149 36L154 38L159 41L162 46L164 51L164 57L164 63L163 69L162 74L162 79L163 83L164 87L167 91L170 95Z" fill="currentColor"/><g class="eyes"><g class="e" style="transform-origin:80px 106px"><path class="eye" d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(80 106) rotate(-24) scale(1.25)"/></g><g class="e" style="transform-origin:124px 101px"><path class="eye" d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(124 101) rotate(-24) scale(1.25)"/></g></g></svg>';
+    s.innerHTML = '<svg viewBox="0 0 200 200" width="22" height="22" aria-hidden="true"><path d="M174 100L177 105L180 110L181 116L180 121L178 126L174 131L169 134L164 137L159 139L154 141L149 143L146 146L143 149L141 154L139 159L137 164L134 169L131 174L126 178L121 180L116 181L110 180L105 177L100 174L95 170L91 167L87 164L83 163L79 162L74 162L69 163L63 164L57 164L51 164L46 162L41 159L38 154L36 149L36 143L36 137L37 131L38 126L38 121L37 117L36 113L33 109L30 105L26 100L23 95L20 90L19 84L20 79L22 74L26 69L31 66L36 63L41 61L46 59L51 57L54 54L57 51L59 46L61 41L63 36L66 31L69 26L74 22L79 20L84 19L90 20L95 23L100 26L105 30L109 33L113 36L117 37L121 38L126 38L131 37L137 36L143 36L149 36L154 38L159 41L162 46L164 51L164 57L164 63L163 69L162 74L162 79L163 83L164 87L167 91L170 95Z" fill="currentColor"/><g class="eyes"><g class="e" style="transform-origin:80px 106px"><path class="eye" d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(80 106) rotate(-24) scale(1.25)"/></g><g class="e" style="transform-origin:124px 101px"><path class="eye" d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(124 101) rotate(-24) scale(1.25)"/></g></g></svg>';
     return s;
   }
 

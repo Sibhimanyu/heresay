@@ -815,7 +815,7 @@
     var pos = cfg.position || 'bottomTrailing';
     var place = (/top/.test(pos) ? 'top:' + (off + (mac ? 34 : 54)) + 'px;' : 'bottom:' + (off + (mac ? 0 : 20)) + 'px;') +
       (pos === 'bottom' ? 'left:50%;transform:translateX(-50%);' : /Leading/.test(pos) ? 'left:' + off + 'px;' : 'right:' + off + 'px;');
-    var sz = { small: [11, 10, 6, 13], large: [16, 18, 12, 21] }[cfg.size] || [13, 14, 9, 17];
+    var sz = { small: [11, 10, 6, 16], large: [16, 18, 12, 26] }[cfg.size] || [13, 14, 9, 21];
     var neutral = cfg.fill === 'neutral';
     var icon = cfg.button === 'icon';
     var btnDark = dark || darkMode;
@@ -831,7 +831,7 @@
       return '<div class="am-type"><span class="am-ti" style="color:' + acc + ';background:' + acc + '1f">' + TYPE_ICON[t] + '</span><span><b>' + esc(tw[0]) + '</b><i>' + esc(tw[1]) + '</i></span></div>';
     }).join('');
     var tabs = [w.tabs[0], w.tabs[1]].concat(cfg.showsPreferences === 'false' ? [] : [w.tabs[2]]);
-    var powered = '<div class="am-powered">' + mark(markC, 11) + esc(w.powered) + '</div>';
+    var powered = '<div class="am-powered">' + mark(markC, 14) + esc(w.powered) + '</div>';
     var head = '<div class="am-head">' + mark(markC, 28) + '<div><b>' + esc(w.sendFeedback) + '</b><span>' + esc(fmt(w.straight, { app: productName(p) })) + '</span></div>' + (mac ? '' : '<em>✕</em>') + '</div>' +
       '<div class="am-seg">' + tabs.map(function (t, i) { return '<span' + (i === 0 ? ' class="on"' : '') + '>' + esc(t) + '</span>'; }).join('') + '</div>';
     var form = '<div class="am-body"><p class="am-lab">' + esc(w.what) + '</p><div class="am-types' + (mac ? ' grid' : '') + '">' + typeCards + '</div>' +
