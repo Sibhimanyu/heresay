@@ -233,9 +233,9 @@ struct ReportButton: View {
 
     private var metrics: (font: Font, h: CGFloat, v: CGFloat, mark: CGFloat) {
         switch heresay.style.size {
-        case .small: (.caption, 10, 6, 14)
-        case .regular: (.subheadline, 14, 9, 18)
-        case .large: (.body, 18, 12, 22)
+        case .small: (.caption, 10, 6, 17)
+        case .regular: (.subheadline, 14, 9, 22)
+        case .large: (.body, 18, 12, 27)
         }
     }
 
@@ -285,7 +285,7 @@ struct PoweredBy: View {
     var body: some View {
         Link(destination: heresayURL) {
             HStack(spacing: 5) {
-                HeresayMark.filled(heresay.markColor).frame(width: 12, height: 12)
+                HeresayMark.filled(heresay.markColor).frame(width: 15, height: 15)
                 Text(heresay.words[.powered])
             }
             .font(.caption.weight(.medium))
@@ -426,7 +426,7 @@ struct ReportSheet: View {
                     Task { await submit() }
                 } label: {
                     HStack(spacing: 6) {
-                        if sending { HeresayGlance(.white).frame(width: 16, height: 16) }
+                        if sending { HeresayGlance(.white).frame(width: 20, height: 20) }
                         Text(sending ? w[.sending] : w[.send]).fontWeight(.semibold)
                     }
                     #if os(iOS)

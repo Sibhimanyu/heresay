@@ -134,7 +134,7 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 @media (prefers-reduced-motion: reduce) { .wait::before { animation:none; } }
 /* loading: the Glance mark, faded in late so quick loads never flash it */
 .loading { display:grid; place-items:center; padding:12vh 0; animation:loading-in .2s .3s both; }
-.loading img { width:56px; height:56px; }
+.loading img { width:96px; height:96px; }
 .loading.boot { padding-top:30vh; }
 .loading:not(.boot):not(:only-child) { display:none; }
 @keyframes loading-in { from { opacity:0; } }
