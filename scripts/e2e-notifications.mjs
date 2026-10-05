@@ -56,22 +56,27 @@ try {
   await telegram.getByRole('checkbox').check();
   await telegram.getByRole('button', { name: 'Save Telegram' }).click();
   await telegram.getByText('Telegram needs a bot token and a chat ID.').waitFor();
-  await telegram.locator('[name=telegram_token]').fill(TOKEN);
-  // Guided: the dashboard finds the chats that messaged the bot, so nobody hunts for an ID.
-  let lookupBody = null;
+  // Guided: pasting the token checks it, says what to tap, then watches the bot until the chat shows up.
+  let lookupBody = null, chats = [];
   await page.route('**/v1/notifications/telegram/lookup', async (route) => {
     lookupBody = route.request().postDataJSON();
-    await route.fulfill({ json: { bot: { username: 'acme_alerts_bot', name: 'Acme alerts' }, chats: [
-      { id: '-1001234567890', title: 'Acme team', kind: 'supergroup' }, { id: '42', title: 'Asha R', kind: 'private' },
-    ] } });
+    await route.fulfill({ json: { bot: { username: 'acme_alerts_bot', name: 'Acme alerts' }, chats } });
   });
-  await telegram.getByRole('button', { name: 'Find my chats' }).click();
-  await telegram.getByText('Acme alerts (@acme_alerts_bot)').waitFor();
+  await telegram.locator('[name=telegram_token]').fill(TOKEN);
+  await telegram.getByText('Your bot is Acme alerts (@acme_alerts_bot).').waitFor();
   assert.deepEqual(lookupBody, { token: TOKEN });
-  await telegram.getByRole('link', { name: 'Open @acme_alerts_bot ↗' }).waitFor();
+  await telegram.getByRole('link', { name: 'Open @acme_alerts_bot in Telegram ↗' }).waitFor();
+  await telegram.getByText('Waiting for your message to @acme_alerts_bot…').waitFor();
+  await telegram.screenshot({ path: SHOTS + 'notifications-telegram-waiting.png' });
+  // They press Start in Telegram; the next look finds their chat and picks it.
+  chats = [{ id: '-1001234567890', title: 'Acme team', kind: 'supergroup' }, { id: '42', title: 'Asha R', kind: 'private' }];
+  await telegram.getByText('Alerts will go to Asha R (private chat).').waitFor({ timeout: 15000 });
+  assert.equal(await telegram.locator('[name=chat_id]').inputValue(), '42');
+  assert.equal(await telegram.getByRole('checkbox').isChecked(), true, 'choosing a chat turns Telegram on');
+  await telegram.getByRole('tab', { name: 'A group' }).click();
+  await telegram.getByRole('link', { name: 'Add @acme_alerts_bot to a group ↗' }).waitFor();
   await telegram.getByRole('radio', { name: /Acme team/ }).check();
   assert.equal(await telegram.locator('[name=chat_id]').inputValue(), '-1001234567890');
-  await page.unroute('**/v1/notifications/telegram/lookup');
   await telegram.screenshot({ path: SHOTS + 'notifications-telegram-guide.png' });
   await telegram.getByRole('button', { name: 'Save Telegram' }).click();
   await telegram.getByText('Telegram settings saved. Send a test to check delivery.').waitFor();

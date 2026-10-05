@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Telegram setup explains every tap: choose **Just me**, **A group** or **A channel**, follow the steps shown, and the page finds the chat by itself as soon as the bot hears from it. Pasting the token checks it straight away; entering a chat ID by hand is tucked away for those who already know it.
+
 ## [0.2.17] - 2026-10-05
 
 ### Changed

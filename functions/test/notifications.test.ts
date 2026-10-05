@@ -261,7 +261,7 @@ test('telegram lookup: owner only, pasted or saved token, never echoes the token
   await s.enable();
   assert.equal((await look({})).status, 200, 'falls back to the saved token');
   assert.deepEqual(asked, [TOKEN, TOKEN]);
-  for (let i = 0; i < 12; i++) await look({ token: TOKEN });
+  for (let i = 0; i < 30; i++) await look({ token: TOKEN });
   assert.equal((await look({ token: TOKEN })).status, 429, 'rate-limited');
 });
 

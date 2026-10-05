@@ -389,6 +389,14 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .setup-body { margin:6px 0 0 34px; }
 .setup-body > .row.tight { margin-top:10px; }
 .setup-body label { margin-top:14px; }
+.guide { margin:6px 0 0; padding-left:20px; display:flex; flex-direction:column; gap:10px; }
+.guide li { padding-left:4px; }
+.guide li::marker { font-weight:700; color:var(--deep); }
+.tg-step2 .seg { margin:8px 0 4px; }
+.tg-step2 .wait { margin-top:16px; }
+.tg-step2 .chat-list { margin-top:12px; }
+.chosen-line { margin:12px 0 0; font-weight:600; }
+.bot-line p { margin:8px 0 0; }
 .chat-finder:empty { display:none; }
 .chat-finder { margin-top:12px; }
 .chat-finder p { margin:0 0 8px; }
