@@ -99,7 +99,9 @@
         <tr><td><code>data-panel</code></td><td><code>corner</code> · <code>sheet</code> (full height on that side) · <code>center</code></td></tr>
         <tr><td><code>data-width</code></td><td><code>regular</code> · <code>narrow</code> · <code>wide</code></td></tr>
         <tr><td><code>data-backdrop</code></td><td><code>dim</code> · <code>clear</code> · <code>blur</code></td></tr>
-        <tr><td><code>data-preferences</code></td><td><code>show</code> · <code>hide</code></td></tr></table>
+        <tr><td><code>data-preferences</code></td><td><code>show</code> · <code>hide</code></td></tr>
+        <tr><td><code>data-trail</code></td><td>on · <code>off</code> · the parts to keep, like <code>pages errors requests</code>. What happened before a report: pages, clicks, failed requests, errors. The reporter sees it and can take it off. Never what anyone typed.</td></tr>
+        <tr><td><code>data-heresay-private</code></td><td>on any element of your app: clicks on it are recorded without its text</td></tr></table>
       <p>Always there, whatever you choose: the Heresay mark on the button, the <b>Your reports</b> tab (people read why a report was declined), and <b>Powered by Heresay</b> in the panel and the introduction, so people can tell your app uses an outside tool. The widget lives in a shadow root, so your CSS can't restyle it.</p>
 
       <h2 id="api">JavaScript API</h2>

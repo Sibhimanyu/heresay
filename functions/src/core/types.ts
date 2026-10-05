@@ -1,3 +1,5 @@
+import type { TrailEvent } from './trail.js';
+
 /**
  * What the reporter says the thing IS.
  *
@@ -68,6 +70,8 @@ export const FRAMEWORKS = ['html', 'react', 'next', 'vue', 'nuxt', 'svelte', 'an
 export const isFramework = (v: unknown): v is (typeof FRAMEWORKS)[number] =>
   typeof v === 'string' && (FRAMEWORKS as readonly string[]).includes(v);
 
+export type { TrailEvent, TrailKind } from './trail.js';
+
 export interface Report {
   id: string;
   project_id: string;
@@ -77,6 +81,8 @@ export interface Report {
   context: ReportContext;
   /** null when the reporter set no preferences. */
   reporter?: ReporterPrefs | null;
+  /** What happened before it was sent (trail.ts). null when the reporter switched it off. */
+  trail?: TrailEvent[] | null;
   status: ReportStatus;
   decline_reason: string | null;
   /** What was done, in words for the reporter. Set when marked fixed. */
@@ -158,6 +164,8 @@ export interface Task {
   context: ReportContext;
   /** The reporter's standing note, if any. Their name and email stay out of briefs. */
   reporter_note?: string | null;
+  /** Copied from the report. Untrusted like the text, so fenced in the prompt the same way. */
+  trail?: TrailEvent[] | null;
   note: string | null;    // what the accepter added
   accepted_by: string;
   accepted_at: string;

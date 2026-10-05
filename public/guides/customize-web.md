@@ -70,6 +70,18 @@ default says what matters.
 | `data-preferences` | `show` · `hide` (hide it when the app calls `identify()` and wants nothing else asked) |
 | `data-intro` | not set (the app calls `introduce()`) · `auto` (3 s after the first visit) |
 
+**The trail**
+
+With each report, the widget attaches what happened in the app in the last few minutes:
+pages visited, what was clicked (by its label), requests that failed, errors and console
+warnings. The reporter sees it in the form and can switch it off or leave parts out. Never what
+anyone typed, request bodies, headers or query strings. On by default; change it only when asked.
+
+| Attribute | Values |
+| --- | --- |
+| `data-trail` | on (default) · `off` · the parts to keep, e.g. `pages errors requests` (from `pages`, `clicks`, `requests`, `errors`) |
+| `data-heresay-private` | on any element of the app: clicks on it are recorded as "button", without its text |
+
 **Calls**
 
 - `window.Heresay?.open({ type, text })`: opens the form, filled in. The person still reviews and sends it.

@@ -50,6 +50,18 @@ export function storeContract(name: string, make: () => Store | Promise<Store>) 
     assert.deepEqual((await s.listReportsForDevice(p.id, 'device_contract_000002')).map((r) => r.id), [r2.id]);
   });
 
+  test(`${name}: a report's trail comes back as it went in, on the report and its task`, async () => {
+    const s = await make(); const p = project(uid('u_')); await s.createProject(p);
+    const trail = [
+      { kind: 'page' as const, ago: 40, text: '/settings', detail: null, n: 1 },
+      { kind: 'error' as const, ago: 3, text: 'TypeError: x is undefined', detail: 'at save (/app.js:8:2)', n: 2 },
+    ];
+    const r = report(p, { trail }); await s.createReport(r);
+    assert.deepEqual((await s.getReport(p.id, r.id))?.trail, trail);
+    await s.accept(p.id, r.id, { ...task(r), trail }, AT);
+    assert.deepEqual((await s.getTask(p.id, r.id))?.trail, trail);
+  });
+
   test(`${name}: accept moves open to accepted and writes the task, once`, async () => {
     const s = await make(); const p = project(uid('u_')); await s.createProject(p);
     const r = report(p); await s.createReport(r);

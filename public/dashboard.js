@@ -1374,6 +1374,34 @@
       .filter(Boolean).join(' · ');
   }
 
+  var TRAIL_LABEL = { page: 'Page', click: 'Click', request: 'Request', error: 'Error', warn: 'Warning', state: 'Device' };
+
+  /**
+   * What happened in the app before the report, oldest first, as the SDK recorded it. Open by
+   * itself when something failed. Written by the reporter's device, so only ever set as text.
+   */
+  function trailView(t) {
+    if (!t || !t.length) return null;
+    var bad = t.filter(function (e) { return e.kind === 'error' || e.kind === 'request'; }).length;
+    var ago = function (s) { return '-' + Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2); };
+    return el('details', { class: 'trail', open: bad > 0 }, [
+      el('summary', { text: 'What happened before · ' + t.length + (t.length === 1 ? ' step' : ' steps') +
+        (bad ? ' · ' + bad + ' went wrong' : '') }),
+      el('ol', {}, t.map(function (e) {
+        return el('li', { class: 'k-' + e.kind }, [
+          el('span', { class: 'ago', text: ago(e.ago) }),
+          el('span', { class: 'kind', text: TRAIL_LABEL[e.kind] || e.kind }),
+          el('span', { class: 'what' }, [
+            el('span', { text: e.text + (e.n > 1 ? ' ×' + e.n : '') }),
+            e.detail ? el('pre', { text: e.detail }) : null,
+          ]),
+        ]);
+      }).concat([el('li', { class: 'k-sent' }, [
+        el('span', { class: 'ago', text: '0:00' }), el('span', { class: 'kind', text: 'Report' }), el('span', { class: 'what', text: 'sent' }),
+      ])])),
+    ]);
+  }
+
   var mailto = function (e) { return el('a', { href: 'mailto:' + encodeURIComponent(e).replace(/%40/g, '@'), text: 'Reply' }); };
 
   /**
@@ -1522,6 +1550,7 @@
       el('div', { class: 'ctx', text: ctxLine(r.context) }),
       r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
       reporterLine(r.context, r.reporter),
+      trailView(r.trail),
       r.decline_reason ? el('div', { class: 'reason', text: 'Declined: ' + r.decline_reason }) : null,
       r.fix_note ? el('div', { class: 'reason', text: 'Told them: ' + r.fix_note }) : null,
       r.status === 'accepted' && brief ? el('div', { class: 'brief-line' }, [

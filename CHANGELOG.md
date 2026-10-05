@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.19] - 2026-10-05
+
+### Added
+
+- **What happened before a report.** The web widget attaches the last few minutes in the app: pages visited, what was clicked, requests that failed, errors and console warnings. The dashboard shows it as a timeline under the report, open when something failed, and an accepted report's agent prompt includes it. Never what anyone typed, request bodies, headers or query strings; emails, tokens and long numbers are blanked on the device and again on the server.
+- The reporter decides: **Attach what happened** is on by default, a chip per kind removes that part, and **See it** lists every line before sending.
+- `data-trail="off"` or a list such as `data-trail="pages errors requests"` on the script tag; `data-heresay-private` on any element keeps its text out of click records.
+
+### Changed
+
+- Apps already using the web widget get the trail when their Heresay is updated, with no code change.
+
 ## [0.2.18] - 2026-10-05
 
 ### Changed

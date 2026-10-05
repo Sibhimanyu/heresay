@@ -28,6 +28,10 @@
  *                  data-backdrop   dim (default) | clear | blur
  *                  data-preferences show (default) | hide
  *                  data-intro      "auto": introduce the button a few seconds after the first load
+ *   Trail:         data-trail      on (default) | off | the parts to keep, e.g. "pages errors requests"
+ *                                  (pages, clicks, requests, errors). What happened in the app before
+ *                                  a report; see "the trail" below. data-heresay-private on any element
+ *                                  keeps its text out of click records.
  * Optional calls, any time after the script runs:
  *   Feedback.identify({ id, label, email })   who is signed in; then nobody is asked their name
  *   Feedback.setVersion("1.4.0")
@@ -103,6 +107,10 @@
       introAria: 'About the Report button', introTitle: 'Help make this app better',
       introBody: 'Use {label} any time to share an idea or tell the team what you would change. A real person reads every report, and you will see what happens to yours right here.',
       got: 'Got it', tryIt: 'Try it',
+      attachTrail: 'Attach what happened',
+      trailHint: 'Recent pages, clicks and errors in this app. Never what you typed.',
+      seeTrail: 'See it',
+      trail: { page: ['page', 'pages'], click: ['click', 'clicks'], request: ['failed request', 'failed requests'], error: ['error', 'errors'], warn: ['warning', 'warnings'], state: ['connection change', 'connection changes'] },
       sentTo: 'Sent to this app’s team', powered: 'Powered by Heresay',
     },
     fr: {
@@ -136,6 +144,10 @@
       introAria: 'À propos du bouton Signaler', introTitle: 'Aidez à améliorer cette app',
       introBody: 'Utilisez {label} à tout moment pour partager une idée ou dire à l’équipe ce que vous changeriez. Une vraie personne lit chaque signalement, et vous verrez ici ce qu’il devient.',
       got: 'Compris', tryIt: 'Essayer',
+      attachTrail: 'Joindre ce qui s’est passé',
+      trailHint: 'Pages, clics et erreurs récents dans cette app. Jamais ce que vous avez saisi.',
+      seeTrail: 'Voir',
+      trail: { page: ['page', 'pages'], click: ['clic', 'clics'], request: ['requête échouée', 'requêtes échouées'], error: ['erreur', 'erreurs'], warn: ['avertissement', 'avertissements'], state: ['changement de connexion', 'changements de connexion'] },
       sentTo: 'Envoyé à l’équipe de cette app', powered: 'Propulsé par Heresay',
     },
     ta: {
@@ -169,6 +181,10 @@
       introAria: 'தெரிவி பொத்தான் பற்றி', introTitle: 'இந்த ஆப்பை இன்னும் சிறப்பாக்க உதவுங்கள்',
       introBody: 'ஒரு யோசனையைப் பகிர அல்லது நீங்கள் எதை மாற்ற விரும்புகிறீர்கள் என்று குழுவிடம் சொல்ல, எப்போது வேண்டுமானாலும் {label} ஐப் பயன்படுத்துங்கள். ஒவ்வொரு கருத்தையும் ஒருவர் படிக்கிறார்; உங்களுடையதற்கு என்ன ஆனது என்பதை இங்கேயே பார்க்கலாம்.',
       got: 'சரி', tryIt: 'முயன்று பாருங்கள்',
+      attachTrail: 'என்ன நடந்தது என்பதையும் இணை',
+      trailHint: 'இந்த ஆப்பில் சமீபத்திய பக்கங்கள், கிளிக்குகள், பிழைகள். நீங்கள் தட்டச்சு செய்தது ஒருபோதும் இல்லை.',
+      seeTrail: 'பார்',
+      trail: { page: ['பக்கம்', 'பக்கங்கள்'], click: ['கிளிக்', 'கிளிக்குகள்'], request: ['தோல்வியடைந்த கோரிக்கை', 'தோல்வியடைந்த கோரிக்கைகள்'], error: ['பிழை', 'பிழைகள்'], warn: ['எச்சரிக்கை', 'எச்சரிக்கைகள்'], state: ['இணைப்பு மாற்றம்', 'இணைப்பு மாற்றங்கள்'] },
       sentTo: 'இந்த ஆப்பின் குழுவுக்கு அனுப்பப்படும்', powered: 'Heresay மூலம் இயங்குகிறது',
     },
     hi: {
@@ -202,6 +218,10 @@
       introAria: 'रिपोर्ट बटन के बारे में', introTitle: 'इस ऐप को और बेहतर बनाने में मदद करें',
       introBody: 'कोई आइडिया बताने या टीम को यह बताने के लिए कि आप क्या बदलना चाहेंगे, कभी भी {label} का इस्तेमाल करें। हर रिपोर्ट कोई इंसान पढ़ता है, और आपकी रिपोर्ट का क्या हुआ, यह आप यहीं देखेंगे।',
       got: 'ठीक है', tryIt: 'आज़माएँ',
+      attachTrail: 'क्या हुआ, वह भी भेजें',
+      trailHint: 'इस ऐप में हाल के पेज, क्लिक और त्रुटियाँ। आपने जो टाइप किया, वह कभी नहीं।',
+      seeTrail: 'देखें',
+      trail: { page: ['पेज', 'पेज'], click: ['क्लिक', 'क्लिक'], request: ['विफल अनुरोध', 'विफल अनुरोध'], error: ['त्रुटि', 'त्रुटियाँ'], warn: ['चेतावनी', 'चेतावनियाँ'], state: ['कनेक्शन बदलाव', 'कनेक्शन बदलाव'] },
       sentTo: 'इस ऐप की टीम को भेजा जाता है', powered: 'Heresay द्वारा संचालित',
     },
   };
@@ -267,6 +287,9 @@
     draft: '',
     justSent: false,
     reports: [],
+    // The reporter's say over the trail: all of it off, or some kinds left out.
+    trailOff: false,
+    trailSkip: {},
   };
   var listeners = [];
 
@@ -384,6 +407,222 @@
     };
   }
 
+  // ---- the trail -------------------------------------------------------------------------
+
+  /**
+   * What happened in the app before a report: pages, clicks, requests that failed, errors. Kept
+   * in memory on this device only (the newest 30, for 5 minutes) and sent only with a report,
+   * only if the reporter leaves "Attach what happened" on. Never what anyone typed, never request
+   * or response bodies or headers, never query strings. Nothing is recorded inside the widget.
+   */
+  var TRAIL_PARTS = { pages: 'page', clicks: 'click', requests: 'request', errors: 'error' };
+  var TRAIL = (function () {
+    var v = attr('trail').toLowerCase(), on = {};
+    if (PREVIEW || /^(off|none|false|no)$/.test(v)) return on;
+    var want = v && v !== 'on' ? v.split(/[\s,]+/) : Object.keys(TRAIL_PARTS);
+    want.forEach(function (w) { if (TRAIL_PARTS[w]) on[TRAIL_PARTS[w]] = true; });
+    if (on.error) on.warn = true;
+    if (on.page || on.request || on.error) on.state = true;
+    return on;
+  })();
+  var TRAIL_MAX = 30, TRAIL_AGE = 5 * 60000;
+  var trail = [];
+
+  /** The same blanking the server does (trail.ts), so it never leaves the device in the first place. */
+  function scrub(v, max) {
+    var tail = function (q) { var m = /(:\d+){1,2}$/.exec(q); return m ? m[0] : ''; };
+    v = String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim()
+      .split(location.origin).join('')
+      .replace(/(https?:\/\/[^\s?#"'`)]*)\?([^\s#"'`)]*)/g, function (_, u, q) { return u + tail(q); })
+      .replace(/(^|\s)(\/[^\s?#]*)\?([^\s#)]*)/g, function (_, sp, u, q) { return sp + u + tail(q); })
+      .replace(/[^\s@"'<>()]+@[^\s@"'<>()]+\.[A-Za-z]{2,}/g, '[email]')
+      .replace(/\bBearer\s+\S+/gi, 'Bearer [token]')
+      .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]*/g, '[token]')
+      .replace(/\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,}\b/g, '[token]')
+      .replace(/\d[\d -]{6,}\d/g, function (m) { return m.replace(/\D/g, '').length >= 7 ? '[number]' : m; });
+    return v ? v.slice(0, max) : null;
+  }
+
+  var noting = false;
+  function note(kind, text, detail) {
+    if (!TRAIL[kind] || noting) return;
+    noting = true;
+    try {
+      text = scrub(text, 200);
+      if (!text) return;
+      var now = Date.now(), last = trail[trail.length - 1];
+      if (last && last.kind === kind && last.text === text) { last.n++; last.at = now; return; }
+      trail.push({ kind: kind, at: now, text: text, detail: detail ? scrub(detail, 600) : null, n: 1 });
+      if (trail.length > TRAIL_MAX) trail.shift();
+    } catch (e) { /* never break the app over a record */ } finally { noting = false; }
+  }
+  function recentTrail() {
+    var cut = Date.now() - TRAIL_AGE;
+    return trail.filter(function (e) { return e.at >= cut; });
+  }
+  /** What goes with the report: the kinds the reporter kept, ages in seconds before now. */
+  function trailToSend() {
+    if (state.trailOff) return null;
+    var now = Date.now();
+    var t = recentTrail().filter(function (e) { return !state.trailSkip[e.kind]; }).map(function (e) {
+      return { kind: e.kind, ago: Math.round((now - e.at) / 1000), text: e.text, detail: e.detail, n: e.n };
+    });
+    return t.length ? t : null;
+  }
+
+  /** The page's path and hash, or another site's origin and path. Never the query string. */
+  function shortUrl(u) {
+    try {
+      var x = new URL(u, location.href);
+      return (x.origin === location.origin ? '' : x.origin) + x.pathname;
+    } catch (e) { return String(u).split(/[?#]/)[0]; }
+  }
+  function ours(u) { try { return new URL(u, location.href).href.indexOf(API) === 0; } catch (e) { return false; } }
+  function frames(err) {
+    var s = err && err.stack ? String(err.stack) : '';
+    var f = s.split('\n').filter(function (l) { return /^\s*at\s|@/.test(l); }).slice(0, 3)
+      .map(function (l) { return l.trim(); });
+    return f.length ? f.join('\n') : null;
+  }
+  /** One console argument as a short line. Objects show their first few plain values, not everything. */
+  function brief(a) {
+    try {
+      if (a instanceof Error) return a.name + ': ' + a.message;
+      if (a == null || typeof a !== 'object') return String(a);
+      if (Array.isArray(a)) return '[' + a.length + ' items]';
+      return '{' + Object.keys(a).slice(0, 5).map(function (k) {
+        var x = a[k];
+        return k + ': ' + (typeof x === 'string' ? JSON.stringify(x.slice(0, 40)) : x == null || typeof x !== 'object' ? String(x) : '…');
+      }).join(', ') + '}';
+    } catch (e) { return '?'; }
+  }
+
+  // Pages: any router changes the address through history, so watch that.
+  var lastWhere = null;
+  function onPage() {
+    var w = location.pathname + location.hash;
+    if (w !== lastWhere) { lastWhere = w; note('page', w); }
+  }
+  if (TRAIL.page) {
+    onPage();
+    ['pushState', 'replaceState'].forEach(function (m) {
+      var orig = history[m];
+      if (typeof orig !== 'function') return;
+      history[m] = function () {
+        var r = orig.apply(this, arguments);
+        try { onPage(); } catch (e) { /* ignore */ }
+        return r;
+      };
+    });
+    window.addEventListener('popstate', onPage);
+    window.addEventListener('hashchange', onPage);
+  }
+
+  // Clicks: what was clicked, by its label. Never a field's value.
+  var CLICKABLE = 'a,button,input,select,textarea,label,summary,[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[role=switch],[role=option]';
+  function clicked(t) {
+    var hit = t.closest && t.closest(CLICKABLE), n = hit || t;
+    if (!n.tagName) return null;
+    var tag = n.tagName.toLowerCase(), type = (n.getAttribute('type') || '').toLowerCase();
+    var isButton = tag === 'button' || (tag === 'input' && /^(button|submit|reset)$/.test(type));
+    var field = !isButton && /^(input|textarea|select)$/.test(tag) || n.isContentEditable;
+    var what = n.getAttribute('role') || (isButton ? 'button' : tag === 'a' ? 'link'
+      : tag === 'input' && /^(checkbox|radio)$/.test(type) ? type : field ? 'field' : tag);
+    if (n.closest('[data-heresay-private]')) return what;
+    // Text only from controls. A click on a paragraph says "p", not what the paragraph says.
+    var name = n.getAttribute('aria-label')
+      || (field ? (n.labels && n.labels[0] && n.labels[0].textContent) || n.getAttribute('placeholder') || n.getAttribute('name')
+        : !hit ? '' : tag === 'input' ? n.value : n.textContent)
+      || n.getAttribute('title') || n.getAttribute('alt') || '';
+    name = name.replace(/\s+/g, ' ').trim();
+    if (name.length > 40) name = name.slice(0, 39) + '…';
+    return what + (name ? ' "' + name + '"' : '');
+  }
+  if (TRAIL.click) {
+    document.addEventListener('click', function (e) {
+      if (!host || e.target === host || host.contains(e.target)) return;
+      note('click', clicked(e.target));
+    }, true);
+  }
+
+  // Requests: only the ones that failed, by method, path and status.
+  if (TRAIL.request && window.fetch) {
+    var ofetch = window.fetch;
+    window.fetch = function (input, init) {
+      var p = ofetch.apply(window, arguments);
+      try {
+        var url = typeof input === 'string' ? input : input && (input.url || String(input));
+        if (url && !ours(url)) {
+          var method = String(init && init.method || input && input.method || 'GET').toUpperCase();
+          p.then(function (res) {
+            if (!res.ok && res.type !== 'opaque') note('request', method + ' ' + shortUrl(url) + ' → ' + res.status);
+          }, function (err) {
+            if (!(err && err.name === 'AbortError')) note('request', method + ' ' + shortUrl(url) + ' → failed (' + (navigator.onLine === false ? 'offline' : 'network error') + ')');
+          });
+        }
+      } catch (e) { /* ignore */ }
+      return p;
+    };
+  }
+  if (TRAIL.request && window.XMLHttpRequest) {
+    var XP = XMLHttpRequest.prototype, xopen = XP.open, xsend = XP.send;
+    XP.open = function (m, u) {
+      try { this.__heresay = { m: String(m || 'GET').toUpperCase(), u: String(u) }; } catch (e) { /* ignore */ }
+      return xopen.apply(this, arguments);
+    };
+    XP.send = function () {
+      var x = this, r = x.__heresay;
+      try {
+        if (r && !ours(r.u)) {
+          var aborted = false;
+          x.addEventListener('abort', function () { aborted = true; });
+          x.addEventListener('loadend', function () {
+            if (x.status >= 400) note('request', r.m + ' ' + shortUrl(r.u) + ' → ' + x.status);
+            else if (x.status === 0 && !aborted) note('request', r.m + ' ' + shortUrl(r.u) + ' → failed (network error)');
+          });
+        }
+      } catch (e) { /* ignore */ }
+      return xsend.apply(this, arguments);
+    };
+  }
+
+  // Errors: uncaught ones, failed promises, files that did not load, console.error and .warn.
+  if (TRAIL.error) {
+    window.addEventListener('error', function (e) {
+      var t = e.target;
+      if (t && t !== window && t.tagName) {
+        var src = t.currentSrc || t.src || t.href;
+        if (src && !ours(src)) note('error', 'Could not load ' + t.tagName.toLowerCase() + ' ' + shortUrl(src));
+        return;
+      }
+      var err = e.error;
+      note('error', err instanceof Error ? err.name + ': ' + err.message : e.message || 'Script error',
+        frames(err) || (e.filename ? shortUrl(e.filename) + ':' + e.lineno + ':' + e.colno : null));
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) {
+      var why = e.reason;
+      note('error', 'Unhandled promise rejection: ' + brief(why), frames(why));
+    });
+    [['error', 'error'], ['warn', 'warn']].forEach(function (c) {
+      var orig = console[c[0]];
+      if (typeof orig !== 'function') return;
+      console[c[0]] = function () {
+        try {
+          var args = Array.prototype.slice.call(arguments);
+          var msg = args.map(brief).join(' ');
+          if (!/^\[(heresay|feedback)\]/.test(msg)) {
+            note(c[1], msg, frames(args.filter(function (a) { return a instanceof Error; })[0]));
+          }
+        } catch (e) { /* ignore */ }
+        return orig.apply(console, arguments);
+      };
+    });
+  }
+  if (TRAIL.state) {
+    window.addEventListener('offline', function () { note('state', 'Went offline'); });
+    window.addEventListener('online', function () { note('state', 'Back online'); });
+  }
+
   // ---- network ---------------------------------------------------------------------------
 
   // A 404 means the key is unknown: the app was deleted from the dashboard, or the key is
@@ -413,7 +652,7 @@
     return fetch(API + '/reports', {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web', type: type, text: text, context: context(), reporter: reporter() }),
+      body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web', type: type, text: text, context: context(), reporter: reporter(), trail: trailToSend() }),
     }).then(body);
   }
 
@@ -529,6 +768,22 @@
     '@keyframes fb-blink{0%,88%,96%,100%{transform:none}92%{transform:scaleY(.1)}}',
     '@media (prefers-reduced-motion:reduce){.glance .eyes,.glance .e{animation:none}}',
     '.err{color:var(--fb-bad);font-size:13px;margin-top:8px}',
+    // the trail
+    '.trail{margin-top:10px}',
+    '.switch{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600}',
+    '.switch input{appearance:none;-webkit-appearance:none;margin:0;flex:none;width:30px;height:18px;border-radius:999px;background:var(--fb-line);position:relative;cursor:pointer;transition:background .15s}',
+    '.switch input:after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}',
+    '.switch input:checked{background:var(--fb-acc)}.switch input:checked:after{left:14px}',
+    '.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}',
+    '.chip{border:1px solid var(--fb-line);background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--fb-mute);text-decoration:line-through}',
+    '.chip[aria-pressed=true]{border-color:var(--fb-acc);color:var(--fb-fg);text-decoration:none}',
+    '.trail.off .chips,.trail.off details{display:none}',
+    '.trail summary{cursor:pointer;font-size:12px;color:var(--fb-mute)}',
+    '.trail details .small{margin:6px 0}',
+    '.tlist{list-style:none;margin:0;padding:0;max-height:140px;overflow:auto;font-size:12px}',
+    '.tlist li{display:flex;gap:8px;padding:2px 0;word-break:break-word}.tlist li.skip{opacity:.4;text-decoration:line-through}',
+    '.tlist .ago{flex:none;color:var(--fb-mute);font-variant-numeric:tabular-nums}',
+    '@media (prefers-reduced-motion:reduce){.switch input,.switch input:after{transition:none}}',
     '.thanks{padding:10px 12px;margin:0 0 8px;border-radius:10px;background:var(--fb-line)}',
     '.item{border-top:1px solid var(--fb-line);padding:10px 0}',
     '.item:first-child{border-top:0}',
@@ -746,6 +1001,7 @@
     }, [
       el('fieldset', {}, [el('legend', { text: S.what })].concat(types)),
       text,
+      trailView(),
       el('div', { class: 'row' }, [
         el('span', { class: 'small', text: reporter() ? S.attachedPrefs : S.attached }),
         sendBtn,
@@ -753,6 +1009,48 @@
       err,
     ]);
     return form;
+  }
+
+  /**
+   * "Attach what happened": the reporter sees what the trail holds, can look at every line of it,
+   * and can switch it off or leave a part out. Nothing shows when there is nothing to attach.
+   */
+  function trailView() {
+    var ev = recentTrail();
+    if (!ev.length) return null;
+    var count = {};
+    ev.forEach(function (e) { count[e.kind] = (count[e.kind] || 0) + e.n; });
+    var box = el('div', { class: 'trail' + (state.trailOff ? ' off' : '') });
+    var on = el('input', { type: 'checkbox', role: 'switch', onchange: function () {
+      state.trailOff = !on.checked;
+      box.className = 'trail' + (state.trailOff ? ' off' : '');
+    } });
+    on.checked = !state.trailOff;
+    var chips = ['page', 'click', 'request', 'error', 'warn', 'state'].filter(function (k) { return count[k]; }).map(function (k) {
+      var n = count[k];
+      var b = el('button', {
+        class: 'chip', type: 'button', 'aria-pressed': String(!state.trailSkip[k]),
+        text: n + ' ' + S.trail[k][n === 1 ? 0 : 1],
+        onclick: function () {
+          state.trailSkip[k] = !state.trailSkip[k];
+          b.setAttribute('aria-pressed', String(!state.trailSkip[k]));
+          list.querySelectorAll('[data-k="' + k + '"]').forEach(function (li) { li.classList.toggle('skip', !!state.trailSkip[k]); });
+        },
+      });
+      return b;
+    });
+    var now = Date.now();
+    var list = el('ol', { class: 'tlist' }, ev.map(function (e) {
+      var secs = Math.round((now - e.at) / 1000);
+      return el('li', { 'data-k': e.kind, class: state.trailSkip[e.kind] ? 'skip' : '' }, [
+        el('span', { class: 'ago', text: '-' + Math.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2) }),
+        el('span', { text: e.text + (e.n > 1 ? ' ×' + e.n : '') }),
+      ]);
+    }));
+    box.appendChild(el('label', { class: 'switch' }, [on, el('span', { text: S.attachTrail })]));
+    box.appendChild(el('div', { class: 'chips' }, chips));
+    box.appendChild(el('details', {}, [el('summary', { text: S.seeTrail }), el('p', { class: 'small', text: S.trailHint }), list]));
+    return box;
   }
 
   function prefsView() {
@@ -893,7 +1191,10 @@
       if (scrim && view === 'prefs') renderPanel();
     },
     setVersion: function (v) { state.version = v != null ? String(v) : null; },
-    setScreen: function (s) { state.screen = s != null ? String(s) : null; },
+    setScreen: function (s) {
+      state.screen = s != null ? String(s) : null;
+      if (state.screen) note('page', state.screen);
+    },
     /** Open the report form. { type, text } fill it in; the reporter still reviews and sends. */
     open: function (o) {
       o = o || {};

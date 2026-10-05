@@ -568,6 +568,65 @@ try {
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
   await dash.getByText(/Agents fix these in github.com\/acme\/notes/).waitFor();
 
+  step('the trail: pages, clicks, failed requests and errors go with a report; the reporter can leave parts out');
+  const ctx3 = await browser.newContext({ viewport: { width: 1100, height: 760 } });
+  const host = await ctx3.newPage();
+  await host.goto(`${BASE}/demo.html?key=${key}#/home`);
+  const hsdk = host.locator('[data-feedback-sdk]');
+  await hsdk.getByRole('button', { name: /Report a problem/ }).waitFor();
+  // The stand-in app does what a real one would: moves between screens, has buttons, calls its API.
+  await host.evaluate(() => {
+    const b = document.createElement('button');
+    b.textContent = 'Save changes';
+    b.onclick = async () => {
+      await fetch('/api/profile?session=s3cr3t', { method: 'PATCH' }).catch(() => {});
+      console.error(new TypeError('user.avatar is undefined'));
+    };
+    const pw = document.createElement('button');
+    pw.textContent = 'Email asha@example.org';
+    pw.dataset.heresayPrivate = '';
+    document.querySelector('main').append(b, pw);
+    history.pushState({}, '', '/demo.html' + location.search + '#/settings');
+  });
+  await host.getByRole('button', { name: 'Email asha@example.org' }).click();
+  await host.getByRole('button', { name: 'Save changes' }).click();
+  await host.waitForTimeout(500);
+  await hsdk.getByRole('button', { name: /Report a problem/ }).click();
+  await hsdk.getByRole('button', { name: /Broken/ }).click();
+  await hsdk.getByLabel('What happened?').fill('Saving my profile does nothing.');
+  await hsdk.getByRole('switch', { name: 'Attach what happened' }).waitFor();
+  assert.equal(await hsdk.getByRole('switch', { name: 'Attach what happened' }).isChecked(), true, 'on by default');
+  for (const chip of ['2 pages', '2 clicks', '1 failed request', '1 error']) await hsdk.getByRole('button', { name: chip }).waitFor();
+  await hsdk.getByText('See it').click();
+  const lines = await hsdk.locator('.tlist li').allTextContents();
+  console.log('trail on the device:', lines);
+  assert.ok(lines.some((l) => /PATCH \/api\/profile → 404/.test(l)), 'the failed request, without its query string');
+  assert.ok(lines.some((l) => /TypeError: user\.avatar is undefined/.test(l)));
+  assert.ok(lines.some((l) => /button "Save changes"/.test(l)));
+  assert.ok(lines.every((l) => !/s3cr3t|asha@/.test(l)), 'no query strings, private text stays out');
+  await host.screenshot({ path: `${SHOTS}e2e-8a-trail-form.png` });
+  await hsdk.getByRole('button', { name: '2 clicks' }).click();
+  assert.equal(await hsdk.getByRole('button', { name: '2 clicks' }).getAttribute('aria-pressed'), 'false');
+  await host.screenshot({ path: `${SHOTS}e2e-8b-trail-without-clicks.png` });
+  await hsdk.getByRole('button', { name: 'Send' }).click();
+  await hsdk.getByText('Waiting for the developer').waitFor();
+  await ctx3.close();
+
+  const listed = (await (await api('GET', `/projects/${project.id}/reports`)).json()).reports;
+  const withTrail = listed.find((r) => r.text === 'Saving my profile does nothing.');
+  console.log('trail stored:', withTrail.trail.map((e) => `${e.kind}: ${e.text}`));
+  assert.deepEqual([...new Set(withTrail.trail.map((e) => e.kind))].sort(), ['error', 'page', 'request']);
+  assert.match(withTrail.trail.find((e) => e.kind === 'error').detail ?? '', /at /, 'the top of the stack');
+  await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  const tcard = dash.locator('article.report', { hasText: 'Saving my profile does nothing.' });
+  await tcard.locator('details.trail[open]').waitFor();
+  await tcard.locator('.trail li.k-request', { hasText: 'PATCH /api/profile → 404' }).waitFor();
+  await tcard.screenshot({ path: `${SHOTS}e2e-8c-trail-dashboard.png` });
+  assert.equal((await api('POST', `/projects/${project.id}/reports/${withTrail.id}/accept`)).status, 200);
+  const tprompt = (await (await api('GET', `/projects/${project.id}/reports/${withTrail.id}/prompt`)).json()).prompt;
+  assert.match(tprompt, /Request: PATCH \/api\/profile → 404/);
+  assert.ok(tprompt.indexOf('Request: PATCH') < tprompt.lastIndexOf('\"\"\"'), 'inside the fence');
+
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;
   const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 760 } });
