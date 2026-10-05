@@ -245,8 +245,13 @@ try {
   await row.getByText('Give a reason').waitFor();
   await row.getByLabel('Reason for declining').fill('Cancel is under Settings, Plan. We will make it easier to find.');
   await row.getByRole('button', { name: 'Decline', exact: true }).click();
+  // The click is answered where it happened, and the card says what it did before it leaves.
+  await row.locator('.done-line', { hasText: 'Declined' }).waitFor();
+  await dash.locator('.toast.on', { hasText: 'Declined' }).waitFor();
   await dash.locator('.filters button', { hasText: 'Declined 1' }).waitFor();
-  await dash.click('.filters button:has-text("Declined")');
+  await dash.waitForTimeout(400);  // let the card finish fading into its new state
+  await dash.screenshot({ path: `${SHOTS}e2e-3b-dashboard-just-declined.png` });
+  await dash.locator('.toast').getByRole('button', { name: 'View declined' }).click();
   await dash.screenshot({ path: `${SHOTS}e2e-3-dashboard-declined.png` });
 
   step('reporter, back in the app, sees the outcome and the reason');
@@ -523,6 +528,7 @@ try {
   await dash.locator('.platforms-filter button', { hasText: 'iOS' }).click();
   assert.equal(await dash.locator('article.report .platform-pill', { hasText: 'Web' }).count(), 0, 'the platform filter narrows it');
   await iosRow.getByRole('button', { name: 'Accept' }).click();
+  await iosRow.locator('.done-line', { hasText: 'Accepted' }).waitFor();
   await dash.locator('.filters button', { hasText: 'Accepted 1' }).waitFor();
 
   step('connect a repo for coding agents from the dashboard: the token is shown once');

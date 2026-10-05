@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.16] - 2026-10-05
+
+### Changed
+
+- Accept, Decline and Mark fixed respond the moment you click: the button shows it is working, the card then says what happened, and a message at the bottom links to the new filter before the card leaves the list.
+- Report cards are easier to scan: a colour stripe and tinted label for the report type, and the status shown as a badge.
+
 ## [0.2.15] - 2026-10-05
 
 ### Added
