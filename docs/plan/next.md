@@ -7,6 +7,9 @@ Product page: https://sibhimanyu.github.io/heresay/ (from `site/`, published wit
 
 ## To build
 
+- **The trail on Apple** (decision 0007). The web SDK sends what happened before a report;
+  Swift should too: screens shown (an explicit modifier, no swizzling), the app's own log
+  warnings (`OSLogStore`), and the last crash (MetricKit). Same `trail` field on `/v1/reports`.
 - **Android, React Native, Flutter SDKs.** The wizard shows them as "Soon". Same `/v1` API
   as web and Swift: POST `/v1/reports` and `/v1/reports/mine` with `key`, `device_id`, `sdk`,
   and context. Each needs its install steps in the wizard, an `install-<platform>` guide, and

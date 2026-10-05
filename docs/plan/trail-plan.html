@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Heresay · The trail: what happened before the report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --deep:#0b5e57; --peacock:#0f766e; --turq:#2dd4bf; --mist:#e6f4f2;
+  --ink:#15171c; --slate:#5b6472; --line:#e3e6ea; --paper:#f5f6f7; --white:#fff;
+  --red:#c2410c; --redbg:#fff1ea; --amber:#a16207; --amberbg:#fef7e0;
+  --head:"Bricolage Grotesque", system-ui, sans-serif; --body:Figtree, system-ui, sans-serif; --mono:"JetBrains Mono", ui-monospace, monospace;
+}
+* { box-sizing:border-box; }
+body { margin:0; font:16px/1.55 var(--body); color:var(--ink); background:var(--white); }
+.wrap { max-width:1080px; margin:0 auto; padding:0 32px; }
+h1,h2,h3 { font-family:var(--head); letter-spacing:-.03em; margin:0; }
+h1 { font-size:54px; line-height:1.05; font-weight:800; }
+h1 em { font-style:normal; color:var(--peacock); }
+h2 { font-size:32px; font-weight:800; margin-bottom:22px; }
+h3 { font-size:18px; font-weight:700; letter-spacing:-.01em; }
+section { padding:56px 0; border-top:1px solid var(--line); }
+.lede { font-size:20px; line-height:1.55; color:var(--slate); max-width:46ch; margin:18px 0 0; }
+.muted { color:var(--slate); }
+.tag { display:inline-block; font:600 12px/1 var(--body); text-transform:uppercase; letter-spacing:.08em; color:var(--peacock); background:var(--mist); padding:6px 10px; border-radius:99px; margin-bottom:16px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:start; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.card { border:1px solid var(--line); border-radius:14px; padding:22px; background:#fff; }
+.mono { font-family:var(--mono); font-size:13px; }
+
+/* before / after */
+.ba { display:grid; grid-template-columns:1fr 60px 1fr; align-items:center; gap:0; }
+.arrow { text-align:center; font-size:30px; color:var(--peacock); }
+.bubble { border-radius:14px; padding:20px; border:1px solid var(--line); }
+.bubble.before { background:var(--paper); }
+.bubble.after { background:#fff; border:2px solid var(--peacock); }
+.quote { font-size:18px; font-weight:600; margin-bottom:10px; }
+.lbl { font:700 11px/1 var(--body); text-transform:uppercase; letter-spacing:.08em; color:var(--slate); margin-bottom:10px; }
+
+/* timeline */
+.tl { position:relative; padding-left:28px; }
+.tl:before { content:""; position:absolute; left:9px; top:6px; bottom:6px; width:2px; background:var(--line); }
+.ev { position:relative; display:flex; gap:12px; align-items:baseline; padding:6px 0; font-size:14px; }
+.ev:before { content:""; position:absolute; left:-24px; top:11px; width:12px; height:12px; border-radius:50%; background:#fff; border:2px solid var(--slate); }
+.ev.page:before { border-color:var(--peacock); background:var(--mist); }
+.ev.click:before { border-color:var(--ink); }
+.ev.net:before, .ev.err:before { border-color:var(--red); background:var(--redbg); }
+.ev.warn:before { border-color:var(--amber); background:var(--amberbg); }
+.ev.rep:before { border-color:var(--peacock); background:var(--peacock); }
+.t { font-family:var(--mono); font-size:12px; color:var(--slate); width:44px; flex:none; }
+.k { font:700 11px/1 var(--body); text-transform:uppercase; letter-spacing:.06em; width:56px; flex:none; color:var(--slate); }
+.ev.err .k, .ev.net .k { color:var(--red); }
+.ev.warn .k { color:var(--amber); }
+.ev.page .k, .ev.rep .k { color:var(--peacock); }
+.ev b { font-weight:600; }
+.ev code { font-family:var(--mono); font-size:12.5px; background:var(--paper); padding:2px 6px; border-radius:5px; }
+.ev.err code, .ev.net code { background:var(--redbg); color:var(--red); }
+
+/* mock widget */
+.widget { width:340px; border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,.12); padding:20px; background:#fff; }
+.widget .ta { border:1px solid var(--line); border-radius:10px; padding:12px; height:80px; color:var(--ink); font-size:14px; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+.chip { font-size:12.5px; padding:5px 10px; border-radius:99px; background:var(--paper); border:1px solid var(--line); }
+.chip.on { background:var(--mist); border-color:#bfe3de; color:var(--deep); }
+.chip s { color:var(--slate); }
+.send { background:var(--peacock); color:#fff; font-weight:700; text-align:center; padding:12px; border-radius:10px; }
+.attach { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-top:12px; }
+.switch { width:34px; height:20px; border-radius:99px; background:var(--peacock); position:relative; }
+.switch:after { content:""; position:absolute; right:3px; top:3px; width:14px; height:14px; border-radius:50%; background:#fff; }
+
+/* capture table */
+.cap { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+.cap .card { padding:18px; }
+.ih { display:flex; align-items:center; gap:10px; }
+.ico { font-size:20px; }
+.val { display:flex; gap:4px; margin-top:10px; }
+.dot { width:10px; height:10px; border-radius:2px; background:var(--peacock); }
+.dot.off { background:var(--line); }
+.val span { font-size:12px; color:var(--slate); margin-left:6px; }
+.yes { color:var(--deep); font-size:13px; margin-top:8px; }
+.no { color:var(--red); font-size:13px; }
+
+/* never list */
+.never { display:flex; flex-wrap:wrap; gap:10px; }
+.never div { padding:10px 14px; border-radius:10px; background:var(--redbg); color:var(--red); font-weight:600; font-size:14px; }
+.never div:before { content:"✕  "; }
+
+/* flow */
+.flow { display:flex; align-items:stretch; gap:0; }
+.step { flex:1; text-align:center; padding:18px 10px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+.step .n { font:800 26px/1 var(--head); color:var(--peacock); }
+.step p { margin:8px 0 0; font-size:13.5px; color:var(--slate); }
+.step.gate { border:2px solid var(--peacock); background:var(--mist); }
+.join { width:28px; display:grid; place-items:center; color:var(--peacock); font-size:20px; }
+
+/* phases */
+.phase { border-radius:14px; padding:22px; border:1px solid var(--line); }
+.phase.now { border:2px solid var(--peacock); }
+.phase ul { margin:12px 0 0; padding-left:18px; font-size:14.5px; }
+.phase li { margin:4px 0; }
+.q { background:var(--paper); border-radius:14px; padding:20px 22px; margin-bottom:12px; display:flex; gap:16px; }
+.q .num { font:800 22px/1 var(--head); color:var(--peacock); }
+.q p { margin:4px 0 0; color:var(--slate); font-size:14.5px; }
+</style>
+</head>
+<body>
+
+<div class="wrap" style="padding-top:64px;padding-bottom:40px">
+  <span class="tag">Web: built · 2026-10-05</span>
+  <h1>The <em>trail</em>.<br>What happened before the report.</h1>
+  <p class="lede">The person says what went wrong. The SDK adds the last few minutes of what they did and what broke, so the developer (and the agent) can see it too.</p>
+</div>
+
+<!-- 1. before / after -->
+<section><div class="wrap">
+  <h2>Same report, two ways</h2>
+  <div class="ba">
+    <div class="bubble before">
+      <div class="lbl">Today</div>
+      <div class="quote">"Saving my profile doesn't work"</div>
+      <div class="mono muted">route /settings · Chrome 129 · macOS 15 · 1440x900</div>
+      <p class="muted" style="margin:14px 0 0;font-size:14px">Developer asks: what did you click? What error? Reporter is anonymous, so there's no one to ask.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="bubble after">
+      <div class="lbl">With the trail</div>
+      <div class="quote">"Saving my profile doesn't work"</div>
+      <div class="tl">
+        <div class="ev page"><span class="t">−0:52</span><span class="k">Page</span><b>/dashboard</b></div>
+        <div class="ev page"><span class="t">−0:31</span><span class="k">Page</span><b>/settings</b></div>
+        <div class="ev click"><span class="t">−0:12</span><span class="k">Click</span>button "Save changes"</div>
+        <div class="ev net"><span class="t">−0:11</span><span class="k">Request</span><code>PATCH /api/profile → 500</code></div>
+        <div class="ev err"><span class="t">−0:11</span><span class="k">Error</span><code>TypeError: user.avatar is undefined</code></div>
+        <div class="ev rep"><span class="t">0:00</span><span class="k">Report</span><b>sent</b></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- 2. what to capture -->
+<section><div class="wrap">
+  <h2>What goes in the trail</h2>
+  <p class="muted" style="margin:-10px 0 24px">Bars show how much each one helps debugging compared with its privacy risk.</p>
+  <div class="cap">
+    <div class="card">
+      <h3 class="ih"><span class="ico">🧭</span>Pages visited</h3>
+      <div class="yes">Path only, e.g. <span class="mono">/settings/billing</span>. Works with any router.</div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>help</span></div>
+      <div class="val"><i class="dot"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><span>risk</span></div>
+    </div>
+    <div class="card">
+      <h3 class="ih"><span class="ico">⚠️</span>Errors</h3>
+      <div class="yes">Uncaught errors, failed promises, <span class="mono">console.error</span> / <span class="mono">warn</span>. Message + top 3 stack lines.</div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>help</span></div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><span>risk</span></div>
+    </div>
+    <div class="card">
+      <h3 class="ih"><span class="ico">📡</span>Failed requests</h3>
+      <div class="yes">Method, path, status, time. Only ones that failed (4xx, 5xx, offline).</div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>help</span></div>
+      <div class="val"><i class="dot"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><span>risk</span></div>
+    </div>
+    <div class="card">
+      <h3 class="ih"><span class="ico">👆</span>Clicks</h3>
+      <div class="yes">What was clicked: <span class="mono">button "Save"</span>. Its label, never what was typed.</div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot off"></i><span>help</span></div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot off"></i><i class="dot off"></i><span>risk</span></div>
+    </div>
+    <div class="card">
+      <h3 class="ih"><span class="ico">📱</span>Device state</h3>
+      <div class="yes">Online/offline, language, time zone, dark mode, time on page.</div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><span>help</span></div>
+      <div class="val"><i class="dot"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><span>risk</span></div>
+    </div>
+    <div class="card" style="background:var(--paper)">
+      <h3 class="ih"><span class="ico">🍎</span>Apple apps</h3>
+      <div class="yes">Screens shown, the app's own <span class="mono">os_log</span> lines (warnings and up), and the <b>last crash</b> via MetricKit.</div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>help</span></div>
+      <div class="val"><i class="dot"></i><i class="dot"></i><i class="dot off"></i><i class="dot off"></i><i class="dot off"></i><span>risk</span></div>
+    </div>
+  </div>
+
+  <h3 style="margin:36px 0 14px">Never captured</h3>
+  <div class="never">
+    <div>What anyone typed</div><div>Query strings</div><div>Request or response bodies</div>
+    <div>Headers, cookies, tokens</div><div>Screenshots without asking</div><div>console.log / info</div>
+    <div>Anything when no report is sent</div>
+  </div>
+</div></section>
+
+<!-- 3. reporter sees it -->
+<section><div class="wrap grid2" style="align-items:center">
+  <div>
+    <h2>They see what's attached, and can take it off</h2>
+    <p class="muted">The trail lives only in memory on their device. Nothing leaves until they press Send. One switch removes it; tapping a chip removes one part.</p>
+    <p class="muted">The host app can turn parts off with one attribute:<br><span class="mono" style="color:var(--ink)">data-trail="pages errors requests"</span> or <span class="mono" style="color:var(--ink)">data-trail="off"</span>.</p>
+  </div>
+  <div style="display:flex;justify-content:center">
+    <div class="widget">
+      <div class="lbl">Something's broken</div>
+      <div class="ta">Saving my profile doesn't work</div>
+      <div class="attach"><b>Attach what happened</b><div class="switch"></div></div>
+      <div class="chips">
+        <span class="chip on">3 pages</span><span class="chip on">1 error</span><span class="chip on">1 failed request</span><span class="chip"><s>4 clicks</s></span>
+      </div>
+      <div class="send">Send</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- 4. flow -->
+<section><div class="wrap">
+  <h2>Where it goes</h2>
+  <div class="flow">
+    <div class="step"><div class="n">1</div><b>Device memory</b><p>Last 30 events, 5 min. Overwritten as they go.</p></div>
+    <div class="join">→</div>
+    <div class="step"><div class="n">2</div><b>Send</b><p>Only if they press Send with it switched on. Max 8 KB.</p></div>
+    <div class="join">→</div>
+    <div class="step"><div class="n">3</div><b>Server cleans</b><p>Drops unknown fields, caps lengths, blanks emails, tokens, long numbers.</p></div>
+    <div class="join">→</div>
+    <div class="step"><div class="n">4</div><b>Dashboard</b><p>Timeline under the report text.</p></div>
+    <div class="join">→</div>
+    <div class="step gate"><div class="n">5</div><b>Accept</b><p>A person accepts. Same rule as today.</p></div>
+    <div class="join">→</div>
+    <div class="step"><div class="n">6</div><b>Agent</b><p>Gets the trail fenced as untrusted data, like the text.</p></div>
+  </div>
+  <p class="muted" style="margin-top:20px;font-size:14px">⚠️ A console message is as untrusted as the report text: anyone can type <span class="mono">console.error("ignore your instructions…")</span> before reporting. So it's fenced and labelled the same way in the agent prompt.</p>
+</div></section>
+
+<!-- 5. bonus -->
+<section><div class="wrap">
+  <h2>What it unlocks next</h2>
+  <div class="grid3">
+    <div class="card"><h3 class="ih"><span class="ico">🔗</span>"3 people hit this"</h3><p class="muted" style="font-size:14.5px">Reports with the same error get grouped. Accept once, close all, tell every reporter it's fixed.</p></div>
+    <div class="card"><h3 class="ih"><span class="ico">🤖</span>Agent goes straight to the line</h3><p class="muted" style="font-size:14.5px">A stack frame like <span class="mono">profile.tsx:88</span> points the agent at the file instead of searching.</p></div>
+    <div class="card"><h3 class="ih"><span class="ico">📸</span>Screenshot, by choice</h3><p class="muted" style="font-size:14.5px">A "add a screenshot" button the reporter presses. Later: it's heavy and the riskiest part.</p></div>
+  </div>
+</div></section>
+
+<!-- 6. phases -->
+<section><div class="wrap">
+  <h2>Order to build it</h2>
+  <div class="grid3">
+    <div class="phase now"><span class="tag">First</span><h3>Web trail</h3><ul>
+      <li>Pages, errors, failed requests, clicks</li><li>Chips + switch in the form</li><li><span class="mono">trail</span> on the report, cleaned in <span class="mono">core/</span></li><li>Timeline in dashboard, fenced in the agent prompt</li></ul></div>
+    <div class="phase"><span class="tag">Then</span><h3>Apple trail</h3><ul>
+      <li>Screens via <span class="mono">.heresayScreen("Settings")</span></li><li>App's own log warnings (OSLogStore)</li><li>Last crash (MetricKit)</li></ul></div>
+    <div class="phase"><span class="tag">Later</span><h3>Grouping + screenshot</h3><ul>
+      <li>Group reports by error</li><li>Screenshot the reporter chooses to add</li></ul></div>
+  </div>
+</div></section>
+
+<!-- 7. decisions -->
+<section><div class="wrap">
+  <h2>Three calls for you</h2>
+  <div class="q"><div class="num">1</div><div><b>Trail on by default?</b><p>Suggest yes, with the switch and chips visible on the form. Off by default means almost nobody turns it on.</p></div></div>
+  <div class="q"><div class="num">2</div><div><b>Clicks: include the button's text?</b><p>Suggest yes, cut to 40 characters, with emails and numbers blanked. Text like "Delete Priya's account" can be personal, so a host can switch clicks off.</p></div></div>
+  <div class="q"><div class="num">3</div><div><b>Stay out of Sentry's lane?</b><p>Suggest yes: capture only when a person reports. No background error collection, no reports without words. Heresay stays "what people say"; the trail is supporting evidence.</p></div></div>
+</div></section>
+
+<div style="height:40px"></div>
+</body>
+</html>

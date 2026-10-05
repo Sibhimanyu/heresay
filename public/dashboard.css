@@ -228,6 +228,23 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .agent-steps li::marker { font-weight:700; color:var(--deep); }
 .repos-line { margin:-10px 0 18px; font-size:13px; color:var(--mute); }
 .brief-line { margin-top:8px; font-size:13px; color:var(--deep); }
+/* the trail: what happened before a report */
+.trail { margin-top:10px; font-size:13px; }
+.trail summary { cursor:pointer; color:var(--mute); }
+.trail ol { list-style:none; margin:8px 0 0; padding:0 0 0 14px; border-left:2px solid var(--line); }
+.trail li { position:relative; display:flex; gap:10px; align-items:baseline; padding:3px 0; }
+.trail li::before { content:""; position:absolute; left:-20px; top:9px; width:8px; height:8px; border-radius:50%; background:var(--bg); border:2px solid var(--mute); }
+.trail .ago { flex:none; width:40px; font:12px var(--mono); color:var(--mute); }
+.trail .kind { flex:none; width:62px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--mute); }
+.trail .what { min-width:0; word-break:break-word; }
+.trail pre { margin:2px 0 0; font:11.5px/1.5 var(--mono); color:var(--mute); white-space:pre-wrap; }
+.trail .k-page::before, .trail .k-sent::before { border-color:var(--acc); }
+.trail .k-sent::before { background:var(--acc); }
+.trail .k-page .kind, .trail .k-sent .kind { color:var(--deep); }
+.trail .k-error::before, .trail .k-request::before { border-color:var(--broken); background:#fbeceb; }
+.trail .k-error .kind, .trail .k-request .kind, .trail .k-error .what > span, .trail .k-request .what > span { color:var(--broken); }
+.trail .k-warn::before { border-color:var(--confusing); }
+.trail .k-warn .kind { color:var(--confusing); }
 .notes { margin-top:8px; font-size:13px; }
 .notes summary { cursor:pointer; color:var(--mute); }
 .notes p { margin:6px 0 0; }

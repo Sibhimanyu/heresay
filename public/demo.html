@@ -25,7 +25,7 @@
     s.dataset.version = '0.0.1-demo';
     // The design options, so a look can be tried here before it goes in the app's code.
     ['accent', 'position', 'offset', 'button', 'label', 'style', 'size', 'fill', 'shadow', 'mark', 'theme',
-      'font', 'lang', 'placeholder', 'types', 'thanks', 'panel', 'width', 'backdrop', 'preferences', 'intro']
+      'font', 'lang', 'placeholder', 'types', 'thanks', 'panel', 'width', 'backdrop', 'preferences', 'intro', 'trail']
       .forEach(function (k) { if (q.get(k) != null) s.setAttribute('data-' + k, q.get(k)); });
     if (q.has('preview')) s.setAttribute('data-preview', '');
     document.body.appendChild(s);
