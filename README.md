@@ -59,9 +59,11 @@ Settings apply to every app in the instance. Choose alerts for new reports needi
 accepted reports, reports marked fixed (by a teammate or an agent), and agent handoffs.
 Destinations are off until enabled; new reports, fixes, and handoffs are selected by default.
 
-Telegram takes a bot token and a chat ID or `@channel` username. Create the bot with
-BotFather, start it or add it to the target group, and give it posting permissions for a
-channel. See the [Telegram bot guide](https://core.telegram.org/bots/tutorial).
+Telegram walks you through it in three steps: make a bot with BotFather and paste its token;
+press Start in a chat with the bot (or add it to a group and send a message, or make it a
+channel administrator and post once); then **Find my chats** lists the chats that messaged
+the bot in the last day, and you pick one. You can still type a chat ID or `@channel` username.
+Bots already connected to a webhook can't be looked up; enter the chat ID for those.
 Cliq takes a **Webhook Token** from Bots & Tools and a bot or channel **message endpoint**
 using your region's Cliq domain. Paste the endpoint without the `?zapikey=...` query string;
 enter the token separately. See [Cliq webhook setup](https://www.zoho.com/cliq/help/platform/webhook-tokens.html).

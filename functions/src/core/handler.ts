@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Store, Transition } from './store.js';
 import { agent, normaliseRepo, reposFor, tokens } from './agent.js';
-import { notificationSettings, notify, type NotificationSender } from './notifications.js';
+import { notificationSettings, notify, type NotificationSender, type TelegramLookup } from './notifications.js';
 import {
   LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, isSignIn, toReporterView,
   type Instance, type Member, type Project, type Report, type ReportContext, type ReporterPrefs, type Task,
@@ -37,6 +37,8 @@ export interface Deps {
   selfOrigins?: string[];
   /** The backend's bounded notification transport. Never used for agent briefs. */
   sendNotification?: NotificationSender;
+  /** Reads a Telegram bot's name and recent chats, so owners pick a chat instead of finding its ID. */
+  telegramLookup?: TelegramLookup;
 }
 
 /**

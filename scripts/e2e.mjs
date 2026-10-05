@@ -215,16 +215,40 @@ try {
 
   step('developer sees it with screen and version, declines with a reason');
   await dash.goto(`${BASE}/app/#/`);
-  // A slow inbox shows the Glance loader in the list, and only there.
+  // A slow inbox shows the one Glance loader and none of the half-built page, then all of it at once.
   const slow = async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); };
   await dash.route('**/reports', slow);
   await dash.locator('.app-card', { hasText: 'Acme Notes' }).click();
-  await dash.locator('.reports .loading img').waitFor();
+  await dash.locator('#loader.on').waitFor();
   await dash.waitForTimeout(700);
+  assert.equal(await dash.locator('#view h1').isVisible(), false, 'the header waits for the reports');
+  assert.equal(await dash.locator('.app-loader img').count(), 1, 'one loader, never a second');
   await dash.screenshot({ path: `${SHOTS}e2e-3a-inbox-loading.png` });
   await dash.unroute('**/reports', slow);
   await dash.locator('.filters button', { hasText: 'Open' }).click();
-  assert.equal(await dash.locator('.loading:visible').count(), 0, 'the loader goes once the inbox arrives');
+  await dash.locator('#loader:not(.on)').waitFor({ state: 'attached' });
+  assert.equal(await dash.locator('#view h1').isVisible(), true, 'the page arrives in one go');
+  // A cold refresh on the inbox: the same loader, in the same place, from first paint to the full page.
+  await dash.route('**/reports', slow);
+  await dash.reload();
+  const seen = [];
+  for (let i = 0; i < 40 && !(await dash.locator('article.report').first().isVisible()); i++) {
+    seen.push(await dash.evaluate(() => {
+      const l = document.querySelector('#loader');
+      const box = l.getBoundingClientRect();
+      const app = document.querySelector('#app');
+      return { loaders: document.querySelectorAll('img[src="/loader.svg"]').length, top: Math.round(box.top),
+        on: getComputedStyle(l).visibility === 'visible', app: !app.hidden && getComputedStyle(app).visibility === 'visible'
+          && getComputedStyle(document.querySelector('#view')).visibility === 'visible' };
+    }));
+    if (i === 10) await dash.screenshot({ path: `${SHOTS}e2e-3c-cold-load.png` });
+    await dash.waitForTimeout(100);
+  }
+  await dash.unroute('**/reports', slow);
+  assert.ok(seen.every((x) => x.loaders === 1), 'one loader the whole way');
+  assert.equal(new Set(seen.map((x) => x.top)).size, 1, 'the loader never moves');
+  assert.ok(seen.every((x) => !x.app), 'nothing of the page shows until it is all there');
+  await dash.locator('#view h1').waitFor();
   const row = dash.locator('article.report').first();
   await row.waitFor();
   const ctxText = await row.locator('.ctx').first().textContent();

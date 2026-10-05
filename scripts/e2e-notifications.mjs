@@ -57,7 +57,22 @@ try {
   await telegram.getByRole('button', { name: 'Save Telegram' }).click();
   await telegram.getByText('Telegram needs a bot token and a chat ID.').waitFor();
   await telegram.locator('[name=telegram_token]').fill(TOKEN);
-  await telegram.locator('[name=chat_id]').fill('-1001234567890');
+  // Guided: the dashboard finds the chats that messaged the bot, so nobody hunts for an ID.
+  let lookupBody = null;
+  await page.route('**/v1/notifications/telegram/lookup', async (route) => {
+    lookupBody = route.request().postDataJSON();
+    await route.fulfill({ json: { bot: { username: 'acme_alerts_bot', name: 'Acme alerts' }, chats: [
+      { id: '-1001234567890', title: 'Acme team', kind: 'supergroup' }, { id: '42', title: 'Asha R', kind: 'private' },
+    ] } });
+  });
+  await telegram.getByRole('button', { name: 'Find my chats' }).click();
+  await telegram.getByText('Acme alerts (@acme_alerts_bot)').waitFor();
+  assert.deepEqual(lookupBody, { token: TOKEN });
+  await telegram.getByRole('link', { name: 'Open @acme_alerts_bot ↗' }).waitFor();
+  await telegram.getByRole('radio', { name: /Acme team/ }).check();
+  assert.equal(await telegram.locator('[name=chat_id]').inputValue(), '-1001234567890');
+  await page.unroute('**/v1/notifications/telegram/lookup');
+  await telegram.screenshot({ path: SHOTS + 'notifications-telegram-guide.png' });
   await telegram.getByRole('button', { name: 'Save Telegram' }).click();
   await telegram.getByText('Telegram settings saved. Send a test to check delivery.').waitFor();
   assert.equal(await telegram.locator('[name=telegram_token]').inputValue(), '');

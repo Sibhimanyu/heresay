@@ -10,10 +10,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/dashboard.css">
 </head>
-<body>
+<body class="booting pending">
 
-<!-- Until sign-in state is known -->
-<div id="boot" class="loading boot" role="status" aria-label="Loading"><img src="/loader.svg" alt=""></div>
+<!-- The one loader: from first paint until a page has everything it needs -->
+<div id="loader" class="app-loader on" role="status" aria-label="Loading"><img src="/loader.svg" alt="" width="96" height="96"></div>
 
 <!-- Signed out -->
 <div id="gate" class="gate" hidden>
