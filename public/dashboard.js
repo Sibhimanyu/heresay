@@ -65,6 +65,33 @@
     return el('div', { class: 'code' }, [el('pre', { text: text }), copyButton(function () { return text; })]);
   }
 
+  /** One message at a time, bottom of the screen, with an optional action. Read out by screen readers. */
+  var toastBox = null, toastTimer = null;
+  function toast(text, action) {
+    if (!toastBox) {
+      toastBox = el('div', { class: 'toast', role: 'status', 'aria-live': 'polite' });
+      document.body.appendChild(toastBox);
+    }
+    clearTimeout(toastTimer);
+    toastBox.textContent = '';
+    toastBox.appendChild(el('span', { class: 'toast-tick', 'aria-hidden': 'true' }));
+    toastBox.appendChild(el('span', { text: text }));
+    if (action) toastBox.appendChild(el('button', { type: 'button', text: action.label, onclick: function () { hideToast(); action.run(); } }));
+    toastBox.classList.add('on');
+    toastTimer = setTimeout(hideToast, 6000);
+  }
+  function hideToast() { if (toastBox) toastBox.classList.remove('on'); }
+
+  /** A button that is working: spinner, a new label, and no second click. */
+  function busyButton(b, label) {
+    var was = b.textContent;
+    b.disabled = true;
+    b.classList.add('busy');
+    b.setAttribute('aria-busy', 'true');
+    b.textContent = label;
+    return function () { b.disabled = false; b.classList.remove('busy'); b.removeAttribute('aria-busy'); b.textContent = was; };
+  }
+
   function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
   function every(ms, fn) {
     stopTimer();
@@ -1260,14 +1287,7 @@
         });
       }
       var here = reports.filter(function (r) { return where === 'all' || r.project_id === where; });
-      filters.textContent = '';
-      ['open', 'accepted', 'fixed', 'declined', 'all'].forEach(function (f) {
-        var n = f === 'all' ? here.length : here.filter(function (r) { return r.status === f; }).length;
-        filters.appendChild(el('button', {
-          'aria-pressed': String(filter === f),
-          onclick: function () { filter = f; render(); },
-        }, [(f === 'all' ? 'All' : STATUS_LABEL[f]) + ' ', el('span', { class: 'n', text: String(n) })]));
-      });
+      drawFilters(here);
       list.textContent = '';
       var shown = here.filter(function (r) { return filter === 'all' || r.status === filter; });
       empty.hidden = shown.length > 0;
@@ -1278,13 +1298,48 @@
       } else empty.textContent = filter === 'open' ? 'Nothing waiting. Every report has had its hearing.' : 'Nothing here.';
       shown.forEach(function (r) {
         var c = ctxs[r.project_id];
-        list.appendChild(row(c.project, r, load, c, many));
+        list.appendChild(row(c.project, r, settled, c, many));
       });
     }
 
+    function drawFilters(here) {
+      here = here || reports.filter(function (r) { return where === 'all' || r.project_id === where; });
+      filters.textContent = '';
+      ['open', 'accepted', 'fixed', 'declined', 'all'].forEach(function (f) {
+        var n = f === 'all' ? here.length : here.filter(function (r) { return r.status === f; }).length;
+        filters.appendChild(el('button', {
+          'aria-pressed': String(filter === f),
+          onclick: function () { filter = f; render(); },
+        }, [(f === 'all' ? 'All' : STATUS_LABEL[f]) + ' ', el('span', { class: 'n', text: String(n) })]));
+      });
+    }
+
+    /**
+     * A report moved. The card says so where the click was, the counts move at once, and only
+     * then does it leave this filter, so nothing vanishes without a word.
+     */
+    function settled(r, card, done) {
+      if (!done) return load();  // someone else got there first: show what they did
+      drawFilters();
+      var to = r.status;
+      toast(DONE_TOAST[to], filter === to || filter === 'all' ? null : {
+        label: 'View ' + STATUS_LABEL[to].toLowerCase(), run: function () { filter = to; render(); window.scrollTo(0, 0); },
+      });
+      card.classList.add('settled');
+      setTimeout(function () {
+        if (!card.isConnected) return;
+        if (filter === 'all' || filter === to) return load();  // it stays in this list
+        card.style.height = card.offsetHeight + 'px';
+        card.getBoundingClientRect();
+        card.classList.add('leaving');
+        card.style.height = '0px';
+        setTimeout(load, 320);
+      }, 2200);
+    }
+
     load();
-    // Reports arrive while you read. Don't refresh under someone typing a decline reason.
-    every(30000, function () { if (!list.querySelector('textarea')) load(); });
+    // Reports arrive while you read. Don't refresh under someone typing, or a card on its way out.
+    every(30000, function () { if (!list.querySelector('textarea, .report.settled, .report .busy')) load(); });
   }
 
   function ctxLine(c) {
@@ -1313,16 +1368,56 @@
     ]);
   }
 
-  function row(p, r, reload, ctx, showPlatform) {
+  var DONE_TOAST = {
+    accepted: 'Accepted. It is waiting for a coding agent.',
+    declined: 'Declined. They will see your reason.',
+    fixed: 'Marked fixed. They will see it in “Your reports”.',
+  };
+  var BUSY_LABEL = { accept: 'Accepting…', decline: 'Declining…', fixed: 'Saving…' };
+
+  function row(p, r, settled, ctx, showPlatform) {
     var brief = ctx.briefs[r.id];
-    var err = el('span', { class: 'err' });
+    var err = el('span', { class: 'err', role: 'alert' });
     var actions = el('div', { class: 'actions' });
-    var act = function (action, body) {
+    var card, sentTo = null;
+    var act = function (action, body, b) {
+      if (action === 'accept') sentTo = (body && body.repo) || ctx.repos[0] || null;
       err.textContent = '';
+      var undo = busyButton(b, BUSY_LABEL[action]);
+      actions.querySelectorAll('button, select, textarea').forEach(function (c) { if (c !== b) c.disabled = true; });
+      card.classList.add('working');
       return api('POST', '/projects/' + p.id + '/reports/' + r.id + '/' + action, body)
-        .then(reload)
-        .catch(function (x) { err.textContent = x.message; if (x.status === 409) reload(); });
+        .then(function (x) {
+          Object.assign(r, x.report || {});
+          card.classList.remove('working');
+          showDone();
+          settled(r, card, true);
+        })
+        .catch(function (x) {
+          undo();
+          card.classList.remove('working');
+          actions.querySelectorAll('button, select, textarea').forEach(function (c) { c.disabled = false; });
+          err.textContent = x.message;
+          if (x.status === 409) settled(r, card, false);
+        });
     };
+
+    /** In place of the buttons: what just happened, in the colour of the new status. */
+    function showDone() {
+      status.className = 'status s-' + r.status;
+      status.textContent = STATUS_LABEL[r.status];
+      var line = r.status === 'accepted'
+        ? 'Accepted. Waiting for an agent' + (sentTo ? ' in ' + sentTo : '') + '.'
+        : r.status === 'declined' ? 'Declined. They will read your reason.' : 'Marked fixed. They will see it.';
+      actions.textContent = '';
+      actions.appendChild(el('div', { class: 'done-line s-' + r.status }, [
+        el('span', { class: 'done-tick', 'aria-hidden': 'true' }), document.createTextNode(line),
+      ]));
+    }
+
+    function submitOnCmdEnter(area, go) {
+      area.addEventListener('keydown', function (e) { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); go.click(); } });
+    }
 
     function buttons() {
       actions.textContent = '';
@@ -1330,24 +1425,31 @@
         // Several repos hold this app's code: say where the fix goes, defaulting to the first.
         var pick = ctx.repos.length > 1 ? el('select', { 'aria-label': 'Where the fix goes' },
           ctx.repos.map(function (x) { return el('option', { value: x, text: 'Fix in ' + x }); })) : null;
-        actions.appendChild(el('button', { class: 'btn primary', text: 'Accept', onclick: function () {
-          act('accept', pick ? { repo: pick.value } : undefined);
+        actions.appendChild(el('button', { class: 'btn primary', type: 'button', text: 'Accept', onclick: function (e) {
+          act('accept', pick ? { repo: pick.value } : undefined, e.currentTarget);
         } }));
         if (pick) actions.appendChild(pick);
-        actions.appendChild(el('button', { class: 'btn', text: 'Decline…', onclick: declineForm }));
+        actions.appendChild(el('button', { class: 'btn', type: 'button', text: 'Decline…', onclick: declineForm }));
       }
       if (r.status === 'accepted') {
         actions.appendChild(el('button', {
           class: 'btn primary', text: 'Copy prompt for agent',
+          type: 'button',
           onclick: function (e) {
-            var b = e.target;
+            var b = e.currentTarget;
+            var undo = busyButton(b, 'Copying…');
             api('GET', '/projects/' + p.id + '/reports/' + r.id + '/prompt')
               .then(function (x) { return navigator.clipboard.writeText(x.prompt); })
-              .then(function () { b.textContent = 'Copied'; })
-              .catch(function (x) { err.textContent = x.message; });
+              .then(function () {
+                undo();
+                b.textContent = 'Copied ✓';
+                toast('Prompt copied. Paste it into your coding agent.');
+                setTimeout(function () { b.textContent = 'Copy prompt for agent'; }, 2000);
+              })
+              .catch(function (x) { undo(); err.textContent = x.message; });
           },
         }));
-        actions.appendChild(el('button', { class: 'btn', text: 'Mark fixed…', onclick: fixedForm }));
+        actions.appendChild(el('button', { class: 'btn', type: 'button', text: 'Mark fixed…', onclick: fixedForm }));
       }
       actions.appendChild(err);
     }
@@ -1355,11 +1457,13 @@
     function fixedForm() {
       actions.textContent = '';
       var note = el('textarea', { placeholder: 'What changed, in their words. The person who sent this will read it. Optional.', 'aria-label': 'Note for the reporter' });
+      var go = el('button', { class: 'btn primary', type: 'button', text: 'Mark fixed', onclick: function (e) {
+        act('fixed', note.value.trim() ? { note: note.value } : undefined, e.currentTarget);
+      } });
+      submitOnCmdEnter(note, go);
       actions.appendChild(note);
-      actions.appendChild(el('button', { class: 'btn primary', text: 'Mark fixed', onclick: function () {
-        act('fixed', note.value.trim() ? { note: note.value } : undefined);
-      } }));
-      actions.appendChild(el('button', { class: 'btn ghost', text: 'Cancel', onclick: buttons }));
+      actions.appendChild(go);
+      actions.appendChild(el('button', { class: 'btn ghost', type: 'button', text: 'Cancel', onclick: buttons }));
       actions.appendChild(err);
       note.focus();
     }
@@ -1367,23 +1471,26 @@
     function declineForm() {
       actions.textContent = '';
       var reason = el('textarea', { placeholder: 'Why? The person who sent this will read it.', 'aria-label': 'Reason for declining' });
-      actions.appendChild(reason);
-      actions.appendChild(el('button', { class: 'btn', text: 'Decline', onclick: function () {
+      var go = el('button', { class: 'btn primary', type: 'button', text: 'Decline', onclick: function (e) {
         if (!reason.value.trim()) { err.textContent = 'Give a reason. They will see it.'; reason.focus(); return; }
-        act('decline', { reason: reason.value });
-      } }));
-      actions.appendChild(el('button', { class: 'btn ghost', text: 'Cancel', onclick: buttons }));
+        act('decline', { reason: reason.value }, e.currentTarget);
+      } });
+      submitOnCmdEnter(reason, go);
+      actions.appendChild(reason);
+      actions.appendChild(go);
+      actions.appendChild(el('button', { class: 'btn ghost', type: 'button', text: 'Cancel', onclick: buttons }));
       actions.appendChild(err);
       reason.focus();
     }
     buttons();
 
-    return el('article', { class: 'report' }, [
+    var status = el('span', { class: 'status s-' + r.status, text: STATUS_LABEL[r.status] });
+    card = el('article', { class: 'report t-' + r.type }, [
       el('div', { class: 'meta' }, [
         el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
         showPlatform ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
         el('time', { datetime: r.created_at, text: new Date(r.created_at).toLocaleString() }),
-        el('span', { class: 'status s-' + r.status, text: STATUS_LABEL[r.status] }),
+        status,
       ]),
       el('p', { class: 'text', text: r.text }),
       el('div', { class: 'ctx', text: ctxLine(r.context) }),
@@ -1398,6 +1505,7 @@
         .concat(brief.notes.map(function (n) { return el('p', {}, [el('span', { class: 'mute', text: n.by.replace(/^agent:/, '') + ' · ' + new Date(n.at).toLocaleString() + ': ' }), n.text]); }))) : null,
       r.status === 'fixed' || r.status === 'declined' ? null : actions,
     ]);
+    return card;
   }
 
   // ---- delete an app ---------------------------------------------------------------------
