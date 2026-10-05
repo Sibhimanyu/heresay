@@ -13,3 +13,4 @@ apple/.swiftpm/
 apple/Example/*.xcodeproj/
 # Personal agent tooling (gstack and its skills) lives on each machine, not in this repo.
 .claude/skills/
+.DS_Store
