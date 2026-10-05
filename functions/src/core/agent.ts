@@ -9,6 +9,7 @@ import {
   type AgentToken, type Member, type Project, type Task, type TaskNote,
 } from './types.js';
 import type { Deps, Req, Res } from './handler.js';
+import { notify } from './notifications.js';
 
 const json = (status: number, body: unknown): Res => ({ status, body });
 const str = (v: unknown, max: number): string | null => {
@@ -261,6 +262,7 @@ export async function agent(
     });
     if (refused) return json(409, { error: `in progress in ${refused}`, claimed_by: refused });
     deps.log('api.brief_handed_off', { from: repoName, to, report_id: t!.id });
+    await notify('handoff', app, t!.id, deps);
     return json(200, { brief: summary(t!, app, now) });
   }
 

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Store, Transition } from './store.js';
 import { agent, normaliseRepo, reposFor, tokens } from './agent.js';
+import { notificationSettings, notify, type NotificationSender } from './notifications.js';
 import {
   LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, isSignIn, toReporterView,
   type Instance, type Member, type Project, type Report, type ReportContext, type ReporterPrefs, type Task,
@@ -34,6 +35,8 @@ export interface Deps {
   version: string;
   /** Where this Heresay's own dashboard is served from. */
   selfOrigins?: string[];
+  /** The backend's bounded notification transport. Never used for agent briefs. */
+  sendNotification?: NotificationSender;
 }
 
 /**
@@ -182,8 +185,12 @@ async function route(req: Req, deps: Deps): Promise<Res> {
   if (p[0] === 'agent') {
     return agent(p.slice(1), req, deps, parseBody(req.body), agentPrompt,
       (by, body) => createProject({ email: by, role: 'member', added_at: '', added_by: null }, { ...req, body }, deps),
-      async (project, id, note, by) => transitionRes(await deps.store.move(project.id, id, 'accepted', 'fixed',
-        { fix_note: note, triaged_by: by, updated_at: new Date(deps.now()).toISOString() })));
+      async (project, id, note, by) => {
+        const result = await deps.store.move(project.id, id, 'accepted', 'fixed',
+          { fix_note: note, triaged_by: by, updated_at: new Date(deps.now()).toISOString() });
+        if (result.ok) await notify('fixed', project, id, deps);
+        return transitionRes(result);
+      });
   }
 
   // The team, signed in to the dashboard.
@@ -202,6 +209,10 @@ async function route(req: Req, deps: Deps): Promise<Res> {
     return json(200, { email: member.email, role: member.role, version: deps.version, platforms: PLATFORMS });
   }
   if (p[0] === 'team') return team(p, member, req, deps);
+  if (p[0] === 'notifications') {
+    if (member.role !== 'owner') return json(403, { error: 'Only an owner can manage notifications.' });
+    return notificationSettings(p, req, deps, parseBody(req.body));
+  }
   if (p[0] === 'agent-tokens') return tokens(p, member, req, deps, parseBody(req.body));
 
   if (p[0] === 'projects' && p.length === 1) {
@@ -370,6 +381,7 @@ async function submit(req: Req, deps: Deps): Promise<Res> {
     await deps.store.updateProject(project.id, { framework: report.context.framework, framework_detected: true });
   }
   deps.log('api.report_created', { project_id: project.id, report_id: report.id, type: report.type });
+  await notify('new_report', project, report.id, deps);
   return json(201, { report: toReporterView(report) }, headers);
 }
 
@@ -548,5 +560,8 @@ async function triage(
     return json(404, { error: 'not found' });
   }
   deps.log('api.report_triaged', { project_id: project.id, report_id, action, ok: t.ok });
+  if (t.ok && (action === 'accept' || action === 'fixed')) {
+    await notify(action === 'accept' ? 'accepted' : 'fixed', project, report_id, deps);
+  }
   return transitionRes(t);
 }
