@@ -52,6 +52,28 @@ Later: `npx create-heresay update` deploys a new version, `status` shows what's 
 deletes a Heresay. The setup UX is specified in `docs/plan/cli-ux.md`; the code is
 `packages/create-heresay/`.
 
+## Notifications
+
+In the dashboard, open **Notifications** as an owner to connect Telegram, Zoho Cliq, or both.
+Settings apply to every app in the instance. Choose alerts for new reports needing review,
+accepted reports, reports marked fixed (by a teammate or an agent), and agent handoffs.
+Destinations are off until enabled; new reports, fixes, and handoffs are selected by default.
+
+Telegram takes a bot token and a chat ID or `@channel` username. Create the bot with
+BotFather, start it or add it to the target group, and give it posting permissions for a
+channel. See the [Telegram bot guide](https://core.telegram.org/bots/tutorial).
+Cliq takes a **Webhook Token** from Bots & Tools and a bot or channel **message endpoint**
+using your region's Cliq domain. Paste the endpoint without the `?zapikey=...` query string;
+enter the token separately. See [Cliq webhook setup](https://www.zoho.com/cliq/help/platform/webhook-tokens.html).
+
+Save the destination, then use **Send test notification** to check it. Tokens stay server-side
+in the instance's Firestore data and are never returned by the settings API. Leaving a token
+blank keeps it; disabling pauses delivery; **Disconnect** removes it. Alerts contain the app
+name, event, report ID, and dashboard link, without reporter text or contact details.
+Delivery is best effort, with a five-second timeout and no automatic retries. A provider
+failure never rolls back a report or status change; failures appear as `api.notification_failed`
+in server logs without credentials. New adapters can supply `Deps.sendNotification`.
+
 ## Coding agents
 
 In an app's repo, `npx heresay connect` links it to its apps: it adds `.mcp.json` (the MCP
@@ -82,6 +104,7 @@ by verified email: the team lives in `meta/instance`, and `create-heresay` write
 npm install && npm --prefix functions install
 npm test        # handler logic, in memory
 npm run e2e     # the whole loop in a real browser against the emulators
+npm run e2e:notifications # notification settings in Chromium, with delivery stubbed
 npm run e2e:agent  # heresay connect + the MCP server driving an app from install to fixed
 npm run dev     # emulators; site at http://127.0.0.1:5055, dashboard at /app/, demo host app at /demo.html?key=pk_...
 ```

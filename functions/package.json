@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test 'lib-test/test/handler.test.js' 'lib-test/test/agent.test.js' 'lib-test/test/store-memory.test.js'",
+    "test": "tsc -p tsconfig.test.json && node --test 'lib-test/test/handler.test.js' 'lib-test/test/agent.test.js' 'lib-test/test/notifications.test.js' 'lib-test/test/store-memory.test.js'",
     "build:test": "tsc -p tsconfig.test.json"
   },
   "dependencies": {

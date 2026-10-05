@@ -135,7 +135,13 @@ export interface Project {
  */
 export type Role = 'owner' | 'member';
 export interface Member { email: string; role: Role; added_at: string; added_by: string | null }
-export interface Instance { members: Member[]; created_at: string }
+export type NotificationEvent = 'new_report' | 'accepted' | 'fixed' | 'handoff';
+export interface NotificationSettings {
+  events: Record<NotificationEvent, boolean>;
+  telegram: { enabled: boolean; token: string | null; chat_id: string };
+  cliq: { enabled: boolean; token: string | null; endpoint: string };
+}
+export interface Instance { members: Member[]; created_at: string; notifications?: NotificationSettings }
 
 /**
  * The ONLY thing a coding agent is ever handed. Written by `accept` and by nothing else, so a

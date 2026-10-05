@@ -8,6 +8,7 @@
     "dev": "npm --prefix functions run build && firebase emulators:start --only auth,firestore,functions,hosting",
     "test:firestore": "npm --prefix functions run build:test && firebase emulators:exec --only firestore 'node --test functions/lib-test/test/store-firestore.test.js'",
     "e2e:agent": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-agent.mjs'",
+    "e2e:notifications": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-notifications.mjs'",
     "e2e:apple": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-apple.mjs'"
   },
   "devDependencies": {
