@@ -42,13 +42,34 @@
   }
 
   function show(which) {
-    ['boot', 'gate', 'blocked', 'app'].forEach(function (id) { $(id).hidden = id !== which; });
+    ['gate', 'blocked', 'app'].forEach(function (id) { $(id).hidden = id !== which; });
+    syncLoader();
   }
 
-  /** The Glance loader. It shows only while it is alone in its box, so a view's first content hides it. */
-  function loading() {
-    return el('div', { class: 'loading', role: 'status', 'aria-label': 'Loading' }, [el('img', { src: '/loader.svg', alt: '' })]);
+  /**
+   * One Glance loader for the whole dashboard, from the first paint until a page is ready. It is
+   * never recreated, so the animation never restarts. A view marks what it is still waiting for
+   * with loading(); while any of those is alone in its box the view stays hidden, then the page
+   * appears in one go.
+   */
+  var loader = $('loader'), loaderTimer = null;
+  function loading(tag) {
+    return el(tag || 'div', { class: 'loading', 'aria-hidden': 'true' });
   }
+  function syncLoader() {
+    // Signed in: wait for the view. Otherwise wait until we know who this is (sign-in or blocked).
+    var waiting = !$('app').hidden ? !!$('view').querySelector('.loading:only-child') : $('gate').hidden && $('blocked').hidden;
+    document.body.classList.toggle('pending', waiting);
+    if (!waiting) document.body.classList.remove('booting');
+    if (waiting && !loader.classList.contains('on')) {
+      // A quick page never flashes the loader; it just appears.
+      if (!loaderTimer) loaderTimer = setTimeout(function () { loaderTimer = null; loader.classList.add('on'); }, 250);
+    } else if (!waiting) {
+      clearTimeout(loaderTimer); loaderTimer = null;
+      loader.classList.remove('on');
+    }
+  }
+  new MutationObserver(syncLoader).observe($('view'), { childList: true, subtree: true });
 
   function copyButton(getText, label) {
     var b = el('button', { class: 'btn', type: 'button', text: label || 'Copy' });
@@ -157,8 +178,8 @@
     api('GET', '/me').then(function (b) {
       me = b;
       $('who').textContent = b.email;
+      route();  // first, so the view is already waiting when the app is shown
       show('app');
-      route();
       checkForUpdate(b);
     }).catch(function (x) {
       show('blocked');
@@ -1272,6 +1293,11 @@
         reports = triageSort([].concat.apply([], sibs.map(function (x) { return ctxs[x.id].reports; })));
         drawPlatforms();
         render();
+      }).catch(function (x) {
+        if (reports.length) return;  // a background refresh failed: keep what is on screen
+        list.textContent = '';
+        list.appendChild(el('p', { class: 'err', role: 'alert', text: x.message }));
+        list.appendChild(el('button', { class: 'btn', text: 'Retry', onclick: function () { route(); } }));
       });
     }
 
@@ -1655,7 +1681,7 @@
       view.appendChild(el('section', { class: 'card' }, [el('p', { text: 'An owner can connect Telegram or Zoho Cliq and choose which events your team receives.' }), el('a', { href: '#/team', text: 'See team owners' })]));
       return;
     }
-    var content = el('div');
+    var content = el('div', {}, [loading()]);
     view.appendChild(content);
     api('GET', '/notifications').then(function (b) {
       var settings = b.notifications;
@@ -1700,13 +1726,64 @@
         var save = el('button', { class: 'btn primary', type: 'submit', text: 'Save ' + title });
         var test = el('button', { class: 'btn', type: 'button', text: 'Send test notification' });
         var remove = el('button', { class: 'btn ghost', type: 'button', text: 'Disconnect' });
-        var form = el('form', { class: 'form notification-form' }, [
+        // Telegram only: find the chat for them, from the chats that have messaged the bot.
+        var find = el('button', { class: 'btn primary', type: 'button', text: 'Find my chats' });
+        var found = el('div', { class: 'chat-finder', 'aria-live': 'polite' });
+        var botLinks = el('div', { class: 'row tight', hidden: true });
+        find.onclick = function () {
+          found.textContent = '';
+          var undo = busyButton(find, 'Looking…');
+          api('POST', '/notifications/telegram/lookup', { token: token.value.trim() }).then(function (b) {
+            var bot = b.bot.username;
+            botLinks.textContent = '';
+            if (bot) {
+              botLinks.appendChild(el('a', { class: 'btn', href: 'https://t.me/' + encodeURIComponent(bot), target: '_blank', rel: 'noopener noreferrer', text: 'Open @' + bot + ' ↗' }));
+              botLinks.appendChild(el('a', { class: 'btn ghost', href: 'https://t.me/' + encodeURIComponent(bot) + '?startgroup=heresay', target: '_blank', rel: 'noopener noreferrer', text: 'Add it to a group ↗' }));
+              botLinks.hidden = false;
+            }
+            found.appendChild(el('p', { class: 'ok-msg' }, [el('b', { text: '✓ ' + (b.bot.name || 'Your bot') + (bot ? ' (@' + bot + ')' : '') }), document.createTextNode(' is ready.')]));
+            if (!b.chats.length) {
+              found.appendChild(el('p', { class: 'hint', text: 'No chats yet. Open the bot and press Start, or add it to a group and send a message, then press Find my chats again. Telegram only shows the last day.' }));
+              return;
+            }
+            var KIND = { private: 'You', group: 'Group', supergroup: 'Group', channel: 'Channel' };
+            var list = el('div', { class: 'chat-list', role: 'radiogroup', 'aria-label': 'Send alerts to' });
+            b.chats.forEach(function (c) {
+              var radio = el('input', { type: 'radio', name: 'telegram_chat', value: c.id, checked: address.value === c.id });
+              radio.onchange = function () {
+                address.value = c.id;
+                enabled.checked = true;
+                form.dispatchEvent(new Event('input'));
+                feedback('Chat chosen. Save to start sending alerts there.');
+              };
+              list.appendChild(el('label', { class: 'chat-choice' }, [radio, el('span', {}, [el('b', { text: c.title }), el('span', { class: 'mute', text: KIND[c.kind] + ' · ' + c.id })])]));
+            });
+            found.appendChild(list);
+            if (b.chats.length === 1 && !address.value) list.querySelector('input').click();
+          }).catch(function (x) { found.appendChild(el('p', { class: 'err', role: 'alert', text: x.message })); }).finally(undo);
+        };
+        var form = el('form', { class: 'form notification-form' }, telegram ? [
           el('label', { class: 'notification-choice' }, [enabled, el('b', { text: 'Enable ' + title + ' notifications' })]),
-          el('label', {}, [telegram ? 'Bot token' : 'Webhook token', token]), tokenHint,
-          el('label', {}, [telegram ? 'Chat ID or channel username' : 'Message endpoint', address]),
-          el('p', { class: 'hint' }, telegram
-            ? ['Create a bot with BotFather, start a conversation with it (or add it to your group), and enter the target chat ID. For a channel, add the bot as an administrator. ', el('a', { href: 'https://core.telegram.org/bots/tutorial', target: '_blank', rel: 'noopener noreferrer', text: 'Telegram setup guide' })]
-            : ['In Cliq, open Bots & Tools → Webhook Tokens and generate a token. Use the bot or channel message endpoint from Get Webhook URL, without the ?zapikey part. Use your region’s Cliq domain. ', el('a', { href: 'https://www.zoho.com/cliq/help/platform/webhook-tokens.html', target: '_blank', rel: 'noopener noreferrer', text: 'Cliq setup guide' })]),
+          setupStep(1, 'Make a bot', [
+            el('p', { class: 'hint' }, ['In Telegram, open BotFather and send ', el('code', { text: '/newbot' }),
+              '. Give it any name, then a username that ends in “bot”. BotFather replies with a token: copy it and paste it here.']),
+            el('div', { class: 'row tight' }, [el('a', { class: 'btn', href: 'https://t.me/BotFather', target: '_blank', rel: 'noopener noreferrer', text: 'Open BotFather ↗' })]),
+            el('label', {}, ['Bot token', token]), tokenHint,
+          ]),
+          setupStep(2, 'Choose where alerts go', [
+            el('p', { class: 'hint', text: 'Say hello to your bot so it knows the chat: press Start in a chat with it, or add it to a group and send any message there. For a channel, add it as an administrator and post once.' }),
+            botLinks,
+            el('div', { class: 'row tight' }, [find]),
+            found,
+            el('label', {}, ['Chat ID or channel username', address]),
+            el('p', { class: 'hint', text: 'Filled in when you pick a chat above. You can also type one, like -1001234567890 or @yourchannel.' }),
+          ]),
+          setupStep(3, 'Save and test', [el('div', { class: 'row tight' }, [save, test, remove]), message]),
+        ] : [
+          el('label', { class: 'notification-choice' }, [enabled, el('b', { text: 'Enable ' + title + ' notifications' })]),
+          el('label', {}, ['Webhook token', token]), tokenHint,
+          el('label', {}, ['Message endpoint', address]),
+          el('p', { class: 'hint' }, ['In Cliq, open Bots & Tools → Webhook Tokens and generate a token. Use the bot or channel message endpoint from Get Webhook URL, without the ?zapikey part. Use your region’s Cliq domain. ', el('a', { href: 'https://www.zoho.com/cliq/help/platform/webhook-tokens.html', target: '_blank', rel: 'noopener noreferrer', text: 'Cliq setup guide' })]),
           el('div', { class: 'row' }, [save, test, remove]), message,
         ]);
         function refresh() {
@@ -1759,9 +1836,17 @@
 
   // ---- team ------------------------------------------------------------------------------
 
+  /** One numbered step of a setup, in the same style as the install steps. */
+  function setupStep(n, title, kids) {
+    return el('div', { class: 'setup-step' }, [
+      el('div', { class: 'test-head' }, [el('span', { class: 'stepnum', text: String(n) }), el('b', { text: title })]),
+      el('div', { class: 'setup-body' }, kids),
+    ]);
+  }
+
   function teamView(view) {
     var owner = me.role === 'owner';
-    var list = el('ul', { class: 'members' });
+    var list = el('ul', { class: 'members' }, [loading('li')]);
     var err = el('p', { class: 'err', role: 'alert' });
     view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'Team' })]));
     view.appendChild(el('p', { class: 'mute', text: 'Everyone here can read and answer reports for every app. Owners can also change the team.' }));

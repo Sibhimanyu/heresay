@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.17] - 2026-10-05
+
+### Changed
+
+- The dashboard loads in one go: one Glance loader from first paint until the page has everything, in one place, without restarting or showing half a page.
+- Telegram setup is guided: make a bot, say hello to it, then **Find my chats** lists the chats it can post to so you pick one instead of hunting for a chat ID.
+
 ## [0.2.16] - 2026-10-05
 
 ### Changed

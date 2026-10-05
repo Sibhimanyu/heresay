@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handle, type Deps, type Req } from '../src/core/handler.js';
 import { MemoryStore } from '../src/core/store.js';
-import { defaultNotifications, notificationSender, notify, patchNotifications, validCliqEndpoint } from '../src/core/notifications.js';
+import { defaultNotifications, notificationSender, notify, patchNotifications, telegramLookup, validCliqEndpoint } from '../src/core/notifications.js';
 import type { Project, Report } from '../src/core/types.js';
 
 const TOKEN = '123456:abcdefghijklmnopqrstuvwxyz_123456';
@@ -244,4 +244,40 @@ test('HTTP delivery uses the Telegram and regional Cliq message APIs, bounds tim
   await assert.rejects(send('telegram', { enabled: true, token: null, chat_id: '1' }, 'Test'));
   await assert.rejects(send('telegram', { enabled: true, token: TOKEN, endpoint: ENDPOINT }, 'Test'));
   assert.equal(calls.length, 2, 'invalid endpoints never make a request');
+});
+
+test('telegram lookup: owner only, pasted or saved token, never echoes the token', async () => {
+  const s = setup();
+  const asked: string[] = [];
+  s.deps.telegramLookup = async (token) => { asked.push(token); return { bot: { username: 'acme_bot', name: 'Acme' }, chats: [{ id: '42', title: 'Asha', kind: 'private' }] }; };
+  const look = (body: unknown, headers: Record<string, string> = owner) => s.call({ method: 'POST', path: '/v1/notifications/telegram/lookup', body, headers });
+  assert.equal((await look({ token: TOKEN }, { authorization: 'Bearer member' })).status, 403);
+  assert.equal((await look({})).status, 400, 'no token pasted and none saved');
+  assert.equal((await look({ token: 'nope' })).status, 400);
+  const pasted = await look({ token: TOKEN });
+  assert.equal(pasted.status, 200);
+  assert.deepEqual((pasted.body as { chats: unknown[] }).chats, [{ id: '42', title: 'Asha', kind: 'private' }]);
+  assert.ok(!JSON.stringify(pasted.body).includes(TOKEN));
+  await s.enable();
+  assert.equal((await look({})).status, 200, 'falls back to the saved token');
+  assert.deepEqual(asked, [TOKEN, TOKEN]);
+  for (let i = 0; i < 12; i++) await look({ token: TOKEN });
+  assert.equal((await look({ token: TOKEN })).status, 429, 'rate-limited');
+});
+
+test('telegram lookup transport: lists recent chats, explains a bad token and a webhook bot', async () => {
+  const reply = (status: number, json: unknown) => new Response(JSON.stringify(json), { status });
+  const fake = (updates: Response) => (async (url: string) => String(url).endsWith('/getMe')
+    ? reply(200, { ok: true, result: { username: 'acme_bot', first_name: 'Acme' } }) : updates) as unknown as typeof fetch;
+  const found = await telegramLookup(fake(reply(200, { ok: true, result: [
+    { message: { chat: { id: 42, type: 'private', first_name: 'Asha', last_name: 'R' } } },
+    { my_chat_member: { chat: { id: -1001, type: 'supergroup', title: 'Team' } } },
+    { message: { chat: { id: 42, type: 'private', first_name: 'Asha', last_name: 'R' } } },
+    { channel_post: { chat: { id: -1002, type: 'channel', title: 'Releases' } } },
+  ] })))(TOKEN);
+  assert.deepEqual(found.bot, { username: 'acme_bot', name: 'Acme' });
+  assert.deepEqual(found.chats.map((c) => c.id), ['-1002', '-1001', '42']);
+  assert.equal(found.chats.find((c) => c.id === '42')!.title, 'Asha R');
+  await assert.rejects(telegramLookup((async () => reply(401, { ok: false })) as unknown as typeof fetch)(TOKEN), /doesn’t recognise/);
+  await assert.rejects(telegramLookup(fake(reply(409, { ok: false })))(TOKEN), /webhook/);
 });

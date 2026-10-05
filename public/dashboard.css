@@ -132,12 +132,19 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .wait.ok .btn { margin-left:auto; }
 @keyframes pulse { 0%, 100% { opacity:.25; transform:scale(.8); } 50% { opacity:1; transform:scale(1); } }
 @media (prefers-reduced-motion: reduce) { .wait::before { animation:none; } }
-/* loading: the Glance mark, faded in late so quick loads never flash it */
-.loading { display:grid; place-items:center; padding:12vh 0; animation:loading-in .2s .3s both; }
-.loading img { width:96px; height:96px; }
-.loading.boot { padding-top:30vh; }
-.loading:not(.boot):not(:only-child) { display:none; }
+/* loading: one Glance mark, fixed in place, faded in late so quick loads never flash it */
+.app-loader { position:fixed; left:50%; top:38vh; z-index:20; width:96px; height:96px; margin:-48px 0 0 -48px; pointer-events:none;
+  opacity:0; visibility:hidden; transition:opacity .25s ease, visibility 0s .25s; }
+.app-loader.on { opacity:1; visibility:visible; transition:opacity .25s ease; }
+.booting .app-loader.on { animation:loading-in .25s .3s both; }
+.app-loader img { display:block; width:96px; height:96px; }
 @keyframes loading-in { from { opacity:0; } }
+/* What a view still waits for. While one is alone in its box, the page stays out of sight. */
+.loading { display:block; min-height:40vh; list-style:none; }
+.loading:not(:only-child) { display:none; }
+#app, #view { transition:opacity .25s ease; }
+.booting.pending #app, .pending #view { opacity:0; visibility:hidden; transition:none; }
+@media (prefers-reduced-motion: reduce) { #app, #view, .app-loader, .app-loader.on { transition:none; } }
 
 /* reports */
 .filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
@@ -376,6 +383,25 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .notification-choice .hint { display:block; margin:2px 0 0; }
 .notification-form input[type=text], .notification-form input[type=password] { width:100%; min-width:0; }
 .notification-form .row { margin-top:22px; }
+/* a guided setup inside a card */
+.setup-step { margin-top:22px; }
+.setup-step .test-head b { font-size:16px; }
+.setup-body { margin:6px 0 0 34px; }
+.setup-body > .row.tight { margin-top:10px; }
+.setup-body label { margin-top:14px; }
+.chat-finder:empty { display:none; }
+.chat-finder { margin-top:12px; }
+.chat-finder p { margin:0 0 8px; }
+.chat-list { display:flex; flex-direction:column; gap:6px; }
+.notification-form .chat-choice { display:flex; align-items:center; gap:12px; margin:0; padding:10px 14px; border:1px solid var(--line); border-radius:12px; cursor:pointer; font-weight:400; }
+.chat-choice:hover { border-color:var(--acc); }
+.chat-choice:has(input:checked) { border-color:var(--acc); background:var(--mist); }
+.notification-form .chat-choice input:focus { outline:none; }
+.chat-choice:has(input:focus-visible) { outline:2px solid var(--acc); outline-offset:2px; }
+.notification-form .chat-choice input { display:inline-block; width:auto; flex:none; accent-color:var(--acc); margin:0; }
+.chat-choice b { display:block; }
+.chat-choice .mute { font-size:13px; }
+@media (max-width:600px) { .setup-body { margin-left:0; } }
 @media (max-width:600px) {
   .top { flex-wrap:wrap; gap:8px 12px; padding:12px 16px; }
   .top .tabs { order:5; width:100%; }
