@@ -200,13 +200,15 @@
     var query = new URLSearchParams(hash.split('?')[1] || '');
     var parts = hash.split('?')[0].split('/').filter(Boolean);
     document.querySelectorAll('[data-nav]').forEach(function (a) {
-      a.setAttribute('aria-current', String((parts[0] === 'team') === (a.dataset.nav === 'team')));
+      var active = parts[0] === 'team' || parts[0] === 'notifications' ? parts[0] : 'apps';
+      a.setAttribute('aria-current', String(active === a.dataset.nav));
     });
     var view = $('view');
     view.textContent = '';
     view.appendChild(loading());
     view.classList.remove('wide');
     if (parts[0] === 'team') return teamView(view);
+    if (parts[0] === 'notifications') return notificationsView(view);
     if (parts[0] === 'connect') return connectView(view, query);
     if (parts[0] === 'new') return newAppView(view, parts[1], query);
     if (parts[0] === 'apps' && parts[1]) {
@@ -1534,6 +1536,117 @@
       }).catch(function (x) { err.textContent = x.message; });
     };
     repo.focus();
+  }
+
+  // ---- notifications ---------------------------------------------------------------------
+
+  function notificationsView(view) {
+    view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'Notifications' })]));
+    view.appendChild(el('p', { class: 'mute', text: 'Know when a report needs a hearing, or when work moves forward. These settings apply to every app in this Heresay.' }));
+    if (me.role !== 'owner') {
+      view.appendChild(el('section', { class: 'card' }, [el('p', { text: 'An owner can connect Telegram or Zoho Cliq and choose which events your team receives.' }), el('a', { href: '#/team', text: 'See team owners' })]));
+      return;
+    }
+    var content = el('div');
+    view.appendChild(content);
+    api('GET', '/notifications').then(function (b) {
+      var settings = b.notifications;
+      var choices = [
+        ['new_report', 'New reports', 'A new report is waiting for a person to review it.'],
+        ['accepted', 'Accepted reports', 'A person approved a report for a coding agent.'],
+        ['fixed', 'Reports marked fixed', 'A teammate or coding agent marked a report fixed.'],
+        ['handoff', 'Agent handoffs', 'An agent handed accepted work to another repo.'],
+      ];
+      var eventInputs = {};
+      var eventsMsg = el('p', { role: 'status' });
+      var eventSave = el('button', { class: 'btn primary', type: 'submit', text: 'Save events' });
+      var eventsForm = el('form', { class: 'form notification-form' }, choices.map(function (choice) {
+        var input = eventInputs[choice[0]] = el('input', { type: 'checkbox', name: choice[0], checked: settings.events[choice[0]] });
+        return el('label', { class: 'notification-choice' }, [input, el('span', {}, [el('b', { text: choice[1] }), el('span', { class: 'hint', text: choice[2] })])]);
+      }).concat([el('div', { class: 'row' }, [eventSave]), eventsMsg]));
+      eventsForm.onsubmit = function (e) {
+        e.preventDefault();
+        var events = {};
+        Object.keys(eventInputs).forEach(function (key) { events[key] = eventInputs[key].checked; eventInputs[key].disabled = true; });
+        eventSave.disabled = true;
+        eventsMsg.className = 'hint'; eventsMsg.textContent = 'Saving…';
+        api('PATCH', '/notifications', { events: events }).then(function () {
+          eventsMsg.className = 'ok-msg'; eventsMsg.textContent = 'Notification events saved.';
+        }).catch(function (x) { eventsMsg.className = 'err'; eventsMsg.textContent = x.message; }).finally(function () {
+          eventSave.disabled = false;
+          Object.keys(eventInputs).forEach(function (key) { eventInputs[key].disabled = false; });
+        });
+      };
+      content.appendChild(el('section', { class: 'card' }, [el('h2', { text: 'When to notify' }), eventsForm]));
+      content.appendChild(el('p', { class: 'hint', text: 'Alerts include the app name, event, report ID, and a link to the dashboard. Reporter text and contact details stay in Heresay.' }));
+      destination('telegram', 'Telegram', settings.telegram);
+      destination('cliq', 'Zoho Cliq', settings.cliq);
+
+      function destination(provider, title, saved) {
+        var telegram = provider === 'telegram', dirty = false;
+        var enabled = el('input', { type: 'checkbox', name: provider + '_enabled', checked: saved.enabled });
+        var token = el('input', { type: 'password', name: provider + '_token', maxlength: 512, autocomplete: 'new-password', spellcheck: 'false' });
+        var address = el('input', { type: 'text', name: telegram ? 'chat_id' : 'endpoint', value: telegram ? saved.chat_id : saved.endpoint, maxlength: telegram ? 100 : 300, autocomplete: 'off', spellcheck: 'false', placeholder: telegram ? '-1001234567890 or @yourchannel' : 'https://cliq.zoho.com/api/v2/channelsbyname/team/message' });
+        var tokenHint = el('p', { class: 'hint' });
+        var message = el('p', { role: 'status' });
+        var save = el('button', { class: 'btn primary', type: 'submit', text: 'Save ' + title });
+        var test = el('button', { class: 'btn', type: 'button', text: 'Send test notification' });
+        var remove = el('button', { class: 'btn ghost', type: 'button', text: 'Disconnect' });
+        var form = el('form', { class: 'form notification-form' }, [
+          el('label', { class: 'notification-choice' }, [enabled, el('b', { text: 'Enable ' + title + ' notifications' })]),
+          el('label', {}, [telegram ? 'Bot token' : 'Webhook token', token]), tokenHint,
+          el('label', {}, [telegram ? 'Chat ID or channel username' : 'Message endpoint', address]),
+          el('p', { class: 'hint' }, telegram
+            ? ['Create a bot with BotFather, start a conversation with it (or add it to your group), and enter the target chat ID. For a channel, add the bot as an administrator. ', el('a', { href: 'https://core.telegram.org/bots/tutorial', target: '_blank', rel: 'noopener noreferrer', text: 'Telegram setup guide' })]
+            : ['In Cliq, open Bots & Tools → Webhook Tokens and generate a token. Use the bot or channel message endpoint from Get Webhook URL, without the ?zapikey part. Use your region’s Cliq domain. ', el('a', { href: 'https://www.zoho.com/cliq/help/platform/webhook-tokens.html', target: '_blank', rel: 'noopener noreferrer', text: 'Cliq setup guide' })]),
+          el('div', { class: 'row' }, [save, test, remove]), message,
+        ]);
+        function refresh() {
+          token.placeholder = saved.configured ? 'Leave blank to keep the saved token' : 'Paste your token';
+          tokenHint.textContent = saved.configured ? 'A token is saved. Paste a new one to replace it.' : 'Your token is saved on the server and is never displayed here.';
+          test.disabled = dirty || !saved.enabled;
+          remove.disabled = !saved.configured;
+        }
+        function busy(on) {
+          form.querySelectorAll('input, button').forEach(function (control) { control.disabled = on; });
+          if (!on) refresh();
+        }
+        function feedback(text, bad) { message.className = bad ? 'err' : 'ok-msg'; message.textContent = text; }
+        form.oninput = function () { dirty = true; test.disabled = true; feedback('Save your changes before sending a test.'); };
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          var patch = { enabled: enabled.checked, token: token.value.trim() };
+          patch[telegram ? 'chat_id' : 'endpoint'] = address.value.trim();
+          var body = {}; body[provider] = patch;
+          busy(true); feedback('Saving…');
+          api('PATCH', '/notifications', body).then(function (result) {
+            saved = result.notifications[provider]; dirty = false; token.value = '';
+            feedback(title + ' settings saved. Send a test to check delivery.');
+          }).catch(function (x) { feedback(x.message, true); }).finally(function () { busy(false); });
+        };
+        test.onclick = function () {
+          busy(true); feedback('Sending a test…');
+          api('POST', '/notifications/test', { provider: provider }).then(function () {
+            feedback('Test notification sent. Check ' + title + '.');
+          }).catch(function (x) { feedback(x.message, true); }).finally(function () { busy(false); });
+        };
+        remove.onclick = function () {
+          var body = {}, patch = { enabled: false, token: null };
+          patch[telegram ? 'chat_id' : 'endpoint'] = '';
+          body[provider] = patch;
+          busy(true); feedback('Disconnecting…');
+          api('PATCH', '/notifications', body).then(function (result) {
+            saved = result.notifications[provider]; dirty = false; enabled.checked = false; token.value = ''; address.value = '';
+            feedback(title + ' disconnected. The saved token was removed.');
+          }).catch(function (x) { feedback(x.message, true); }).finally(function () { busy(false); });
+        };
+        refresh();
+        content.appendChild(el('section', { class: 'card' }, [el('h2', { text: title }), form]));
+      }
+    }).catch(function (x) {
+      content.appendChild(el('p', { class: 'err', role: 'alert', text: x.message }));
+      content.appendChild(el('button', { class: 'btn', text: 'Retry', onclick: function () { route(); } }));
+    });
   }
 
   // ---- team ------------------------------------------------------------------------------
