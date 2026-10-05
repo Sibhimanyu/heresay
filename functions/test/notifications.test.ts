@@ -93,10 +93,14 @@ test('validation prevents invalid enabled destinations and arbitrary hosts, cred
   assert.equal(s.store.instance!.notifications, undefined, 'failed updates are atomic');
   for (const endpoint of [
     'http://cliq.zoho.com/api/v2/bots/team/message', 'https://cliq.zoho.com.evil.test/api/v2/bots/team/message',
-    'https://user:secret@cliq.zoho.com/api/v2/bots/team/message', 'https://cliq.zoho.com:444/api/v2/bots/team/message',
+    'https://cliq.zoho.com:444/api/v2/bots/team/message',
     'https://cliq.zoho.com/api/v2/bots/team/message?zapikey=secret', 'https://cliq.zoho.com/api/v2/bots/team/incoming',
     'https://cliq.zoho.com/api/v2/bots/team/message#fragment',
   ]) assert.equal(validCliqEndpoint(endpoint), false, endpoint);
+  const authenticatedEndpoint = new URL('https://cliq.zoho.com/api/v2/bots/team/message');
+  authenticatedEndpoint.username = 'example-user';
+  authenticatedEndpoint.password = 'example-password';
+  assert.equal(validCliqEndpoint(authenticatedEndpoint.href), false, 'URL credentials are refused');
   assert.equal(validCliqEndpoint(ENDPOINT), true);
   assert.equal(validCliqEndpoint('https://cliq.zoho.eu/api/v2/bots/team/message'), true);
   for (const host of ['cliq.zohocloud.ca', 'cliq.zoho.uk', 'cliq.zoho.ae', 'cliq.zoho.sg']) {
