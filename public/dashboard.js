@@ -1726,59 +1726,22 @@
         var save = el('button', { class: 'btn primary', type: 'submit', text: 'Save ' + title });
         var test = el('button', { class: 'btn', type: 'button', text: 'Send test notification' });
         var remove = el('button', { class: 'btn ghost', type: 'button', text: 'Disconnect' });
-        // Telegram only: find the chat for them, from the chats that have messaged the bot.
-        var find = el('button', { class: 'btn primary', type: 'button', text: 'Find my chats' });
-        var found = el('div', { class: 'chat-finder', 'aria-live': 'polite' });
-        var botLinks = el('div', { class: 'row tight', hidden: true });
-        find.onclick = function () {
-          found.textContent = '';
-          var undo = busyButton(find, 'Looking…');
-          api('POST', '/notifications/telegram/lookup', { token: token.value.trim() }).then(function (b) {
-            var bot = b.bot.username;
-            botLinks.textContent = '';
-            if (bot) {
-              botLinks.appendChild(el('a', { class: 'btn', href: 'https://t.me/' + encodeURIComponent(bot), target: '_blank', rel: 'noopener noreferrer', text: 'Open @' + bot + ' ↗' }));
-              botLinks.appendChild(el('a', { class: 'btn ghost', href: 'https://t.me/' + encodeURIComponent(bot) + '?startgroup=heresay', target: '_blank', rel: 'noopener noreferrer', text: 'Add it to a group ↗' }));
-              botLinks.hidden = false;
-            }
-            found.appendChild(el('p', { class: 'ok-msg' }, [el('b', { text: '✓ ' + (b.bot.name || 'Your bot') + (bot ? ' (@' + bot + ')' : '') }), document.createTextNode(' is ready.')]));
-            if (!b.chats.length) {
-              found.appendChild(el('p', { class: 'hint', text: 'No chats yet. Open the bot and press Start, or add it to a group and send a message, then press Find my chats again. Telegram only shows the last day.' }));
-              return;
-            }
-            var KIND = { private: 'You', group: 'Group', supergroup: 'Group', channel: 'Channel' };
-            var list = el('div', { class: 'chat-list', role: 'radiogroup', 'aria-label': 'Send alerts to' });
-            b.chats.forEach(function (c) {
-              var radio = el('input', { type: 'radio', name: 'telegram_chat', value: c.id, checked: address.value === c.id });
-              radio.onchange = function () {
-                address.value = c.id;
-                enabled.checked = true;
-                form.dispatchEvent(new Event('input'));
-                feedback('Chat chosen. Save to start sending alerts there.');
-              };
-              list.appendChild(el('label', { class: 'chat-choice' }, [radio, el('span', {}, [el('b', { text: c.title }), el('span', { class: 'mute', text: KIND[c.kind] + ' · ' + c.id })])]));
-            });
-            found.appendChild(list);
-            if (b.chats.length === 1 && !address.value) list.querySelector('input').click();
-          }).catch(function (x) { found.appendChild(el('p', { class: 'err', role: 'alert', text: x.message })); }).finally(undo);
-        };
+        var tg = telegram ? telegramGuide() : null;
         var form = el('form', { class: 'form notification-form' }, telegram ? [
           el('label', { class: 'notification-choice' }, [enabled, el('b', { text: 'Enable ' + title + ' notifications' })]),
           setupStep(1, 'Make a bot', [
-            el('p', { class: 'hint' }, ['In Telegram, open BotFather and send ', el('code', { text: '/newbot' }),
-              '. Give it any name, then a username that ends in “bot”. BotFather replies with a token: copy it and paste it here.']),
-            el('div', { class: 'row tight' }, [el('a', { class: 'btn', href: 'https://t.me/BotFather', target: '_blank', rel: 'noopener noreferrer', text: 'Open BotFather ↗' })]),
-            el('label', {}, ['Bot token', token]), tokenHint,
+            el('ol', { class: 'guide' }, [
+              el('li', {}, [el('a', { class: 'btn', href: 'https://t.me/BotFather', target: '_blank', rel: 'noopener noreferrer', text: 'Open BotFather in Telegram ↗' })]),
+              el('li', {}, ['Send ', el('code', { text: '/newbot' }), '. It asks for a name (anything, like “Acme alerts”), then a username that ends in “bot” (like acme_alerts_bot).']),
+              el('li', {}, ['It replies with a long token that looks like ', el('code', { text: '123456789:AAH…' }), '. Copy it and paste it here.']),
+            ]),
+            el('label', {}, ['Bot token', token]), tokenHint, tg.botLine,
           ]),
-          setupStep(2, 'Choose where alerts go', [
-            el('p', { class: 'hint', text: 'Say hello to your bot so it knows the chat: press Start in a chat with it, or add it to a group and send any message there. For a channel, add it as an administrator and post once.' }),
-            botLinks,
-            el('div', { class: 'row tight' }, [find]),
-            found,
-            el('label', {}, ['Chat ID or channel username', address]),
-            el('p', { class: 'hint', text: 'Filled in when you pick a chat above. You can also type one, like -1001234567890 or @yourchannel.' }),
+          setupStep(2, 'Choose where alerts go', [tg.step2]),
+          setupStep(3, 'Save and test', [
+            el('p', { class: 'hint', text: 'Save, then send a test. It arrives from your bot in a few seconds.' }),
+            el('div', { class: 'row tight' }, [save, test, remove]), message,
           ]),
-          setupStep(3, 'Save and test', [el('div', { class: 'row tight' }, [save, test, remove]), message]),
         ] : [
           el('label', { class: 'notification-choice' }, [enabled, el('b', { text: 'Enable ' + title + ' notifications' })]),
           el('label', {}, ['Webhook token', token]), tokenHint,
@@ -1786,6 +1749,126 @@
           el('p', { class: 'hint' }, ['In Cliq, open Bots & Tools → Webhook Tokens and generate a token. Use the bot or channel message endpoint from Get Webhook URL, without the ?zapikey part. Use your region’s Cliq domain. ', el('a', { href: 'https://www.zoho.com/cliq/help/platform/webhook-tokens.html', target: '_blank', rel: 'noopener noreferrer', text: 'Cliq setup guide' })]),
           el('div', { class: 'row' }, [save, test, remove]), message,
         ]);
+        /**
+         * Telegram has no screen that shows a chat ID, so we never ask for one up front. Once the
+         * token checks out, the person picks who gets alerts, follows two or three taps, and this
+         * page watches the bot until their chat turns up, then chooses it.
+         */
+        function telegramGuide() {
+          var g = { botLine: el('div', { class: 'bot-line', 'aria-live': 'polite' }), step2: el('div', { class: 'tg-step2' }) };
+          var bot = null, kind = 'private', chats = [], timer = null, until = 0, checking = null;
+          var KIND = { private: 'Private chat', group: 'Group', supergroup: 'Group', channel: 'Channel' };
+          var wait = el('div', { class: 'wait', role: 'status' });
+          var list = el('div', { class: 'chat-list', role: 'radiogroup', 'aria-label': 'Send alerts to' });
+          var chosen = el('p', { class: 'ok-msg chosen-line' });
+          var manual = el('details', { class: 'where', open: !!saved.chat_id }, [
+            el('summary', { text: 'Enter a chat ID yourself' }),
+            el('label', {}, ['Chat ID or channel username', address]),
+            el('p', { class: 'hint', text: 'Only if you already know it, like -1001234567890 or @yourchannel. Picking a chat above fills this in.' }),
+          ]);
+          var tabs = el('div', { class: 'seg', role: 'tablist', 'aria-label': 'Who gets alerts' });
+          var how = el('ol', { class: 'guide' });
+          var again = el('button', { class: 'btn', type: 'button', text: 'Look again', onclick: function () { watch(); } });
+
+          function link(href, text) { return el('a', { class: 'btn', href: href, target: '_blank', rel: 'noopener noreferrer', text: text }); }
+          function drawHow() {
+            var at = '@' + bot.username, url = 'https://t.me/' + encodeURIComponent(bot.username);
+            how.textContent = '';
+            (kind === 'private' ? [
+              [link(url, 'Open ' + at + ' in Telegram ↗')],
+              ['Tap ', el('b', { text: 'Start' }), ' at the bottom of the chat. No Start button? Send it any message, like “hi”.'],
+              ['Come back to this page. It finds the chat by itself.'],
+            ] : kind === 'group' ? [
+              [link(url + '?startgroup=heresay', 'Add ' + at + ' to a group ↗')],
+              ['Telegram asks which group. Pick it and confirm.'],
+              ['Come back to this page. It finds the group by itself. If it doesn’t, send ', el('code', { text: '/start' + at }), ' in the group.'],
+            ] : [
+              ['In Telegram, open your channel and tap its name, then ', el('b', { text: 'Administrators' }), ' → ', el('b', { text: 'Add Admin' }), '.'],
+              ['Search for ', el('b', { text: at }), ', add it, and leave ', el('b', { text: 'Post Messages' }), ' on.'],
+              ['Post anything in the channel, then come back to this page. It finds the channel by itself.'],
+            ]).forEach(function (kids) { how.appendChild(el('li', {}, kids)); });
+          }
+          function drawTabs() {
+            tabs.textContent = '';
+            [['private', 'Just me'], ['group', 'A group'], ['channel', 'A channel']].forEach(function (t) {
+              tabs.appendChild(el('button', { type: 'button', role: 'tab', 'aria-selected': String(kind === t[0]), text: t[1], onclick: function () {
+                kind = t[0]; drawTabs(); drawHow(); drawChats(); watch();
+              } }));
+            });
+          }
+          function sameKind(c) { return kind === 'group' ? c.kind === 'group' || c.kind === 'supergroup' : c.kind === kind; }
+          function pick(c) {
+            address.value = c.id;
+            enabled.checked = true;
+            form.dispatchEvent(new Event('input'));
+            stop();
+            drawChats();
+            feedback('Chat chosen. Save to start sending alerts there.');
+          }
+          function drawChats() {
+            list.textContent = '';
+            var hit = chats.filter(function (c) { return c.id === address.value; })[0];
+            chosen.hidden = !address.value;
+            chosen.textContent = hit ? '✓ Alerts will go to ' + hit.title + ' (' + KIND[hit.kind].toLowerCase() + ').'
+              : address.value ? '✓ Alerts go to chat ' + address.value + '. Pick another below to change it.' : '';
+            chats.forEach(function (c) {
+              var radio = el('input', { type: 'radio', name: 'telegram_chat', value: c.id, checked: address.value === c.id });
+              radio.onchange = function () { pick(c); };
+              list.appendChild(el('label', { class: 'chat-choice' }, [radio, el('span', {}, [el('b', { text: c.title }), el('span', { class: 'mute', text: KIND[c.kind] })])]));
+            });
+            list.hidden = !chats.length;
+          }
+          function drawWait(state) {
+            wait.textContent = '';
+            wait.className = 'wait' + (state === 'idle' ? ' ok idle' : '');
+            if (state === 'waiting') wait.appendChild(document.createTextNode('Waiting for ' + (kind === 'private' ? 'your message to' : kind === 'group' ? 'a group with' : 'a channel with') + ' @' + bot.username + '…'));
+            else if (state === 'idle') { wait.appendChild(document.createTextNode('Nothing yet. Follow the steps above, then')); wait.appendChild(again); }
+            wait.hidden = state === 'none';
+          }
+          function stop() { clearTimeout(timer); timer = null; if (bot) drawWait(address.value ? 'none' : 'idle'); }
+          function watch() {
+            clearTimeout(timer);
+            until = Date.now() + 5 * 60 * 1000;
+            drawWait('waiting');
+            poll();
+          }
+          function poll() {
+            if (!form.isConnected) return;
+            lookup(true).then(function () {
+              var match = chats.filter(sameKind)[0];
+              if (match && !address.value) return pick(match);  // never replace a chat they already chose
+              if (match) return stop();
+              if (Date.now() > until) return stop();
+              timer = setTimeout(poll, 6000);
+            }).catch(stop);
+          }
+          function lookup(quiet) {
+            return api('POST', '/notifications/telegram/lookup', { token: token.value.trim() }).then(function (b) {
+              var fresh = !bot || bot.username !== b.bot.username;
+              bot = b.bot; chats = b.chats;
+              g.botLine.textContent = '';
+              g.botLine.appendChild(el('p', { class: 'ok-msg' }, [el('b', { text: '✓ Token works. ' }), document.createTextNode('Your bot is ' + (bot.name || 'ready') + ' (@' + bot.username + ').')]));
+              if (fresh) { g.step2.textContent = ''; drawTabs(); drawHow(); [el('p', { class: 'hint', text: 'Who should get the alerts?' }), tabs, how, wait, list, chosen, manual].forEach(function (n) { g.step2.appendChild(n); }); }
+              drawChats();
+            }).catch(function (x) {
+              if (quiet && bot) return;
+              g.botLine.textContent = '';
+              g.botLine.appendChild(el('p', { class: 'err', role: 'alert', text: x.message }));
+              throw x;
+            });
+          }
+          function check() {
+            clearTimeout(checking);
+            checking = setTimeout(function () {
+              lookup().then(function () { if (!address.value) watch(); else stop(); }).catch(function () {});
+            }, 400);
+          }
+          g.step2.appendChild(el('p', { class: 'hint', text: 'Paste your bot token above first. Then this step shows exactly what to tap.' }));
+          g.step2.appendChild(manual);
+          token.addEventListener('input', function () { if (/^\d+:[A-Za-z0-9_-]{20,}$/.test(token.value.trim())) check(); });
+          if (saved.configured) check();
+          return g;
+        }
         function refresh() {
           token.placeholder = saved.configured ? 'Leave blank to keep the saved token' : 'Paste your token';
           tokenHint.textContent = saved.configured ? 'A token is saved. Paste a new one to replace it.' : 'Your token is saved on the server and is never displayed here.';

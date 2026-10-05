@@ -122,7 +122,7 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
     if (!token) return json(400, { error: 'Paste the bot token from BotFather first.' });
     if (!TELEGRAM_TOKEN.test(token)) return json(400, { error: 'That doesn’t look like a bot token. BotFather sends one like 123456789:AAH…' });
     const now = deps.now(), start = Math.floor(now / 60_000) * 60_000;
-    if (!await deps.store.hit(`notification-lookup:telegram:${start}`, 12, start + 60_000)) {
+    if (!await deps.store.hit(`notification-lookup:telegram:${start}`, 30, start + 60_000)) {
       return json(429, { error: 'Wait a minute before looking again.' });
     }
     if (!deps.telegramLookup) return json(503, { error: 'Telegram lookup is unavailable.' });
