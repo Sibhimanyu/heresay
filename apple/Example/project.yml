@@ -25,6 +25,8 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
         MARKETING_VERSION: "1.4.0"
         CURRENT_PROJECT_VERSION: "22"
         CODE_SIGN_IDENTITY: "-"

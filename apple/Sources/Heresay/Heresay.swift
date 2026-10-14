@@ -64,6 +64,9 @@ public final class Heresay: ObservableObject {
     @Published private(set) var userLabel: String?
     @Published private(set) var userEmail: String?
     private let defaults: UserDefaults
+    /// What happened before a report (`Trail.swift`). In memory; leaves only with a report.
+    let trail = Trail()
+    private lazy var collectors = TrailCollectors(trail: trail, defaults: defaults)
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -82,18 +85,24 @@ public final class Heresay: ObservableObject {
     ///     Defaults to Heresay peacock.
     ///   - style: Where the button sits, its text, size, theme, language and more. The defaults
     ///     are the recommended setup.
+    ///   - trail: What happened in the app before a report, attached unless the reporter switches
+    ///     it off: screens, clicks and menu commands (macOS), the app's `Logger` errors and the last
+    ///     crash. `[]` turns it off; `[.screens, .errors]` keeps only those.
     public static func configure(key: String, url: URL, version: String? = nil, accent: Color? = nil,
-                                 style: HeresayStyle = HeresayStyle(), session: URLSession = .shared) {
-        shared.configure(key: key, url: url, version: version, accent: accent, style: style, session: session)
+                                 style: HeresayStyle = HeresayStyle(), trail: HeresayTrail = .all,
+                                 session: URLSession = .shared) {
+        shared.configure(key: key, url: url, version: version, accent: accent, style: style, trail: trail, session: session)
     }
 
     func configure(key: String, url: URL, version: String?, accent: Color?, style: HeresayStyle = HeresayStyle(),
-                   session: URLSession) {
+                   trail parts: HeresayTrail = .all, session: URLSession) {
         client = Client(base: url, key: key, session: session)
         isDisabled = false
         self.version = version ?? Self.bundleVersion()
         if let accent { self.accent = accent; customAccent = true }
         setStyle(style)
+        collectors.start(parts)
+        if let screen { trail.note(.page, screen) }
         Task { await refresh() }
     }
 
@@ -132,7 +141,12 @@ public final class Heresay: ObservableObject {
     public static func setVersion(_ version: String?) { shared.version = version }
 
     /// Name the screen people are on, so reports say where they came from.
-    public static func setScreen(_ name: String?) { shared.screen = name }
+    public static func setScreen(_ name: String?) { shared.setScreen(name) }
+
+    func setScreen(_ name: String?) {
+        if let name, name != screen { trail.note(.page, name) }
+        screen = name
+    }
 
     /// Open the report sheet from your own button or menu item. `type` and `text` fill it in,
     /// for example from an error screen; the person still reviews and sends it.
@@ -202,10 +216,17 @@ public final class Heresay: ObservableObject {
 
     // MARK: Reports
 
-    func send(type: ReportType, text: String) async throws -> SentReport {
+    /// `trail` is what the reporter chose to attach in the sheet; from the app's own UI it is all
+    /// of it, as on the web.
+    func send(type: ReportType, text: String, trail chosen: [TrailEvent]?? = nil) async throws -> SentReport {
         guard let client else { throw Client.Failure(status: 0, message: "Heresay isn’t configured. Call Heresay.configure(key:url:) first.") }
+        let events: [TrailEvent]?
+        if let chosen { events = chosen } else { events = Trail.toSend(await gatherTrail()) }
         do {
-            let r = try await client.submit(deviceId: deviceId, type: type, text: text, context: context(), reporter: prefs.reporter(signedIn: isSignedIn))
+            let r = try await client.submit(deviceId: deviceId, type: type, text: text, context: context(),
+                                            reporter: prefs.reporter(signedIn: isSignedIn), trail: events)
+            // A crash goes with one report, not every one after it.
+            if events?.contains(where: { $0.detail?.hasPrefix(Trail.crashMark) == true }) == true { Trail.forgetCrash(defaults) }
             reports.insert(r, at: 0)
             for h in sentHandlers { h(SentEvent(id: r.id, type: r.type)) }
             return r
@@ -251,6 +272,31 @@ public final class Heresay: ObservableObject {
 
     private var seenStatuses: [String: String] {
         defaults.dictionary(forKey: Keys.seen) as? [String: String] ?? [:]
+    }
+
+    // MARK: Trail
+
+    /// The trail as it stands: what was recorded, the app's log errors and the last crash. The log
+    /// is read off the main thread, and only now, when someone is about to report.
+    func gatherTrail(now: Date = Date()) async -> [Trail.Entry] {
+        let parts = trail.parts
+        guard !parts.isEmpty else { return [] }
+        var more: [Trail.Entry] = []
+        if parts.contains(.errors) {
+            let since = now.addingTimeInterval(-Trail.maxAge)
+            more += await Task.detached(priority: .userInitiated) { Trail.logErrors(since: since) }.value
+            if let crash = Trail.lastCrash(defaults, now: now) { more.append(crash) }
+        }
+        return trail.recent(now: now, adding: more)
+    }
+
+    /// Heresay's own windows, whose clicks aren't the app's.
+    func ownsWindow(_ w: AnyObject) -> Bool {
+        #if os(macOS)
+        return isPresented || IntroWindow.isOpen
+        #else
+        return isPresented
+        #endif
     }
 
     // MARK: Context

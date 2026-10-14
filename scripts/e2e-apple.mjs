@@ -1,9 +1,11 @@
 // The Apple SDK against the emulators: the Swift package's live test sends a real report from
-// macOS and from the iOS simulator, and the team sees both in the dashboard API.
+// macOS and from the iOS simulator, and the team sees both in the dashboard API. Then the example
+// Mac app is used for a moment (a click, a menu command, a logged error) and reports, and the
+// team sees what happened before it: the trail.
 //
 // Run with `npm run e2e:apple` (needs Xcode; starts and stops the emulators).
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 
 const ROOT = new URL('../', import.meta.url).pathname;
 const BASE = 'http://127.0.0.1:5055';
@@ -30,8 +32,8 @@ const app = (await person('POST', '/projects', { name: 'Acme iOS', platform: 'io
 assert.equal(app.platform, 'ios');
 
 const cwd = `${ROOT}apple`;
-const run = (cmd, args, env) => {
-  try { return execFileSync(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] }).toString(); } catch (e) {
+const run = (cmd, args, env, dir = cwd) => {
+  try { return execFileSync(cmd, args, { cwd: dir, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] }).toString(); } catch (e) {
     console.error(e.stdout?.toString().slice(-3000), e.stderr?.toString().slice(-3000));
     throw e;
   }
@@ -56,5 +58,37 @@ console.log(reports.map((r) => `${r.context.platform} · ${r.context.os} · ${r.
 assert.deepEqual(platforms, ['ios', 'macos']);
 assert.ok(reports.every((r) => r.context.route === 'LiveTests' && r.context.app_version === '0.0.1-swift-test'));
 assert.ok(reports.some((r) => /^iOS /.test(r.context.os)));
+assert.ok(reports.every((r) => r.trail?.some((e) => e.kind === 'page' && e.text === 'LiveTests')), 'the screen is in the trail');
+for (const r of reports) {
+  const logged = r.trail.some((e) => e.kind === 'error' && e.text === 'live: Live test error for the trail');
+  // The app's log can't be read where a device policy blocks it (log show fails there too).
+  console.log(`${r.context.platform}: the app's logged error ${logged ? 'is in the trail' : 'was not readable here; skipped'}`);
+}
+
+step('macOS app: what happened before the report goes with it');
+const dd = '/tmp/heresay-e2e-dd';
+run('xcodegen', ['-q'], {}, `${cwd}/Example`);
+run('xcodebuild', ['-project', 'HeresayExample.xcodeproj', '-scheme', 'HeresayExample', '-destination', 'platform=macOS',
+  '-derivedDataPath', dd, 'build'], {}, `${cwd}/Example`);
+const bin = `${dd}/Build/Products/Debug/HeresayExample.app/Contents/MacOS/HeresayExample`;
+const appProc = spawn(bin, ['-ApplePersistenceIgnoreState', 'YES'], { env: { ...process.env, HERESAY_URL: BASE, HERESAY_KEY: app.key, HERESAY_DEMO_TRAIL: '1', HERESAY_DEMO_SEND: '1' }, stdio: 'ignore' });
+let mine;
+try {
+  for (let i = 0; i < 60 && !mine; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    mine = (await person('GET', `/projects/${app.id}/reports`)).reports.find((r) => r.context.route === 'Notes');
+  }
+} finally { appProc.kill(); }
+assert.ok(mine, 'the example app reported');
+const lines = mine.trail.map((e) => `${e.kind}: ${e.text}${e.n > 1 ? ` x${e.n}` : ''}`);
+console.log(lines.join('\n'));
+assert.equal(mine.context.platform, 'macos');
+assert.ok(lines.includes('click: toolbar item "Export"'), 'a toolbar item, by its label');
+assert.ok(lines.includes('click: row'), 'a row, without its text');
+assert.ok(lines.includes('click: menu "Notes › Export All…"'), 'the menu command');
+assert.ok(lines.includes('page: Settings'), 'the screens');
+const logged = lines.some((l) => /^error: export: Export failed/.test(l));
+// The app's log can't be read on Macs whose policy blocks it (log show fails there too).
+console.log(logged ? 'the app\'s logged error is in the trail' : 'NOTE: the app\'s log could not be read on this Mac; skipped');
 
 console.log('\nAPPLE E2E PASSED');

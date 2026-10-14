@@ -58,6 +58,22 @@ change. The first value is the default.
 
 `Heresay.setStyle(_:)` changes it later, for example when the app's own theme setting changes.
 
+**The trail**
+
+With each report, Heresay attaches what happened in the app in the last few minutes: screens
+(named with `Heresay.setScreen` or `.heresayScreen("Settings")`), the app's own `Logger` errors,
+the last crash, going offline, and on macOS clicks (by their accessibility label) and menu
+commands. The reporter sees it in the sheet and can switch it off or leave parts out. Never what
+anyone typed. On by default; change it only when asked.
+
+| Option | Values |
+| --- | --- |
+| `configure(…, trail:)` | `.all` (default) · `[]` (off) · some of `[.screens, .clicks, .errors]` |
+| `.heresayPrivate()` | on a view whose controls are named after someone's data: clicks inside it are recorded as "button", without the label |
+
+Screens make the trail readable: if the app has several screens and doesn't name them yet, add
+`.heresayScreen("<name>")` to each screen's root view.
+
 **Calls**
 
 - `Heresay.present(type:text:)`: opens the sheet, filled in. The person still reviews and sends it.

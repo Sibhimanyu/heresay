@@ -7,9 +7,6 @@ Product page: https://sibhimanyu.github.io/heresay/ (from `site/`, published by
 
 ## To build
 
-- **The trail on Apple** (decision 0007). The web SDK sends what happened before a report;
-  Swift should too: screens shown (an explicit modifier, no swizzling), the app's own log
-  warnings (`OSLogStore`), and the last crash (MetricKit). Same `trail` field on `/v1/reports`.
 - **Android, React Native, Flutter SDKs.** The wizard shows them as "Soon". Same `/v1` API
   as web and Swift: POST `/v1/reports` and `/v1/reports/mine` with `key`, `device_id`, `sdk`,
   and context. Each needs its install steps in the wizard, an `install-<platform>` guide, and
@@ -26,6 +23,13 @@ Product page: https://sibhimanyu.github.io/heresay/ (from `site/`, published by
   live instance.
 - **The MCP server from npm.** `npx heresay@0 mcp` was only run locally. `heresay help`
   from npm works.
+- **The Apple trail on a real app.** Released in 0.2.20. `npm run e2e:apple` checks screens, clicks, menu commands and rows from the example Mac
+  app, and the logged error from the iOS simulator.
+- **Logged errors on a Mac.** This Mac's policy blocks reading the log (`log show` is denied
+  too), so `OSLogStore` returns nothing here; the e2e says so and skips it. Check on an
+  unmanaged Mac.
+- **A MetricKit crash.** The crash path is covered by tests with a made-up payload; no real
+  crash has been delivered and sent.
 - **The macOS report window by eye.** The iOS screens were checked in the simulator. macOS
   was covered by tests and a build only.
 - **`findKeyInRepo` / `verifyInstall` against a live server.** They were tested against the
