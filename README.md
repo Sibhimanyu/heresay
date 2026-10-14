@@ -21,8 +21,9 @@ Made by <a href="https://github.com/Sibhimanyu">Sibhimanyu</a>. Open source, MIT
 # Heresay
 
 People using your app can report something from inside it: broken, confusing, could be better,
-or an idea. You get each report with the screen, app version and device attached (and on the
-web, what happened just before: pages, clicks, failed requests, errors), accept or
+or an idea. You get each report with the screen, app version and device attached, and what happened just
+before (on the web: pages, clicks, failed requests, errors; on iOS and macOS: screens, the app's
+logged errors and last crash, and on macOS clicks and menu commands), accept or
 decline it (a decline needs a reason), and the reporter sees the outcome in the app.
 
 ## Setup

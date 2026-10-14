@@ -46,6 +46,9 @@ macOS: use `ContentView().heresay()` and add `.commands { HeresayCommands() }` t
 | `Heresay.send(_:text:)` | Send from your own UI. |
 | `configure(…, accent:)` | Your brand colour; the mark follows it. Defaults to Heresay peacock. |
 | `configure(…, style:)` | How it looks: see below. `Heresay.setStyle(_:)` changes it later. |
+| `configure(…, trail:)` | What happened before a report: see below. `.all` by default, `[]` for none. |
+| `.heresayScreen(_:)` | On a screen's view: names it while it's shown, the same as `setScreen` in `onAppear`. |
+| `.heresayPrivate()` | On a view whose controls are named after someone's data: its clicks are recorded without labels. |
 
 ## How it looks
 
@@ -78,6 +81,27 @@ Always there: the Heresay mark, the report types' names (the type sets the prior
 reports tab, and "Powered by Heresay" in the sheet and the introduction, so people can tell the
 app uses an outside tool.
 
+## What happened before a report
+
+Each report carries the last five minutes in the app, the same as the web widget sends:
+
+- **Screens**, as named with `Heresay.setScreen` or `.heresayScreen(_:)`.
+- **The app's own errors**: `Logger` lines at `.error` and `.fault` (Apple's frameworks left
+  out), read from the app's log only when someone reports. Log a failure and it shows up here.
+- **The last crash**, from MetricKit at the next launch, sent with one report.
+- **Going offline and back.**
+- **macOS: clicks and menu commands.** A click by its control's accessibility label
+  (`button "Export"`, `toolbar item "Export"`), a menu command by its path
+  (`menu "File › Export…"`), including from its keyboard shortcut. Controls SwiftUI draws itself
+  only have labels while an assistive app such as VoiceOver is running; AppKit's controls, toolbar
+  items and menus always do. iOS records no taps: that would mean swizzling.
+
+Never what anyone typed: fields by their label, secure fields and list rows by their kind only.
+Emails, tokens, long numbers, query strings and home-folder paths are blanked on the device and
+again on the server. The reporter sees it in the sheet (**Attach what happened**, a chip per kind,
+**See it** for every line) and can switch it off or leave a kind out. `trail: [.screens, .errors]`
+keeps only those parts; `trail: []` turns it off.
+
 The key is public: it can only send reports. Each device gets a random id (kept in
 `UserDefaults`), which is how people see their own reports and nobody else's; no accounts.
 
@@ -95,4 +119,5 @@ cd Example && xcodegen && open HeresayExample.xcodeproj    # a tiny app to try i
 ```
 
 `npm run e2e:apple` in the main repo sends real reports from macOS and the iOS simulator to the
-emulators.
+emulators, then uses the example Mac app (`HERESAY_DEMO_TRAIL=1`) and checks the trail that
+arrives with its report.

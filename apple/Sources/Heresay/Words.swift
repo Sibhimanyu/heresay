@@ -14,6 +14,9 @@ enum W: String, CaseIterable {
     case none, why, statusOpen, statusAccepted, statusFixed, statusDeclined
     case you, signedInAs, yourAccount, seesReply, sees, name, email, optional, aboutYou
     case emailHint, emailBad, yourSetup, setupPrompt, setupLabel, setupFooter, clearAll
+    case attachTrail, trailHint, trailHintTouch, seeTrail
+    case trailPage, trailPages, trailClick, trailClicks, trailRequest, trailRequests
+    case trailError, trailErrors, trailWarn, trailWarns, trailState, trailStates
     case powered
 }
 
@@ -66,6 +69,13 @@ struct Words: Sendable {
         .yourSetup: "Your setup", .setupPrompt: "For example: I use VoiceOver, or I’m usually on slow Wi-Fi.",
         .setupLabel: "About your setup",
         .setupFooter: "Sent with every report, so you only have to say it once. Kept on this device.",
+        .attachTrail: "Attach what happened",
+        .trailHint: "Recent screens, clicks and errors in this app. Never what you typed.",
+        .trailHintTouch: "Recent screens and errors in this app. Never what you typed.",
+        .seeTrail: "See it",
+        .trailPage: "screen", .trailPages: "screens", .trailClick: "click", .trailClicks: "clicks",
+        .trailRequest: "failed request", .trailRequests: "failed requests", .trailError: "error", .trailErrors: "errors",
+        .trailWarn: "warning", .trailWarns: "warnings", .trailState: "connection change", .trailStates: "connection changes",
         .clearAll: "Clear all", .powered: "Powered by Heresay",
     ]
 
@@ -100,6 +110,13 @@ struct Words: Sendable {
         .yourSetup: "Votre configuration", .setupPrompt: "Par exemple : j’utilise VoiceOver, ou mon Wi-Fi est souvent lent.",
         .setupLabel: "Votre configuration",
         .setupFooter: "Envoyé avec chaque signalement, pour ne le dire qu’une fois. Conservé sur cet appareil.",
+        .attachTrail: "Joindre ce qui s’est passé",
+        .trailHint: "Écrans, clics et erreurs récents dans cette app. Jamais ce que vous avez saisi.",
+        .trailHintTouch: "Écrans et erreurs récents dans cette app. Jamais ce que vous avez saisi.",
+        .seeTrail: "Voir",
+        .trailPage: "écran", .trailPages: "écrans", .trailClick: "clic", .trailClicks: "clics",
+        .trailRequest: "requête échouée", .trailRequests: "requêtes échouées", .trailError: "erreur", .trailErrors: "erreurs",
+        .trailWarn: "avertissement", .trailWarns: "avertissements", .trailState: "changement de connexion", .trailStates: "changements de connexion",
         .clearAll: "Tout effacer", .powered: "Propulsé par Heresay",
     ]
 
@@ -136,6 +153,13 @@ struct Words: Sendable {
         .yourSetup: "உங்கள் அமைப்பு", .setupPrompt: "உதாரணமாக: நான் VoiceOver பயன்படுத்துகிறேன், அல்லது என் Wi-Fi பெரும்பாலும் மெதுவாக இருக்கும்.",
         .setupLabel: "உங்கள் அமைப்பு பற்றி",
         .setupFooter: "ஒவ்வொரு புகாருடனும் அனுப்பப்படும், எனவே ஒருமுறை சொன்னால் போதும். இந்தச் சாதனத்தில் வைக்கப்படும்.",
+        .attachTrail: "என்ன நடந்தது என்பதையும் இணை",
+        .trailHint: "இந்த ஆப்பில் சமீபத்திய திரைகள், கிளிக்குகள், பிழைகள். நீங்கள் தட்டச்சு செய்தது ஒருபோதும் இல்லை.",
+        .trailHintTouch: "இந்த ஆப்பில் சமீபத்திய திரைகள், பிழைகள். நீங்கள் தட்டச்சு செய்தது ஒருபோதும் இல்லை.",
+        .seeTrail: "பார்",
+        .trailPage: "திரை", .trailPages: "திரைகள்", .trailClick: "கிளிக்", .trailClicks: "கிளிக்குகள்",
+        .trailRequest: "தோல்வியடைந்த கோரிக்கை", .trailRequests: "தோல்வியடைந்த கோரிக்கைகள்", .trailError: "பிழை", .trailErrors: "பிழைகள்",
+        .trailWarn: "எச்சரிக்கை", .trailWarns: "எச்சரிக்கைகள்", .trailState: "இணைப்பு மாற்றம்", .trailStates: "இணைப்பு மாற்றங்கள்",
         .clearAll: "அனைத்தையும் அழி", .powered: "Heresay மூலம் இயங்குகிறது",
     ]
 
@@ -170,6 +194,13 @@ struct Words: Sendable {
         .yourSetup: "आपका सेटअप", .setupPrompt: "जैसे: VoiceOver के साथ इस्तेमाल, या अक्सर धीमा Wi-Fi।",
         .setupLabel: "आपके सेटअप के बारे में",
         .setupFooter: "हर रिपोर्ट के साथ भेजा जाता है, ताकि एक ही बार बताना पड़े। इसी डिवाइस पर रखा जाता है।",
+        .attachTrail: "क्या हुआ, वह भी भेजें",
+        .trailHint: "इस ऐप में हाल की स्क्रीन, क्लिक और त्रुटियाँ। आपने जो टाइप किया, वह कभी नहीं।",
+        .trailHintTouch: "इस ऐप में हाल की स्क्रीन और त्रुटियाँ। आपने जो टाइप किया, वह कभी नहीं।",
+        .seeTrail: "देखें",
+        .trailPage: "स्क्रीन", .trailPages: "स्क्रीन", .trailClick: "क्लिक", .trailClicks: "क्लिक",
+        .trailRequest: "विफल अनुरोध", .trailRequests: "विफल अनुरोध", .trailError: "त्रुटि", .trailErrors: "त्रुटियाँ",
+        .trailWarn: "चेतावनी", .trailWarns: "चेतावनियाँ", .trailState: "कनेक्शन बदलाव", .trailStates: "कनेक्शन बदलाव",
         .clearAll: "सब हटाएँ", .powered: "Heresay द्वारा संचालित",
     ]
 }

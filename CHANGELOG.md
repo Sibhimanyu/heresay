@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.20] - 2026-10-14
+
+### Added
+
+- **What happened before a report, on iOS and macOS.** The Swift package attaches the same trail as the web widget: the screens named with `Heresay.setScreen` or the new `.heresayScreen(_:)`, the app's own `Logger` errors and faults from the last few minutes, going offline and back, and how the last run crashed (MetricKit), sent once. The sheet shows **Attach what happened** with a chip per kind and **See it**, as on the web.
+- **macOS: clicks and menu commands.** A click is recorded by the control's accessibility label (`button "Export"`, `toolbar item "Export"`, `checkbox "Sync on Wi-Fi only"`), and every menu command by its path (`menu "File › Export…"`), including when it was chosen with its keyboard shortcut. Never what was typed: fields by their label, secure fields and list rows by their kind only. `.heresayPrivate()` keeps a view's labels out. No swizzling.
+- `Heresay.configure(…, trail:)`: `.all` by default, `[]` for none, or some of `.screens`, `.clicks`, `.errors`.
+
+
 ## [0.2.19] - 2026-10-05
 
 ### Added

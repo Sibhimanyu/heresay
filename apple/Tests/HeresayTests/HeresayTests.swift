@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import XCTest
 @testable import Heresay
 
@@ -25,6 +26,9 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         client?.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() {}
+
+    /// The body of the last report sent; `configure` also asks for this device's reports.
+    static var lastSubmit: Data { sent.last { $0.0.url?.path.hasSuffix("/v1/reports") == true }!.1 }
 
     static func session() -> URLSession {
         let c = URLSessionConfiguration.ephemeral
@@ -196,6 +200,8 @@ final class LiveTests: XCTestCase {
         let h = Heresay.shared
         h.configure(key: key, url: url, version: "0.0.1-swift-test", accent: nil, session: .shared)
         Heresay.setScreen("LiveTests")
+        // In the app's own log, so it goes with the report (the trail), where the log can be read.
+        Logger(subsystem: "dev.heresay.tests.live", category: "live").error("Live test error for the trail")
         let sent = try await h.send(type: .idea, text: "Sent from the Swift SDK tests on \(Heresay.platform)")
         XCTAssertEqual(sent.status, .open)
         await h.refresh()
@@ -372,3 +378,174 @@ final class StyleTests: XCTestCase {
         XCTAssertEqual(got, [SentEvent(id: "r_1", type: .broken)])
     }
 }
+
+final class TrailTests: XCTestCase {
+    func testScrubBlanksWhatIsPersonalOrSecretLikeTheServer() {
+        let s = Trail.scrub("Sync failed for asha@example.com at https://api.x.com/v1/sync?token=abc with Bearer abc.def, card 4111 1111 1111 1111, id 3f2a9c1e7b4d4e8f9a0b1c2d3e4f5a6b7c8d", max: 400)!
+        XCTAssertFalse(s.contains("asha@"))
+        XCTAssertTrue(s.contains("https://api.x.com/v1/sync with"), "query string gone")
+        XCTAssertTrue(s.contains("Bearer [token]"))
+        XCTAssertTrue(s.contains("[number]"))
+        XCTAssertTrue(s.contains("id [token]"))
+        XCTAssertEqual(Trail.scrub("open /Users/priya/Documents/tax.pdf", max: 200), "open ~/Documents/tax.pdf")
+        XCTAssertEqual(Trail.scrub("Build 2026", max: 200), "Build 2026", "short numbers stay")
+        XCTAssertNil(Trail.scrub("  \u{0007} ", max: 200))
+        XCTAssertEqual(Trail.scrub(String(repeating: "x", count: 500), max: 200)?.count, 200)
+    }
+
+    func testRepeatsAreCountedAndOnlyTheNewestThirtyKept() {
+        let t = Trail()
+        t.setParts(.all)
+        t.note(.click, "button \"Save\"")
+        t.note(.click, "button \"Save\"")
+        XCTAssertEqual(t.recent().map(\.n), [2])
+        for i in 0..<40 { t.note(.page, "Screen \(i)") }
+        let r = t.recent()
+        XCTAssertEqual(r.count, 30)
+        XCTAssertEqual(r.last?.text, "Screen 39")
+    }
+
+    func testOnlyThePartsTheAppKeptAreRecorded() {
+        let t = Trail()
+        t.setParts([.screens])
+        t.note(.click, "button \"Save\"")
+        t.note(.error, "boom")
+        t.note(.page, "Settings")
+        t.note(.state, "Went offline")
+        XCTAssertEqual(t.recent().map(\.kind), [.page, .state], "connection changes come with any part")
+        t.setParts([])
+        t.note(.state, "Back online")
+        XCTAssertEqual(t.recent().count, 2, "off records nothing")
+    }
+
+    func testOlderThanFiveMinutesIsDroppedExceptTheLastCrash() {
+        let t = Trail()
+        t.setParts(.all)
+        let now = Date()
+        t.note(.page, "Old", at: now.addingTimeInterval(-400))
+        t.note(.page, "New", at: now.addingTimeInterval(-10))
+        let crash = Trail.Entry(kind: .error, at: now.addingTimeInterval(-7200), text: "The app crashed: EXC_BAD_ACCESS", detail: "Last run\nNotes +1234")
+        let log = Trail.Entry(kind: .error, at: now.addingTimeInterval(-20), text: "sync: Sync failed")
+        XCTAssertEqual(t.recent(now: now, adding: [crash, log]).map(\.text), ["The app crashed: EXC_BAD_ACCESS", "sync: Sync failed", "New"])
+    }
+
+    func testWhatIsSentHasAgesInSecondsAndLeavesOutSkippedKinds() {
+        let now = Date()
+        let e = [Trail.Entry(kind: .page, at: now.addingTimeInterval(-65), text: "Notes"),
+                 Trail.Entry(kind: .click, at: now.addingTimeInterval(-3), text: "button \"Export\"", n: 2),
+                 Trail.Entry(kind: .error, at: now.addingTimeInterval(-9000), text: "crash")]
+        let sent = Trail.toSend(e, skip: [.click], now: now)!
+        XCTAssertEqual(sent, [TrailEvent(kind: .page, ago: 65, text: "Notes", detail: nil, n: 1),
+                              TrailEvent(kind: .error, ago: 3600, text: "crash", detail: nil, n: 1)])
+        XCTAssertNil(Trail.toSend(e, skip: Set(TrailKind.allCases), now: now))
+    }
+
+    func testCrashFramesComeFromTheCrashedThread() {
+        let json = #"{"callStacks":[{"threadAttributed":false,"callStackRootFrames":[{"binaryName":"libsystem","offsetIntoBinaryTextSegment":1}]},{"threadAttributed":true,"callStackRootFrames":[{"binaryName":"Notes","offsetIntoBinaryTextSegment":4242,"subFrames":[{"binaryName":"SwiftUI","offsetIntoBinaryTextSegment":77}]}]}]}"#
+        XCTAssertEqual(Trail.frames(fromCallStackJSON: Data(json.utf8)), ["Notes +4242", "SwiftUI +77"])
+        XCTAssertEqual(Trail.frames(fromCallStackJSON: Data("nope".utf8)), [])
+    }
+
+    @MainActor
+    func testTheLastCrashGoesWithOneReportOnly() async throws {
+        let d = UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!
+        Trail.keepCrash(d, at: Date().addingTimeInterval(-600), text: "The app crashed: EXC_BAD_ACCESS: SIGSEGV", frames: ["Notes +4242"])
+        XCTAssertEqual(Trail.lastCrash(d)?.detail, "Last run\nNotes +4242")
+        XCTAssertNil(Trail.lastCrash(d, now: Date().addingTimeInterval(2 * 86_400)), "a day later it is too old to help")
+
+        StubProtocol.sent = []
+        StubProtocol.handler = { _, _ in (201, Data(#"{"report":\#(sample)}"#.utf8)) }
+        let h = Heresay(defaults: d)
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1", accent: nil, trail: [.errors], session: StubProtocol.session())
+        _ = try await h.send(type: .broken, text: "It crashed")
+        let trail = (try JSONSerialization.jsonObject(with: StubProtocol.lastSubmit) as! [String: Any])["trail"] as? [[String: Any]]
+        XCTAssertEqual(trail?.first?["text"] as? String, "The app crashed: EXC_BAD_ACCESS: SIGSEGV")
+        XCTAssertEqual(trail?.first?["ago"] as? Int, 600)
+        XCTAssertNil(Trail.lastCrash(d), "sent once")
+    }
+
+    @MainActor
+    func testScreensGoInTheTrailAndTheReporterCanSendNone() async throws {
+        StubProtocol.sent = []
+        StubProtocol.handler = { _, _ in (201, Data(#"{"report":\#(sample)}"#.utf8)) }
+        let h = Heresay(defaults: UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!)
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1", accent: nil, trail: [.screens], session: StubProtocol.session())
+        h.setScreen("Notes")
+        h.setScreen("Notes")
+        h.setScreen("Settings")
+        _ = try await h.send(type: .broken, text: "x")
+        let body = try JSONSerialization.jsonObject(with: StubProtocol.lastSubmit) as! [String: Any]
+        let trail = body["trail"] as! [[String: Any]]
+        XCTAssertEqual(trail.map { $0["text"] as? String }, ["Notes", "Settings"], "the same screen again isn't a new one")
+        XCTAssertEqual(Set(trail[0].keys), ["kind", "ago", "text", "n"], "the fields core/trail.ts reads; no detail when there is none")
+        XCTAssertEqual(trail[0]["kind"] as? String, "page")
+
+        _ = try await h.send(type: .broken, text: "x", trail: .some(nil))
+        let off = try JSONSerialization.jsonObject(with: StubProtocol.lastSubmit) as! [String: Any]
+        XCTAssertNil(off["trail"], "switched off in the sheet: nothing goes")
+    }
+
+    @MainActor
+    func testTheChipsCountEachKindInTheSheetsLanguage() {
+        XCTAssertEqual(TrailBox.name(.page, 1, Words("en")), "screen")
+        XCTAssertEqual(TrailBox.name(.page, 3, Words("en")), "screens")
+        XCTAssertEqual(TrailBox.name(.error, 2, Words("fr")), "erreurs")
+    }
+}
+
+#if os(macOS)
+import AppKit
+
+@MainActor
+final class ClickTests: XCTestCase {
+    private func element(_ role: NSAccessibility.Role, label: String? = nil, title: String? = nil,
+                         subrole: NSAccessibility.Subrole? = nil, parent: Any? = nil) -> NSAccessibilityElement {
+        let e = NSAccessibilityElement()
+        e.setAccessibilityRole(role)
+        e.setAccessibilityLabel(label)
+        e.setAccessibilityTitle(title)
+        e.setAccessibilitySubrole(subrole)
+        e.setAccessibilityParent(parent)
+        return e
+    }
+
+    func testAClickSaysWhatKindOfControlAndItsLabel() {
+        XCTAssertEqual(Clicks.describe(element: element(.button, label: "Export"), isPrivate: false), "button \"Export\"")
+        XCTAssertEqual(Clicks.describe(element: element(.checkBox, title: "Sync on Wi-Fi only"), isPrivate: false), "checkbox \"Sync on Wi-Fi only\"")
+        let long = String(repeating: "a", count: 60)
+        XCTAssertEqual(Clicks.describe(element: element(.button, label: long), isPrivate: false)?.count, 49)
+    }
+
+    func testTheLabelComesFromTheNearestControlUpTheTree() {
+        let button = element(.button, label: "Share")
+        let image = element(.unknown, parent: button)
+        XCTAssertEqual(Clicks.describe(element: image, isPrivate: false), "button \"Share\"")
+        XCTAssertNil(Clicks.describe(element: element(.staticText, label: "A paragraph of someone's note"), isPrivate: false),
+                     "text that isn't a control is never recorded")
+    }
+
+    func testNeverWhatWasTyped() {
+        let field = element(.textField, label: "Card number")
+        field.setAccessibilityValue("4111 1111 1111 1111")
+        XCTAssertEqual(Clicks.describe(element: field, isPrivate: false), "field \"Card number\"")
+        XCTAssertEqual(Clicks.describe(element: element(.textField, label: "Password", subrole: .secureTextField), isPrivate: false), "field")
+        XCTAssertEqual(Clicks.describe(element: element(.row, label: "Priya's tax return"), isPrivate: false), "row", "a row's text is the person's content")
+    }
+
+    func testPrivateControlsKeepOnlyTheirKind() {
+        XCTAssertEqual(Clicks.describe(element: element(.button, label: "Delete Priya's account"), isPrivate: true), "button")
+    }
+
+    func testMenuCommandsGiveTheirPath() {
+        let main = NSMenu(title: "Main")
+        let fileItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+        let file = NSMenu(title: "File")
+        let export = NSMenuItem(title: "Export…", action: nil, keyEquivalent: "e")
+        file.addItem(export)
+        fileItem.submenu = file
+        main.addItem(fileItem)
+        XCTAssertEqual(Clicks.menuPath(export), "menu \"File › Export…\"")
+        XCTAssertNil(Clicks.menuPath(NSMenuItem(title: Heresay.shared.words[.menuItem], action: nil, keyEquivalent: "")), "Heresay's own item")
+    }
+}
+#endif

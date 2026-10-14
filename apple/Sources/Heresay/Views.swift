@@ -151,6 +151,7 @@ struct IntroView: View {
 enum IntroWindow {
     private static var window: NSWindow?
     private static var closing: NSObjectProtocol?
+    static var isOpen: Bool { window != nil }
 
     static func show(_ heresay: Heresay) {
         guard heresay.introPending, window == nil else { return }
@@ -308,6 +309,10 @@ struct ReportSheet: View {
     @State private var sending = false
     @State private var error: String?
     @State private var sent = false
+    /// The trail as it was when the sheet opened, and what the reporter kept of it.
+    @State private var trail: [Trail.Entry] = []
+    @State private var trailOn = true
+    @State private var trailSkip: Set<TrailKind> = []
     @FocusState private var textFocused: Bool
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -360,6 +365,7 @@ struct ReportSheet: View {
         .frame(minWidth: macWidth - 40, idealWidth: macWidth, minHeight: 520, idealHeight: 600)
         #endif
         .task { await heresay.refresh() }
+        .task { trail = await heresay.gatherTrail() }
         .onChange(of: tab) { t in if t == .mine { heresay.markSeen() } }
         .onAppear {
             heresay.requestedTab = nil
@@ -497,6 +503,9 @@ struct ReportSheet: View {
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
                 .overlay(RoundedRectangle(cornerRadius: 10)
                     .stroke(textFocused ? heresay.accent : Color.primary.opacity(0.12), lineWidth: textFocused ? 1.5 : 1))
+                if !trail.isEmpty {
+                    TrailBox(heresay: heresay, entries: trail, on: $trailOn, skip: $trailSkip).padding(.top, 6)
+                }
             }
             .padding(20)
         }
@@ -577,7 +586,10 @@ struct ReportSheet: View {
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
             HStack {
-                Button(w[.sendAnother]) { sent = false; type = nil; text = "" }
+                Button(w[.sendAnother]) {
+                    sent = false; type = nil; text = ""
+                    Task { trail = await heresay.gatherTrail() }
+                }
                 Button(w[.seeReports]) { tab = .mine }.buttonStyle(.borderedProminent).tint(heresay.accent)
             }
             .padding(.top, 6)
@@ -592,7 +604,8 @@ struct ReportSheet: View {
         error = nil
         defer { sending = false }
         do {
-            _ = try await heresay.send(type: type, text: text.trimmed)
+            _ = try await heresay.send(type: type, text: text.trimmed,
+                                       trail: .some(trailOn ? Trail.toSend(trail, skip: trailSkip) : nil))
             sent = true
         } catch {
             self.error = error.localizedDescription
@@ -611,6 +624,143 @@ struct ReportSheet: View {
     static var appName: String? {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.nilIfEmpty
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.nilIfEmpty
+    }
+}
+
+// MARK: - The trail
+
+/// "Attach what happened": the reporter sees what the trail holds, can read every line of it, and
+/// can switch it off or leave a kind out. Shown only when there is something to attach.
+struct TrailBox: View {
+    @ObservedObject var heresay: Heresay
+    let entries: [Trail.Entry]
+    @Binding var on: Bool
+    @Binding var skip: Set<TrailKind>
+    @State private var open = false
+
+    private var w: Words { heresay.words }
+
+    private var counts: [(TrailKind, Int)] {
+        TrailKind.allCases.compactMap { k in
+            let n = entries.filter { $0.kind == k }.reduce(0) { $0 + $1.n }
+            return n > 0 ? (k, n) : nil
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $on) {
+                Text(w[.attachTrail]).font(.subheadline.weight(.semibold))
+            }
+            .toggleStyle(.switch)
+            .tint(heresay.accent)
+            #if os(macOS)
+            .controlSize(.small)
+            #endif
+            if on {
+                Flow(spacing: 6) {
+                    ForEach(counts, id: \.0) { k, n in chip(k, n) }
+                }
+                DisclosureGroup(isExpanded: $open) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(w[Self.hasClicks ? .trailHint : .trailHintTouch])
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.bottom, 2)
+                        ForEach(entries.reversed()) { e in line(e) }
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    Text(w[.seeTrail]).font(.caption).foregroundStyle(.secondary)
+                }
+                .tint(.secondary)
+            }
+        }
+    }
+
+    private func chip(_ k: TrailKind, _ n: Int) -> some View {
+        let kept = !skip.contains(k)
+        return Button {
+            if kept { skip.insert(k) } else { skip.remove(k) }
+        } label: {
+            Text("\(n) \(Self.name(k, n, w))")
+                .font(.caption)
+                .strikethrough(!kept)
+                .foregroundStyle(kept ? .primary : .secondary)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(Capsule().stroke(kept ? heresay.accent : Color.primary.opacity(0.15)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(kept ? .isSelected : [])
+    }
+
+    private func line(_ e: Trail.Entry) -> some View {
+        let secs = max(0, Int(Date().timeIntervalSince(e.at)))
+        let ago = secs >= 3600 ? "-1h+" : String(format: "-%d:%02d", secs / 60, secs % 60)
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(ago).monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 38, alignment: .leading)
+            Text(e.text + (e.n > 1 ? " ×\(e.n)" : "")).textSelection(.enabled)
+        }
+        .font(.caption)
+        .strikethrough(skip.contains(e.kind))
+        .opacity(skip.contains(e.kind) ? 0.45 : 1)
+    }
+
+    static func name(_ k: TrailKind, _ n: Int, _ w: Words) -> String {
+        let (one, many): (W, W) = switch k {
+        case .page: (.trailPage, .trailPages)
+        case .click: (.trailClick, .trailClicks)
+        case .request: (.trailRequest, .trailRequests)
+        case .error: (.trailError, .trailErrors)
+        case .warn: (.trailWarn, .trailWarns)
+        case .state: (.trailState, .trailStates)
+        }
+        return w[n == 1 ? one : many]
+    }
+
+    static var hasClicks: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+}
+
+/// Lays chips out in rows, wrapping when a row is full.
+struct Flow: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(proposal.width ?? .infinity, subviews)
+        return CGSize(width: rows.map(\.width).max() ?? 0, height: rows.last.map { $0.y + $0.height } ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for row in arrange(bounds.width, subviews) {
+            var x = bounds.minX
+            for i in row.items {
+                let size = subviews[i].sizeThatFits(.unspecified)
+                subviews[i].place(at: CGPoint(x: x, y: bounds.minY + row.y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+        }
+    }
+
+    private func arrange(_ width: CGFloat, _ subviews: Subviews) -> [(items: [Int], y: CGFloat, width: CGFloat, height: CGFloat)] {
+        var rows: [(items: [Int], y: CGFloat, width: CGFloat, height: CGFloat)] = []
+        var cur: [Int] = [], x: CGFloat = 0, h: CGFloat = 0, y: CGFloat = 0
+        for i in subviews.indices {
+            let s = subviews[i].sizeThatFits(.unspecified)
+            if !cur.isEmpty && x + s.width > width {
+                rows.append((cur, y, x - spacing, h)); y += h + spacing
+                cur = []; x = 0; h = 0
+            }
+            cur.append(i); x += s.width + spacing; h = max(h, s.height)
+        }
+        if !cur.isEmpty { rows.append((cur, y, x - spacing, h)) }
+        return rows
     }
 }
 
