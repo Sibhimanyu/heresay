@@ -9,6 +9,6 @@
     "fix-brief": "Fix an accepted report: find, claim, fix, hand off, mark fixed",
     "write-note": "Write the note the reporter reads when a report is fixed",
     "uninstall": "Remove Heresay from an app, and disconnect the repo",
-    "whats-new": "Heresay features this app doesn't use yet: tell the person, and ask before adding any"
+    "whats-new": "Updates for this repo (a newer Heresay, Swift package or agent files, and features this app doesn't use yet): tell the person, and ask before applying any"
   }
 }

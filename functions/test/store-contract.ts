@@ -161,4 +161,22 @@ export function storeContract(name: string, make: () => Store | Promise<Store>) 
     assert.equal(await s.hit(b, 2, exp), false);
     assert.equal(await s.hit(c, 2, exp), true, 'buckets are independent');
   });
+
+  test(`${name}: auth records: put, get, list by kind, taken once, deleted`, async () => {
+    const s = await make();
+    const id = uid('c_');
+    await s.putAuth({ kind: 'client', id, data: { name: 'ChatGPT', redirect_uris: ['https://chatgpt.com/cb'] }, expires_at: null });
+    await s.putAuth({ kind: 'code', id, data: { email: 'a@example.com' }, expires_at: AT });
+    assert.deepEqual((await s.getAuth('client', id))?.data, { name: 'ChatGPT', redirect_uris: ['https://chatgpt.com/cb'] });
+    assert.equal((await s.getAuth('code', id))?.expires_at, AT, 'kinds are separate, and the expiry comes back as written');
+    assert.ok((await s.listAuth('client')).some((r) => r.id === id));
+    assert.ok(!(await s.listAuth('grant')).some((r) => r.id === id));
+    await s.putAuth({ kind: 'client', id, data: { name: 'Renamed' }, expires_at: null });
+    assert.equal((await s.getAuth('client', id))?.data.name, 'Renamed', 'put replaces');
+    const [a, b] = await Promise.all([s.takeAuth('code', id), s.takeAuth('code', id)]);
+    assert.equal([a, b].filter(Boolean).length, 1, 'a code is taken once, even when two try at once');
+    assert.equal(await s.getAuth('code', id), null);
+    await s.deleteAuth('client', id);
+    assert.equal(await s.getAuth('client', id), null);
+  });
 }

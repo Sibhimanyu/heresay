@@ -18,7 +18,8 @@ struct ExampleApp: App {
             url: URL(string: env["HERESAY_URL"] ?? "http://127.0.0.1:5055")!,
             accent: env["HERESAY_ACCENT"].flatMap(Self.color),
             style: Self.demoStyle(env),
-            // Offer to report when someone seems stuck (clicking again and again) or after a crash.
+            // Offer to report when someone seems stuck: clicking again and again, going in circles
+            // between screens, typing that stopped, or after a crash.
             nudge: .all
         )
     }
@@ -106,11 +107,24 @@ struct NotesView: View {
                 if env["HERESAY_DEMO_TRAIL"] == "1" { await Self.playTrail() }
                 // HERESAY_DEMO_NUDGE=path clicks Sync now five times fast, for the note offering help.
                 if let path = env["HERESAY_DEMO_NUDGE"] { await Self.playStuck(to: path) }
+                // HERESAY_DEMO_CIRCLES=path goes back and forth between two screens, for "Stuck on something?".
+                if let path = env["HERESAY_DEMO_CIRCLES"] { await Self.playCircles(to: path) }
                 if let path = env["HERESAY_SNAPSHOT"] {
                     Heresay.present(type: .broken, text: "I clicked Export and nothing happened.")
                     await Self.snapshotSheet(to: path)
                 }
                 #endif
+                // HERESAY_DEMO_CRASH=<seconds> opens Export, logs a failure and crashes after that long,
+                // for the black box: the next launch sends what happened before it closed.
+                if let s = env["HERESAY_DEMO_CRASH"].flatMap(Double.init) {
+                    #if os(macOS)
+                    NSApp.activate(ignoringOtherApps: true) // in front, as someone using it would be
+                    #endif
+                    Heresay.setScreen("Export")
+                    log.error("Export failed: the server said 500 for /v1/notes/export")
+                    try? await Task.sleep(for: .seconds(s))
+                    fatalError("Demo crash")
+                }
                 if env["HERESAY_DEMO_SEND"] == "1" { try? await Heresay.send(.broken, text: "The export button does nothing.") }
                 switch env["HERESAY_OPEN"] {
                 case "1": try? await Task.sleep(for: .seconds(1)); Heresay.present()
@@ -173,6 +187,20 @@ extension NotesView {
                 }
             }
             try? await Task.sleep(for: .seconds(0.15))
+        }
+        try? await Task.sleep(for: .seconds(1.5))
+        try? "\(w.windowNumber)".write(toFile: path + ".wid", atomically: true, encoding: .utf8)
+    }
+
+    /// Plans, FAQ, Plans, FAQ…: someone who can't find what they came for.
+    @MainActor static func playCircles(to path: String) async {
+        try? await Task.sleep(for: .seconds(1.5))
+        guard let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        w.makeKeyAndOrderFront(nil)
+        for s in ["Plans", "FAQ", "Plans", "FAQ", "Plans", "Notes"] {
+            Heresay.setScreen(s)
+            try? await Task.sleep(for: .seconds(0.3))
         }
         try? await Task.sleep(for: .seconds(1.5))
         try? "\(w.windowNumber)".write(toFile: path + ".wid", atomically: true, encoding: .utf8)

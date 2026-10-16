@@ -87,6 +87,15 @@ Heresay report"). They never see open reports and never accept or decline. Code:
 `packages/heresay/`; guides the agent fetches live: `public/guides/`; server side:
 `functions/src/core/agent.ts`.
 
+## Chat apps
+
+Ideas from a ChatGPT conversation reach an app's inbox with the conversation's context. Each
+Heresay is a remote MCP server at `/v1/mcp` (`functions/src/core/chat.ts`), with OAuth signed in
+as the team member (`functions/src/core/oauth.ts`; the "Allow?" page is the dashboard's
+`#/authorize`). Tools: `list_apps`, `send_request`, `my_requests`; requests wait for someone to
+accept them like any report. Setup steps are on the dashboard's **Chat apps** page. See
+`docs/decisions/0010-chat-apps.md`.
+
 ## How it fits together
 
 One Firebase project per team, one origin:
@@ -98,6 +107,7 @@ One Firebase project per team, one origin:
 | `/docs.html` | Developer docs. `public/docs.html`, `public/site.css` |
 | `/app/` | The developer dashboard. `public/app/index.html`, `public/dashboard.js` |
 | `/v1/**` | The `api` Cloud Function. Logic in `functions/src/core/`, Firebase adapter in `functions/src/providers/firebase/` |
+| `/.well-known/oauth-*` | OAuth discovery for chat apps, served by the same function |
 
 Firestore rules deny all client access; everything goes through the function. Dashboard access is
 by verified email: the team lives in `meta/instance`, and `create-heresay` writes the first owner.

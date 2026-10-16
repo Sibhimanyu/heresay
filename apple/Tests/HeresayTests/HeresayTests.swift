@@ -483,7 +483,7 @@ final class TrailTests: XCTestCase {
         _ = try await h.send(type: .broken, text: "It crashed")
         let trail = (try JSONSerialization.jsonObject(with: StubProtocol.lastSubmit) as! [String: Any])["trail"] as? [[String: Any]]
         XCTAssertEqual(trail?.first?["text"] as? String, "The app crashed: EXC_BAD_ACCESS: SIGSEGV")
-        XCTAssertTrue((600...601).contains(trail?.first?["ago"] as? Int ?? 0), "ten minutes ago, give or take the send")
+        XCTAssertTrue((600...620).contains(trail?.first?["ago"] as? Int ?? 0), "ten minutes ago, give or take reading the log")
         XCTAssertNil(Trail.lastCrash(d), "sent once")
     }
 
@@ -693,11 +693,156 @@ final class NudgeTests: XCTestCase {
         for i in 0..<6 { XCTAssertFalse(windows.press(at: t + Double(i) * 0.1, point: .zero, window: i % 2, kind: .other)) }
     }
 
+    func testGoingInCirclesBetweenAFewScreens() {
+        var w = CircleWatch()
+        let t = Date()
+        let route = ["Plans", "FAQ", "Plans", "FAQ", "Plans"]
+        for (i, s) in route.enumerated() { XCTAssertFalse(w.visit(s, at: t + Double(i) * 5)) }
+        XCTAssertTrue(w.visit("FAQ", at: t + 25), "6 visits, 2 screens, one seen 3 times")
+        var browsing = CircleWatch()
+        for (i, s) in ["Home", "Plans", "FAQ", "Pay", "About", "Team", "Jobs"].enumerated() {
+            XCTAssertFalse(browsing.visit(s, at: t + Double(i) * 5), "new screens: just browsing")
+        }
+        var slow = CircleWatch()
+        for (i, s) in (route + ["FAQ"]).enumerated() { XCTAssertFalse(slow.visit(s, at: t + Double(i) * 15), "over more than a minute") }
+    }
+
+    func testTypingThatStoppedWhileStillOnIt() {
+        var w = StallWatch()
+        let t = Date()
+        w.typed(at: t, screen: "Checkout")
+        XCTAssertFalse(w.check(now: t + 30, stillEditing: true, active: true, screen: "Checkout"))
+        XCTAssertFalse(w.check(now: t + 46, stillEditing: true, active: false, screen: "Checkout"), "the app isn't in front")
+        XCTAssertTrue(w.check(now: t + 50, stillEditing: true, active: true, screen: "Checkout"))
+        XCTAssertFalse(w.check(now: t + 60, stillEditing: true, active: true, screen: "Checkout"), "once")
+
+        var done = StallWatch()
+        done.typed(at: t, screen: "Checkout")
+        XCTAssertFalse(done.check(now: t + 10, stillEditing: false, active: true, screen: "Checkout"), "finished editing")
+        XCTAssertFalse(done.check(now: t + 50, stillEditing: true, active: true, screen: "Checkout"), "and it stays finished")
+        var moved = StallWatch()
+        moved.typed(at: t, screen: "Checkout")
+        XCTAssertFalse(moved.check(now: t + 50, stillEditing: true, active: true, screen: "Done"), "moved on")
+    }
+
+    func testCirclesOfferHelpAsConfusing() {
+        let h = configured(nudge: .circles)
+        let t = Date()
+        for (i, s) in ["Plans", "FAQ", "Plans", "FAQ", "Plans", "FAQ"].enumerated() { h.setScreen(s, now: t + Double(i)) }
+        XCTAssertEqual(h.offer, .stuck)
+        h.answerOffer(true)
+        XCTAssertEqual(h.draft.type, .confusing)
+
+        let off = configured()
+        for (i, s) in ["Plans", "FAQ", "Plans", "FAQ", "Plans", "FAQ"].enumerated() { off.setScreen(s, now: t + Double(i)) }
+        XCTAssertNil(off.offer, "only when asked for")
+        XCTAssertTrue(off.offerHelp(.stuck), "or when the app asks, with nudge(stuck: true)")
+    }
+
     func testEveryLanguageCanOfferHelpInItsOwnWords() {
         for lang in Words.languages where lang != "en" {
-            for k in [W.nudgeTitle, .nudgeBody, .nudgeCrashTitle, .nudgeCrashBody, .nudgeYes, .nudgeNo] {
+            for k in [W.nudgeTitle, .nudgeBody, .nudgeCrashTitle, .nudgeCrashBody, .nudgeStuckTitle, .nudgeStuckBody, .nudgeYes, .nudgeNo] {
                 XCTAssertNotEqual(Words(lang)[k], Words("en")[k], "\(lang) \(k)")
             }
         }
+    }
+}
+
+@MainActor
+final class BlackBoxTests: XCTestCase {
+    private func dir() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("heresay-box-\(UUID().uuidString)") }
+    private func defaults() -> UserDefaults { UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")! }
+
+    func testARunThatNeverEndedWellIsKeptForTheNextLaunch() {
+        let d = dir(), ud = defaults()
+        let t = Date()
+        let one = BlackBox(dir: d)
+        XCTAssertNil(one.begin(version: "1.3", defaults: ud, now: t), "nothing before the first run")
+        one.markClean(true, now: t + 60)
+        let two = BlackBox(dir: d)
+        XCTAssertNil(two.begin(version: "1.4", defaults: ud, now: t + 100), "that run ended well")
+        two.update([Trail.Entry(kind: .page, at: t + 101, text: "Export")], now: t + 101)
+        two.addLogs([Trail.Entry(kind: .error, at: t + 103, text: "export: Export failed", detail: "dev.notes")], now: t + 104)
+        two.flushNow()
+        // …and then it crashed: no markClean.
+        let three = BlackBox(dir: d)
+        let crashed = three.begin(version: "1.4", defaults: ud, now: t + 200)
+        XCTAssertEqual(crashed?.version, "1.4")
+        XCTAssertEqual(crashed?.previousVersion, "1.3")
+        XCTAssertEqual(crashed?.firstOfVersion, true)
+        let e = three.lastRunEntries(now: t + 300)
+        XCTAssertEqual(e.map(\.text), ["Export", "export: Export failed",
+                                       "The app closed unexpectedly 4 s after launch, on the first launch after updating from 1.3 to 1.4"])
+        XCTAssertEqual(e.map(\.beforeEnd), [3, 1, 0], "timed back from when it ended")
+        XCTAssertTrue(three.lastRunEntries(now: t + 200 + 2 * 86_400).isEmpty, "a day later it is too old to help")
+        three.forgetLastRun()
+        XCTAssertTrue(three.lastRunEntries(now: t + 300).isEmpty)
+    }
+
+    func testTheEndingSaysHowSoonAndAfterWhichUpdate() {
+        let t = Date()
+        var r = BlackBox.Run(launchedAt: t, version: "2.0", previousVersion: nil, firstOfVersion: false, savedAt: t + 750, clean: false)
+        XCTAssertEqual(BlackBox.ending(r), "The app closed unexpectedly 12 min after launch (version 2.0)")
+        r.firstOfVersion = true
+        XCTAssertEqual(BlackBox.ending(r), "The app closed unexpectedly 12 min after launch, on the first launch of 2.0")
+        r.previousVersion = "1.9"; r.savedAt = t + 2
+        XCTAssertEqual(BlackBox.ending(r), "The app closed unexpectedly 2 s after launch, on the first launch after updating from 1.9 to 2.0")
+    }
+
+    func testTheNextReportCarriesTheLastRunOnceMarkedAsSuch() async throws {
+        let d = dir(), ud = defaults()
+        let before = BlackBox(dir: d)
+        before.begin(version: "1.4", defaults: ud, now: Date().addingTimeInterval(-120))
+        before.update([Trail.Entry(kind: .page, at: Date().addingTimeInterval(-118), text: "Export")], now: Date().addingTimeInterval(-117))
+        before.flushNow()
+
+        StubProtocol.sent = []
+        StubProtocol.handler = { _, _ in (201, Data(#"{"report":\#(sample)}"#.utf8)) }
+        let h = Heresay(defaults: ud, boxDir: d)
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1.4", accent: nil, trail: [.screens], session: StubProtocol.session())
+        XCTAssertEqual(h.blackBox?.lastRun()?.version, "1.4")
+        _ = try await h.send(type: .broken, text: "It closed on Export")
+        let trail = (try JSONSerialization.jsonObject(with: StubProtocol.lastSubmit) as! [String: Any])["trail"] as! [[String: Any]]
+        let last = trail.filter { $0["run"] as? String == "last" }
+        XCTAssertEqual(last.map { $0["text"] as? String }, ["Export", "The app closed unexpectedly 3 s after launch, on the first launch of 1.4"])
+        XCTAssertEqual(last.first?["ago"] as? Int, 1)
+        XCTAssertNil(h.blackBox?.lastRun(), "sent once")
+    }
+
+    func testTheTrailIsWrittenAsItHappens() {
+        let d = dir(), ud = defaults()
+        let h = Heresay(defaults: ud, boxDir: d)
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1", accent: nil, trail: [.screens], session: StubProtocol.session())
+        h.setScreen("Settings")
+        let written = expectation(description: "written")
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { written.fulfill() }
+        wait(for: [written], timeout: 3)
+        // As if it crashed now: the next launch finds the screen.
+        let next = BlackBox(dir: d)
+        next.begin(version: "1", defaults: ud)
+        XCTAssertEqual(next.lastRunEntries().first?.text, "Settings")
+    }
+
+    func testTheAppsLoggedErrorsGoWithTheRunThatCrashed() async throws {
+        let d = dir(), ud = defaults()
+        let box = BlackBox(dir: d)
+        box.begin(version: "2.0", defaults: ud)
+        Logger(subsystem: "dev.heresay.tests", category: "box").error("Box test: sync failed with 503")
+        await box.readLog(every: 60)
+        box.flushNow()
+        // …and it crashed. The next launch:
+        let next = BlackBox(dir: d)
+        next.begin(version: "2.0", defaults: ud)
+        let entries = next.lastRunEntries()
+        try XCTSkipIf(!entries.contains { $0.text.contains("Box test") } && Trail.logErrors(since: Date().addingTimeInterval(-60)).isEmpty,
+                      "This Mac doesn't let apps read their log")
+        XCTAssertTrue(entries.contains { $0.text == "box: Box test: sync failed with 503" && $0.beforeEnd != nil })
+    }
+
+    func testNothingOnDiskWhenTheTrailIsOff() {
+        let d = dir(), ud = defaults()
+        let h = Heresay(defaults: ud, boxDir: d)
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1", accent: nil, trail: [], session: StubProtocol.session())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: d.appendingPathComponent("run.json").path))
     }
 }

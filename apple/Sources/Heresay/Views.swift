@@ -733,11 +733,12 @@ struct TrailBox: View {
     }
 
     private func line(_ e: Trail.Entry) -> some View {
-        let secs = max(0, Int(Date().timeIntervalSince(e.at)))
+        // From the run that ended badly: timed back from when it ended, and marked as such.
+        let secs = e.beforeEnd ?? max(0, Int(Date().timeIntervalSince(e.at)))
         let ago = secs >= 3600 ? "-1h+" : String(format: "-%d:%02d", secs / 60, secs % 60)
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(ago).monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 38, alignment: .leading)
-            Text(e.text + (e.n > 1 ? " ×\(e.n)" : "")).textSelection(.enabled)
+            Text((e.beforeEnd == nil ? "" : w[.trailLastRun] + " · ") + e.text + (e.n > 1 ? " ×\(e.n)" : "")).textSelection(.enabled)
         }
         .font(.caption)
         .strikethrough(skip.contains(e.kind))

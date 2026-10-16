@@ -5,7 +5,7 @@
  */
 import pc from 'picocolors';
 import { spawn } from 'node:child_process';
-import { client, connection, skipUpdate, findApp, guide, installGuide, verifyInstall, whatsNew, HeresayError } from './client.mjs';
+import { client, connection, skipUpdate, findApp, guide, installGuide, verifyInstall, HeresayError } from './client.mjs';
 
 const HELP = `
   heresay  every report gets a hearing
@@ -21,7 +21,8 @@ const HELP = `
     heresay create-app <name> [--site <origin>]… [--platform web]
     heresay install <app>                  install steps with this app's tag
     heresay check <app> [--wait <seconds>] is it installed? (key in this repo's code, SDK seen running)
-    heresay whats-new [--skip <id>]     features this app doesn't use yet; ask before adding
+    heresay updates [--skip <id>]          newer Heresay, Swift package or agent files, and features this app
+                                           doesn't use yet; ask before applying (also: whats-new)
     heresay briefs                         accepted reports routed to this repo
     heresay brief <id>                     one brief, with its prompt and notes
     heresay claim <id>                     start working on it
@@ -55,6 +56,17 @@ export async function main(argv) {
   if (cmd === 'connect') return (await import('./connect.mjs')).connect(args);
   if (cmd === 'disconnect') return (await import('./connect.mjs')).disconnect(args);
   if (cmd === 'mcp') return (await import('./mcp.mjs')).serve();
+  if ((cmd === 'updates' || cmd === 'whats-new') && args.hook) {
+    // Started by the agent when a chat begins. Quiet unless there is something to say, never an
+    // error, never more than a few seconds.
+    try {
+      const { hookOutput } = await import('./updates.mjs');
+      const out = await Promise.race([hookOutput(), new Promise((r) => setTimeout(() => r(null), 12_000))]);
+      // Exit only once it is written: a pipe takes it asynchronously, and exiting first loses it.
+      if (out) return process.stdout.write(JSON.stringify(out) + '\n', () => process.exit(0));
+    } catch (e) { if (process.env.HERESAY_DEBUG) console.error(e); /* otherwise say nothing */ }
+    process.exit(0);
+  }
   if (['update', 'status', 'open', 'remove', 'setup'].includes(cmd)) {
     // Managing the Heresay itself lives in create-heresay, which carries the Firebase tools.
     const child = spawn('npx', ['-y', 'create-heresay@0', cmd === 'setup' ? '' : cmd, ...argv.slice(1)].filter(Boolean), { stdio: 'inherit' });
@@ -64,6 +76,10 @@ export async function main(argv) {
 
   try {
     const conn = connection();
+    // Works before this computer is connected: the versions in the repo can still be checked.
+    if (cmd === 'updates' || cmd === 'whats-new') {
+      return print(args.skip ? skipUpdate(String(args.skip)) : await (await import('./updates.mjs')).allUpdates(conn));
+    }
     const api = client(conn);
     switch (cmd) {
       case 'guide': return print((await guide(conn, rest[0] ?? 'start')).text);
@@ -74,7 +90,6 @@ export async function main(argv) {
       }));
       case 'install': return print(await installGuide(conn, await findApp(api, need(rest[0], 'the app id'))));
       case 'check': return print(await verifyInstall(api, await findApp(api, need(rest[0], 'the app id')), { wait: args.wait ?? 0 }));
-      case 'whats-new': return print(args.skip ? skipUpdate(String(args.skip)) : await whatsNew(conn, (await api.apps()).apps));
       case 'briefs': return print(await api.briefs());
       case 'brief': {
         const b = await api.brief(need(rest[0], 'the brief id'));

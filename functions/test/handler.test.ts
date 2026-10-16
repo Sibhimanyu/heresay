@@ -413,3 +413,25 @@ test('trail: missing, switched off or junk is fine, and capped', async () => {
   assert.match(t[49].text, /"79"/);
   assert.ok(t.every((e) => e.text.length <= 200));
 });
+
+test('trail: events from the run that crashed are kept apart, and timed from when it ended', async () => {
+  const { call, asOwner, project, submit, store } = await withProject();
+  const r = await submit({
+    type: 'broken', text: 'It closed when I opened Export',
+    trail: [
+      { kind: 'page', ago: 4, text: 'Export', run: 'last' },
+      { kind: 'error', ago: 1, text: 'export: Export failed: the server said 500', run: 'last' },
+      { kind: 'error', ago: 0, text: 'The app closed unexpectedly 4 s after launch, on the first launch after updating from 1.3 to 1.4', run: 'last' },
+      { kind: 'page', ago: 30, text: 'Notes', run: 'now?' },
+    ],
+  });
+  const id = (r.body as { report: { id: string } }).report.id;
+  const t = store.reports.get(id)!.trail!;
+  assert.deepEqual(t.map((e) => e.run ?? null), ['last', 'last', 'last', null], 'only "last" is kept');
+  const base = `/v1/projects/${project.id}/reports/${id}`;
+  await call({ method: 'POST', path: `${base}/accept`, headers: asOwner() });
+  const prompt = ((await call({ path: `${base}/prompt`, headers: asOwner() })).body as { prompt: string }).prompt;
+  assert.match(prompt, /The run that crashed or closed, timed back from when it ended:\n-0:04 Page: Export\n-0:01 Error: export: Export failed[^\n]*\n-0:00 Error: The app closed unexpectedly 4 s after launch, on the first launch after updating from 1\.3 to 1\.4\nThis run, timed back from the report:\n-0:30 Page: Notes/);
+  assert.match(prompt, /Last thing that went wrong, 0 s before the previous run ended: The app closed unexpectedly/);
+  assert.equal(prompt.split('"""').length, 3);
+});

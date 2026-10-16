@@ -63,7 +63,8 @@ change. The first value is the default.
 With each report, Heresay attaches what happened in the app in the last few minutes: screens
 (named with `Heresay.setScreen` or `.heresayScreen("Settings")`), the app's own `Logger` errors,
 the last crash, going offline, and on macOS clicks (by their accessibility label) and menu
-commands. The reporter sees it in the sheet and can switch it off or leave parts out. Never what
+commands. It is kept on disk as it happens, so after a crash the next report says what happened
+before the app closed and whether it was the first launch after an update. The reporter sees it in the sheet and can switch it off or leave parts out. Never what
 anyone typed. On by default; change it only when asked.
 
 | Option | Values |
@@ -80,7 +81,7 @@ own screen, so add it only when asked.
 
 | Option | Values |
 | --- | --- |
-| `configure(…, nudge:)` | `[]` (default, off) · `.all` · `.clicks` (macOS: a disabled control clicked 3 times in 10 s, or one spot clicked 5 times in 2 s; leave it out for games and drawing apps) · `.crash` (the app crashed last time; once, at the next launch) |
+| `configure(…, nudge:)` | `[]` (default, off) · `.all` · `.clicks` (macOS: a disabled control clicked 3 times in 10 s, or one spot clicked 5 times in 2 s; leave it out for games and drawing apps) · `.crash` (the app crashed last time; once, at the next launch) · `.circles` (6 screen changes in a minute among at most 3 screens; needs named screens) · `.stalled` (typed, then 45 s still editing with nothing more: the keyboard still up on iOS; search fields don't count). The last two say "Stuck on something?" and open as Confusing. |
 
 Screens make the trail readable: if the app has several screens and doesn't name them yet, add
 `.heresayScreen("<name>")` to each screen's root view.
@@ -88,7 +89,7 @@ Screens make the trail readable: if the app has several screens and doesn't name
 **Calls**
 
 - `Heresay.present(type:text:)`: opens the sheet, filled in. The person still reviews and sends it.
-- `Heresay.nudge()`: the app saw trouble itself (an error screen, a retry that failed): offer to report it. Works without `nudge:`; the same limits apply.
+- `Heresay.nudge()`: the app saw trouble itself (an error screen, a retry that failed): offer to report it. `Heresay.nudge(stuck: true)` for someone who seems unsure. Works without `nudge:`; the same limits apply.
 - `Heresay.onSent { event in ... }`: after each report is sent, with `event.id` and `event.type`, never the text.
 - `Heresay.introduce(title:message:)`: the one-time introduction in your own words. Leave the
   words out unless asked; the default says where to find it.

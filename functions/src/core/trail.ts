@@ -20,6 +20,11 @@ export interface TrailEvent {
   detail: string | null;
   /** The same thing, this many times in a row. */
   n: number;
+  /**
+   * 'last': from the app's previous run, the one that crashed or closed unexpectedly. Then `ago`
+   * counts back from when that run ended, not from the report.
+   */
+  run?: 'last';
 }
 
 export const TRAIL_LIMITS = { events: 50, textMax: 200, detailMax: 600, totalMax: 12000, agoMax: 3600, nMax: 999 } as const;
@@ -64,7 +69,8 @@ export function parseTrail(v: unknown): TrailEvent[] | null {
     if (total > TRAIL_LIMITS.totalMax) break;
     const num = (x: unknown, lo: number, hi: number) =>
       typeof x === 'number' && Number.isFinite(x) ? Math.min(hi, Math.max(lo, Math.round(x))) : lo;
-    out.push({ kind: o.kind as TrailKind, ago: num(o.ago, 0, TRAIL_LIMITS.agoMax), text, detail, n: num(o.n, 1, TRAIL_LIMITS.nMax) });
+    out.push({ kind: o.kind as TrailKind, ago: num(o.ago, 0, TRAIL_LIMITS.agoMax), text, detail, n: num(o.n, 1, TRAIL_LIMITS.nMax),
+      ...(o.run === 'last' ? { run: 'last' as const } : {}) });
   }
   out.reverse();
   return out.length ? out : null;
@@ -76,10 +82,18 @@ const LABEL: Record<TrailKind, string> = {
 
 const ago = (s: number) => (s >= 60 ? `-${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `-0:${String(s).padStart(2, '0')}`);
 
-/** The trail as lines of plain text, oldest first, for an agent prompt or a notification. */
+/**
+ * The trail as lines of plain text, oldest first, for an agent prompt or a notification. Events
+ * from the run that crashed come first, under their own heading, timed from when it ended.
+ */
 export function trailLines(t: TrailEvent[]): string[] {
-  return t.map((e) => {
-    const line = `${ago(e.ago)} ${LABEL[e.kind]}: ${e.text}${e.n > 1 ? ` (x${e.n})` : ''}`;
-    return e.detail ? `${line}\n${e.detail.split('\n').map((l) => `      ${l}`).join('\n')}` : line;
-  });
+  const line = (e: TrailEvent) => {
+    const l = `${ago(e.ago)} ${LABEL[e.kind]}: ${e.text}${e.n > 1 ? ` (x${e.n})` : ''}`;
+    return e.detail ? `${l}\n${e.detail.split('\n').map((x) => `      ${x}`).join('\n')}` : l;
+  };
+  const last = t.filter((e) => e.run === 'last');
+  if (!last.length) return t.map(line);
+  const now = t.filter((e) => e.run !== 'last');
+  return ['The run that crashed or closed, timed back from when it ended:', ...last.map(line),
+    ...(now.length ? ['This run, timed back from the report:', ...now.map(line)] : [])];
 }

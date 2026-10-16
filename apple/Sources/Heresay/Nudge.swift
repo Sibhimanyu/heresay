@@ -22,12 +22,133 @@ public struct HeresayNudge: OptionSet, Sendable, Hashable {
     /// The app crashed last time: offered once, at the next launch, while the crash is still in
     /// the trail (a day).
     public static let crash = HeresayNudge(rawValue: 1 << 1)
+    /// Going in circles: 6 screen changes in a minute among at most 3 screens, one of them seen 3
+    /// times. Needs screens named with `Heresay.setScreen` or `.heresayScreen(_:)`.
+    public static let circles = HeresayNudge(rawValue: 1 << 2)
+    /// Typing that stopped: someone typed in a field, then 45 seconds passed with the field still
+    /// being edited (the keyboard still up on iOS), the app in front and the same screen. Search
+    /// fields don't count.
+    public static let stalled = HeresayNudge(rawValue: 1 << 3)
 
-    public static let all: HeresayNudge = [.clicks, .crash]
+    public static let all: HeresayNudge = [.clicks, .crash, .circles, .stalled]
 }
 
-/// Why the note is up. The words differ; "Tell the team" does the same.
-enum HelpOffer: Equatable, Sendable { case trouble, crash }
+/// Why the note is up. Something failed ("Something not working?", opens as Broken), the app
+/// crashed, or someone seems unsure ("Stuck on something?", opens as Confusing).
+enum HelpOffer: Equatable, Sendable { case trouble, crash, stuck }
+
+/// Going in circles between a few screens. Pure, so the rule is tested without an app.
+struct CircleWatch {
+    private var visits: [(at: Date, screen: String)] = []
+
+    /// A screen shown. True when the last minute is 6 or more visits among at most 3 screens,
+    /// one of them seen 3 times; then it starts over.
+    mutating func visit(_ screen: String, at: Date) -> Bool {
+        visits = visits.filter { at.timeIntervalSince($0.at) < 60 } + [(at, screen)]
+        guard visits.count >= 6 else { return false }
+        let count = Dictionary(visits.map { ($0.screen, 1) }, uniquingKeysWith: +)
+        guard count.count <= 3, count.values.contains(where: { $0 >= 3 }) else { return false }
+        visits = []
+        return true
+    }
+
+    mutating func reset() { visits = [] }
+}
+
+/// Typing that stopped. Pure: the watcher says when someone typed and what is still true.
+struct StallWatch {
+    static let wait: TimeInterval = 45
+    private(set) var typedAt: Date?
+    private var screen: String?
+
+    mutating func typed(at: Date, screen: String?) { typedAt = at; self.screen = screen }
+    mutating func done() { typedAt = nil }
+
+    /// True once, when 45 s have passed since the last keystroke and they are still on it.
+    mutating func check(now: Date, stillEditing: Bool, active: Bool, screen: String?) -> Bool {
+        guard let t = typedAt else { return false }
+        if !stillEditing || screen != self.screen { typedAt = nil; return false }
+        guard active, now.timeIntervalSince(t) >= Self.wait else { return false }
+        typedAt = nil
+        return true
+    }
+}
+
+/// Watches typing for `.stalled`, from the text system's own notifications. Never reads what was
+/// typed: only that something was, and whether the field is still being edited.
+@MainActor
+final class StallWatcher {
+    private var watch = StallWatch()
+    private var observers: [NSObjectProtocol] = []
+    private var timer: Timer?
+    #if os(iOS)
+    private var keyboardUp = false
+    #endif
+
+    func start(_ heresay: Heresay) {
+        stop()
+        let nc = NotificationCenter.default
+        let typed: @Sendable (Notification) -> Void = { [weak self, weak heresay] n in
+            nonisolated(unsafe) let object = n.object
+            MainActor.assumeIsolated {
+                guard let self, let heresay, !heresay.isPresented, !Self.isSearch(object) else { return }
+                self.watch.typed(at: Date(), screen: heresay.screen)
+                if self.timer == nil {
+                    self.timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self, weak heresay] _ in
+                        MainActor.assumeIsolated { if let self, let heresay { self.tick(heresay) } }
+                    }
+                }
+            }
+        }
+        #if os(macOS)
+        observers.append(nc.addObserver(forName: NSControl.textDidChangeNotification, object: nil, queue: .main, using: typed))
+        observers.append(nc.addObserver(forName: NSText.didChangeNotification, object: nil, queue: .main, using: typed))
+        observers.append(nc.addObserver(forName: NSControl.textDidEndEditingNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.watch.done() }
+        })
+        #else
+        observers.append(nc.addObserver(forName: UITextField.textDidChangeNotification, object: nil, queue: .main, using: typed))
+        observers.append(nc.addObserver(forName: UITextView.textDidChangeNotification, object: nil, queue: .main, using: typed))
+        observers.append(nc.addObserver(forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.keyboardUp = true }
+        })
+        observers.append(nc.addObserver(forName: UIResponder.keyboardDidHideNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.keyboardUp = false; self?.watch.done() }
+        })
+        #endif
+    }
+
+    func stop() {
+        for o in observers { NotificationCenter.default.removeObserver(o) }
+        observers = []
+        timer?.invalidate(); timer = nil
+        watch = StallWatch()
+    }
+
+    private func tick(_ heresay: Heresay) {
+        #if os(macOS)
+        let editing = (NSApp as NSApplication?)?.keyWindow?.firstResponder is NSText
+        let active = (NSApp as NSApplication?)?.isActive ?? false
+        #else
+        let editing = keyboardUp
+        let active = UIApplication.shared.applicationState == .active
+        #endif
+        if heresay.isPresented { watch.done() }
+        if watch.check(now: Date(), stillEditing: editing, active: active, screen: heresay.screen) {
+            heresay.offerHelp(.stuck)
+        }
+        if watch.typedAt == nil { timer?.invalidate(); timer = nil }
+    }
+
+    /// Search fields: typing, then reading the results, is not being stuck.
+    static func isSearch(_ object: Any?) -> Bool {
+        #if os(macOS)
+        return object is NSSearchField
+        #else
+        return object is UISearchTextField
+        #endif
+    }
+}
 
 /// Clicks that look like someone stuck. Pure, so the rules are tested without a window.
 struct ClickWatch {
@@ -114,9 +235,9 @@ struct NudgeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(w[offer == .crash ? .nudgeCrashTitle : .nudgeTitle])
+            Text(w[offer == .crash ? .nudgeCrashTitle : offer == .stuck ? .nudgeStuckTitle : .nudgeTitle])
                 .font(.headline)
-            Text(w[offer == .crash ? .nudgeCrashBody : .nudgeBody])
+            Text(w[offer == .crash ? .nudgeCrashBody : offer == .stuck ? .nudgeStuckBody : .nudgeBody])
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

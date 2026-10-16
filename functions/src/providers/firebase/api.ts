@@ -32,7 +32,7 @@ function selfOrigins(): string[] {
   return id ? [`https://${id}.web.app`, `https://${id}.firebaseapp.com`] : [];
 }
 
-/** Hosting rewrites /v1/** here, so the SDK, the API and the dashboard share one origin. */
+/** Hosting rewrites /v1/** and /.well-known/** here, so the SDK, the API and the dashboard share one origin. */
 // create-heresay writes HERESAY_REGION to functions/.env; it is read when the deploy loads this file.
 export const api = onRequest({ region: process.env.HERESAY_REGION || 'us-central1', maxInstances: 10 }, async (req, res) => {
   const headers: Record<string, string | undefined> = {};
@@ -44,6 +44,6 @@ export const api = onRequest({ region: process.env.HERESAY_REGION || 'us-central
     body: req.body,
   }, deps);
   for (const [k, v] of Object.entries(out.headers ?? {})) res.setHeader(k, v);
-  if (out.status === 204) { res.status(204).end(); return; }
+  if (out.status === 204 || out.body === null) { res.status(out.status).end(); return; }
   res.status(out.status).json(out.body);
 });

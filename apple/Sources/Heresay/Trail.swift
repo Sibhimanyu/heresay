@@ -43,18 +43,22 @@ struct TrailEvent: Codable, Sendable, Equatable {
     var text: String
     var detail: String?
     var n: Int
+    /// "last": from the run that ended badly; then `ago` counts back from when it ended.
+    var run: String? = nil
 }
 
-/// The trail on this device: in memory only (the newest 50, for 5 minutes), plus the app's log
-/// read when someone reports. Leaves only with a report.
+/// The trail on this device: in memory (the newest 50, for 5 minutes), written to disk as it
+/// happens so it outlives a crash (`BlackBox.swift`), plus the app's log. Leaves only with a report.
 final class Trail: @unchecked Sendable {
-    struct Entry: Equatable, Sendable, Identifiable {
+    struct Entry: Equatable, Sendable, Identifiable, Codable {
         var kind: TrailKind
         var at: Date
         var text: String
         var detail: String?
         var n = 1
-        var id: String { "\(kind.rawValue)\(at.timeIntervalSinceReferenceDate)\(text)" }
+        /// From the run that ended badly: seconds before it ended.
+        var beforeEnd: Int?
+        var id: String { "\(beforeEnd == nil ? "" : "last")\(kind.rawValue)\(at.timeIntervalSinceReferenceDate)\(text)" }
     }
 
     static let maxEvents = 50
@@ -63,22 +67,26 @@ final class Trail: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Entry] = []
     private(set) var parts: HeresayTrail = []
+    /// Told after each change, with the whole trail, so the black box can keep it.
+    var onChange: (@Sendable ([Entry]) -> Void)?
 
     func setParts(_ p: HeresayTrail) { lock.withLock { parts = p } }
 
     /// Keep one thing. The same thing again right after only counts it ("×3").
     func note(_ kind: TrailKind, _ text: String?, detail: String? = nil, at: Date = Date()) {
         guard let text = text.flatMap({ Self.scrub($0, max: 200) }) else { return }
-        lock.withLock {
-            guard Self.part(kind).map(parts.contains) ?? !parts.isEmpty else { return }
+        let now: [Entry]? = lock.withLock {
+            guard Self.part(kind).map(parts.contains) ?? !parts.isEmpty else { return nil }
             if let last = entries.last, last.kind == kind, last.text == text {
                 entries[entries.count - 1].n += 1
                 entries[entries.count - 1].at = at
-                return
+            } else {
+                entries.append(Entry(kind: kind, at: at, text: text, detail: detail.flatMap { Self.scrub($0, max: 600) }))
+                if entries.count > Self.maxEvents { entries.removeFirst(entries.count - Self.maxEvents) }
             }
-            entries.append(Entry(kind: kind, at: at, text: text, detail: detail.flatMap { Self.scrub($0, max: 600) }))
-            if entries.count > Self.maxEvents { entries.removeFirst(entries.count - Self.maxEvents) }
+            return entries
         }
+        if let now { onChange?(now) }
     }
 
     /// The part that turns a kind on. Connection changes come with any part.
@@ -96,16 +104,17 @@ final class Trail: @unchecked Sendable {
     func recent(now: Date = Date(), adding more: [Entry] = []) -> [Entry] {
         let cut = now.addingTimeInterval(-Self.maxAge)
         let mine = lock.withLock { entries.filter { $0.at >= cut } }
-        let all = (mine + more.filter { $0.at >= cut || $0.kind == .error && $0.detail?.hasPrefix(Self.crashMark) == true })
-            .sorted { $0.at < $1.at }
+        // The last crash and the run that ended badly are older than five minutes, and still matter.
+        let old = { (e: Entry) in e.beforeEnd != nil || e.kind == .error && e.detail?.hasPrefix(Self.crashMark) == true }
+        let all = (mine + more.filter { $0.at >= cut || old($0) }).sorted { $0.at < $1.at }
         return Array(all.suffix(Self.maxEvents))
     }
 
     /// The kinds the reporter kept, as the server takes them; nil when there is nothing to send.
     static func toSend(_ entries: [Entry], skip: Set<TrailKind> = [], now: Date = Date()) -> [TrailEvent]? {
-        let out = entries.filter { !skip.contains($0.kind) }.map {
-            TrailEvent(kind: $0.kind, ago: min(3600, max(0, Int(now.timeIntervalSince($0.at).rounded()))),
-                       text: $0.text, detail: $0.detail, n: $0.n)
+        let out = entries.filter { !skip.contains($0.kind) }.map { e in
+            TrailEvent(kind: e.kind, ago: min(3600, e.beforeEnd ?? max(0, Int(now.timeIntervalSince(e.at).rounded()))),
+                       text: e.text, detail: e.detail, n: e.n, run: e.beforeEnd == nil ? nil : "last")
         }
         return out.isEmpty ? nil : out
     }

@@ -237,6 +237,8 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .trail .ago { flex:none; width:40px; font:12px var(--mono); color:var(--mute); }
 .trail .kind { flex:none; width:62px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--mute); }
 .trail .what { min-width:0; word-break:break-word; }
+.trail li.k-run { padding-top:8px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--mute); }
+.trail li.k-run::before { display:none; }
 .trail pre { margin:2px 0 0; font:11.5px/1.5 var(--mono); color:var(--mute); white-space:pre-wrap; }
 .trail .k-page::before, .trail .k-sent::before { border-color:var(--acc); }
 .trail .k-sent::before { background:var(--acc); }
@@ -433,3 +435,16 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
   .top .tabs a { padding:6px 10px; }
   .top .who { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 }
+
+/* chat apps */
+.pill.chat-pill { background:#eef2ff; color:#3730a3; }
+.chat-details { margin-top:8px; font-size:14px; }
+.chat-details summary { cursor:pointer; color:var(--mute); font-size:13px; }
+.chat-details p { margin:6px 0 0; padding:10px 12px; border-radius:10px; background:var(--soft, #f5f6f7); white-space:pre-wrap; word-break:break-word; }
+.howto { margin:0; padding-left:20px; line-height:1.7; }
+.howto li + li { margin-top:4px; }
+.howto .copy-prompt { flex-direction:row; align-items:center; flex-wrap:wrap; }
+.howto code.url { padding:4px 8px; border-radius:6px; background:var(--soft, #f5f6f7); }
+.authorize { max-width:520px; margin:6vh auto 0; text-align:left; }
+.authorize h1 { margin:10px 0 6px; font-size:22px; }
+.authorize .can { margin:6px 0 12px; padding-left:20px; line-height:1.6; }

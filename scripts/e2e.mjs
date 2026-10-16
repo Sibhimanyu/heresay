@@ -657,6 +657,94 @@ try {
     .find((r) => r.text === 'Place order does nothing.');
   assert.ok(nudged.trail.some((e) => e.kind === 'click' && e.text === 'button "Place order"' && e.n === 3), 'the clicks went with it');
 
+  step('offering help, unsure: the same few pages over and over brings "Stuck on something?", opening as Confusing');
+  const ctx5 = await browser.newContext({ viewport: { width: 1100, height: 760 } });
+  const lost = await ctx5.newPage();
+  await lost.goto(`${BASE}/demo.html?key=${key}&nudge=circles`);
+  const lsdk = lost.locator('[data-feedback-sdk]');
+  await lsdk.getByRole('button', { name: /Report a problem/ }).waitFor();
+  for (const h of ['#/plans', '#/faq', '#/plans', '#/faq', '#/plans']) await lost.evaluate((x) => { location.hash = x; }, h);
+  const unsure = lsdk.getByRole('status', { name: 'Offer to report a problem' });
+  await unsure.getByText('Stuck on something?').waitFor({ timeout: 5000 });
+  await lost.waitForTimeout(400); // past the fade-in
+  await lost.screenshot({ path: `${SHOTS}e2e-9b-nudge-stuck.png` });
+  await unsure.getByRole('button', { name: 'Tell the team' }).click();
+  assert.equal(await lsdk.getByRole('button', { name: /Confusing/ }).getAttribute('aria-pressed'), 'true', 'opens as Confusing');
+  await ctx5.close();
+
+  step('ChatGPT: a team member connects it with their own sign-in, and sends an idea with the conversation\'s context');
+  // Played the way ChatGPT does it: discovery, registration, the member says yes on the dashboard, PKCE.
+  const unauth = await fetch(`${BASE}/v1/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'e2e', version: '1' } } }) });
+  assert.equal(unauth.status, 401);
+  const metaUrl = /resource_metadata="([^"]+)"/.exec(unauth.headers.get('www-authenticate'))[1];
+  const prm = await (await fetch(metaUrl)).json();
+  assert.equal(prm.resource, `${BASE}/v1/mcp`);
+  const asMeta = await (await fetch(`${prm.authorization_servers[0]}/.well-known/oauth-authorization-server`)).json();
+  const cb = createServer((q, s) => { s.end('back in the chat app'); });
+  await new Promise((ok) => cb.listen(0, '127.0.0.1', ok));
+  const redirect = `http://127.0.0.1:${cb.address().port}/cb`;
+  const client = await (await fetch(asMeta.registration_endpoint, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ client_name: 'ChatGPT', redirect_uris: [redirect], token_endpoint_auth_method: 'none' }) })).json();
+  const { createHash, randomBytes } = await import('node:crypto');
+  const verifier = randomBytes(32).toString('base64url');
+  const authUrl = new URL(asMeta.authorization_endpoint);
+  for (const [k, v] of Object.entries({ response_type: 'code', client_id: client.client_id, redirect_uri: redirect, state: 'e2e-state',
+    code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256', scope: 'heresay.requests' })) authUrl.searchParams.set(k, v);
+  await dash.goto(authUrl.href);
+  await dash.getByRole('heading', { name: 'Connect ChatGPT to Heresay?' }).waitFor();
+  await dash.getByText(`As ${OWNER}. It will be able to:`).waitFor();
+  await dash.screenshot({ path: `${SHOTS}e2e-10a-chat-authorize.png` });
+  await dash.getByRole('button', { name: 'Connect' }).click();
+  await dash.waitForURL(/\/cb\?/);
+  const back = new URL(dash.url());
+  assert.equal(back.searchParams.get('state'), 'e2e-state');
+  cb.close();
+  const tokens = await (await fetch(asMeta.token_endpoint, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'authorization_code', code: back.searchParams.get('code'), redirect_uri: redirect, client_id: client.client_id, code_verifier: verifier }) })).json();
+  assert.ok(tokens.access_token && tokens.refresh_token, JSON.stringify(tokens));
+
+  // The official MCP client, over Streamable HTTP, as a chat app talks to it.
+  const PKG = new URL('../packages/heresay/', import.meta.url).pathname;
+  const { Client } = await import(`${PKG}node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js`);
+  const { StreamableHTTPClientTransport } = await import(`${PKG}node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js`);
+  const chat = new Client({ name: 'chatgpt-e2e', version: '1' });
+  await chat.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/v1/mcp`), { requestInit: { headers: { authorization: `Bearer ${tokens.access_token}` } } }));
+  assert.deepEqual((await chat.listTools()).tools.map((t) => t.name), ['list_apps', 'send_request', 'my_requests']);
+  const chatApps = (await chat.callTool({ name: 'list_apps', arguments: {} })).structuredContent.apps;
+  assert.ok(chatApps.some((a) => a.name === 'Acme Notes'));
+  const sent = await chat.callTool({ name: 'send_request', arguments: { app: 'Acme Notes', type: 'idea',
+    text: 'Let people pin a note to the top of the list.',
+    details: 'Came up while planning the Q4 roadmap. They keep a few notes open all week. Considered favourites: ruled out, it hides the order.' } });
+  assert.equal(sent.structuredContent.status, 'open');
+  const mineNow = (await chat.callTool({ name: 'my_requests', arguments: {} })).structuredContent.requests;
+  assert.deepEqual(mineNow.map((r) => r.status), ['open']);
+  await chat.close();
+
+  await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  const chatCard = dash.locator('article.report', { hasText: 'Let people pin a note to the top of the list.' });
+  await chatCard.getByText('From ChatGPT').waitFor();
+  await chatCard.getByText(`From the team: ${OWNER}, in a conversation in ChatGPT`).waitFor();
+  await chatCard.getByText(/Considered favourites: ruled out/).waitFor();
+  await chatCard.screenshot({ path: `${SHOTS}e2e-10b-chat-report.png` });
+  // Like any report: an agent sees it only once a person accepts it, with the context fenced.
+  const chatReport = (await (await api('GET', `/projects/${project.id}/reports`)).json()).reports.find((r) => r.text === 'Let people pin a note to the top of the list.');
+  assert.equal((await api('GET', `/projects/${project.id}/reports/${chatReport.id}/prompt`)).status, 404);
+  assert.equal((await api('POST', `/projects/${project.id}/reports/${chatReport.id}/accept`)).status, 200);
+  const chatPrompt = (await (await api('GET', `/projects/${project.id}/reports/${chatReport.id}/prompt`)).json()).prompt;
+  assert.match(chatPrompt, /sent this from a conversation in ChatGPT/);
+  assert.ok(chatPrompt.indexOf('ruled out') < chatPrompt.lastIndexOf('"""'));
+
+  await dash.goto(`${BASE}/app/#/chat`);
+  await dash.getByRole('heading', { name: 'ChatGPT and other chat apps' }).waitFor();
+  await dash.locator('.members li', { hasText: 'ChatGPT' }).waitFor();
+  await dash.screenshot({ path: `${SHOTS}e2e-10c-chat-apps.png`, fullPage: true });
+  await dash.locator('.members li', { hasText: 'ChatGPT' }).getByRole('button', { name: 'Disconnect' }).click();
+  await dash.getByText('None yet.').waitFor();
+  const after = await fetch(`${BASE}/v1/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${tokens.access_token}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }) });
+  assert.equal(after.status, 401, 'disconnected: the chat app stops at once');
+
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;
   const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 760 } });

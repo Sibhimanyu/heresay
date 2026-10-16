@@ -139,6 +139,8 @@
     var email = $('link-email').value.trim();
     if (finishingLink) return finishLink(email);
     gateMsg('Sending…');
+    // A chat app sent them here to say yes: come back to that page after the link.
+    if (/^#\/authorize\?/.test(location.hash)) localStorage.setItem('heresay.after', JSON.stringify({ hash: location.hash, at: Date.now() }));
     auth.sendSignInLinkToEmail(email, { url: location.origin + '/app/', handleCodeInApp: true })
       .then(function () {
         localStorage.setItem('heresay.email', email);
@@ -178,6 +180,11 @@
     api('GET', '/me').then(function (b) {
       me = b;
       $('who').textContent = b.email;
+      try {
+        var after = JSON.parse(localStorage.getItem('heresay.after') || 'null');
+        localStorage.removeItem('heresay.after');
+        if (after && Date.now() - after.at < 15 * 60000 && !location.hash) history.replaceState(null, '', '/app/' + after.hash);
+      } catch (e) { /* nothing saved */ }
       route();  // first, so the view is already waiting when the app is shown
       show('app');
       checkForUpdate(b);
@@ -248,7 +255,7 @@
     var query = new URLSearchParams(hash.split('?')[1] || '');
     var parts = hash.split('?')[0].split('/').filter(Boolean);
     document.querySelectorAll('[data-nav]').forEach(function (a) {
-      var active = parts[0] === 'team' || parts[0] === 'notifications' ? parts[0] : 'apps';
+      var active = parts[0] === 'team' || parts[0] === 'notifications' || parts[0] === 'chat' ? parts[0] : 'apps';
       a.setAttribute('aria-current', String(active === a.dataset.nav));
     });
     var view = $('view');
@@ -258,6 +265,8 @@
     if (parts[0] === 'team') return teamView(view);
     if (parts[0] === 'notifications') return notificationsView(view);
     if (parts[0] === 'connect') return connectView(view, query);
+    if (parts[0] === 'chat') return chatView(view);
+    if (parts[0] === 'authorize') return authorizeView(view, query);
     if (parts[0] === 'new') return newAppView(view, parts[1], query);
     if (parts[0] === 'apps' && parts[1]) {
       return withProject(parts[1], function (p) {
@@ -1395,7 +1404,15 @@
     return el('details', { class: 'trail', open: bad > 0 }, [
       el('summary', { text: 'What happened before · ' + t.length + (t.length === 1 ? ' step' : ' steps') +
         (bad ? ' · ' + bad + ' went wrong' : '') }),
-      el('ol', {}, t.map(function (e) {
+      el('ol', {}, t.reduce(function (out, e, i) {
+        // The run that crashed comes first, timed from when it ended; then this run.
+        var prev = t[i - 1];
+        if (e.run === 'last' && i === 0) out.push(el('li', { class: 'k-run' }, [el('span', { class: 'what', text: 'Last run, before the app closed' })]));
+        if (e.run !== 'last' && prev && prev.run === 'last') out.push(el('li', { class: 'k-run' }, [el('span', { class: 'what', text: 'This run' })]));
+        out.push(e);
+        return out;
+      }, []).map(function (e) {
+        if (e.nodeType) return e;
         return el('li', { class: 'k-' + e.kind }, [
           el('span', { class: 'ago', text: ago(e.ago) }),
           el('span', { class: 'kind', text: TRAIL_LABEL[e.kind] || e.kind }),
@@ -1551,12 +1568,15 @@
       el('div', { class: 'meta' }, [
         el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
         showPlatform ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
+        r.source === 'chat' ? el('span', { class: 'pill chat-pill', text: 'From ' + (r.via || 'a chat app') }) : null,
         el('time', { datetime: r.created_at, text: new Date(r.created_at).toLocaleString() }),
         status,
       ]),
       el('p', { class: 'text', text: r.text }),
-      el('div', { class: 'ctx', text: ctxLine(r.context) }),
-      deviceLine(r.context) ? el('div', { class: 'ctx', text: deviceLine(r.context) }) : null,
+      r.source === 'chat' ? el('div', { class: 'ctx', text: 'From the team: ' + (r.from_member || 'a team member') + ', in a conversation in ' + (r.via || 'a chat app') }) : null,
+      r.details ? el('details', { class: 'chat-details', open: true }, [el('summary', { text: 'From the conversation' }), el('p', { text: r.details })]) : null,
+      r.source === 'chat' ? null : el('div', { class: 'ctx', text: ctxLine(r.context) }),
+      r.source !== 'chat' && deviceLine(r.context) ? el('div', { class: 'ctx', text: deviceLine(r.context) }) : null,
       r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
       reporterLine(r.context, r.reporter),
       trailView(r.trail),
@@ -1963,6 +1983,86 @@
       el('div', { class: 'test-head' }, [el('span', { class: 'stepnum', text: String(n) }), el('b', { text: title })]),
       el('div', { class: 'setup-body' }, kids),
     ]);
+  }
+
+  // ---- chat apps -------------------------------------------------------------------------
+
+  /**
+   * ChatGPT and other chat apps: each member connects their own, with their own sign-in. Then
+   * ideas from a conversation arrive in the inbox as from them, with the conversation's context.
+   */
+  function chatView(view) {
+    var mcpUrl = location.origin + '/v1/mcp';
+    view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'ChatGPT and other chat apps' })]));
+    view.appendChild(el('p', { class: 'mute', text: 'Send ideas and bugs from a conversation straight to an app’s inbox, with what the conversation worked out. They arrive as from you and wait for someone to accept them, like any report. The chat app can’t read other people’s reports, accept, decline or fix anything.' }));
+    view.appendChild(el('section', { class: 'card' }, [
+      el('h2', { text: 'Add Heresay to ChatGPT' }),
+      el('ol', { class: 'howto' }, [
+        el('li', { html: 'In ChatGPT, open <b>Settings › Apps &amp; Connectors</b>. Under <b>Advanced settings</b>, turn on <b>Developer mode</b>.' }),
+        el('li', { html: 'Choose <b>Create</b>, name it <b>Heresay</b>, and paste this as the <b>MCP server URL</b>. Authentication: <b>OAuth</b>.' }),
+        el('li', {}, [el('div', { class: 'copy-prompt' }, [el('code', { class: 'url', text: mcpUrl }), copyButton(function () { return mcpUrl; }, 'Copy address')])]),
+        el('li', { text: 'ChatGPT opens this dashboard to ask if it may send requests as you. Say yes.' }),
+        el('li', { html: 'In a conversation, say <i>“Send this to Heresay as an idea for Greenroom”</i>, or <i>“What happened to my Heresay requests?”</i>.' }),
+      ]),
+      el('p', { class: 'hint', text: 'Claude, Cursor and other apps that take a remote MCP server use the same address.' }),
+    ]));
+    var list = el('ul', { class: 'members' }, [loading('li')]);
+    var err = el('p', { class: 'err', role: 'alert' });
+    view.appendChild(el('section', { class: 'card' }, [el('h2', { text: me.role === 'owner' ? 'Connected chat apps' : 'Your connected chat apps' }), list, err]));
+    function draw(cs) {
+      list.textContent = '';
+      if (!cs.length) { list.appendChild(el('li', { class: 'mute', text: 'None yet.' })); return; }
+      cs.forEach(function (c) {
+        list.appendChild(el('li', {}, [
+          el('span', { class: 'avatar', text: (c.client_name || '?').charAt(0).toUpperCase() }),
+          el('div', {}, [el('b', { text: c.client_name + (c.email === me.email ? '' : ' · ' + c.email) }),
+            el('span', { class: 'mute', text: 'Connected ' + new Date(c.created_at).toLocaleDateString() + (c.last_used_at ? ' · last used ' + new Date(c.last_used_at).toLocaleString() : '') })]),
+          el('button', { class: 'btn ghost', type: 'button', text: 'Disconnect', onclick: function () {
+            err.textContent = '';
+            api('DELETE', '/chat-connections/' + c.id).then(load).catch(function (x) { err.textContent = x.message; });
+          } }),
+        ]));
+      });
+    }
+    function load() { api('GET', '/chat-connections').then(function (b) { draw(b.connections); }); }
+    load();
+  }
+
+  /** A chat app sent the person here (OAuth): say what it may do, as whom, and ask. */
+  function authorizeView(view, query) {
+    var ask = {};
+    query.forEach(function (v, k) { ask[k] = v; });
+    var qs = new URLSearchParams(ask).toString();
+    api('GET', '/oauth/ask?' + qs).then(function (b) {
+      view.textContent = '';
+      var err = el('p', { class: 'err', role: 'alert' });
+      var answer = function (allow, btn) {
+        err.textContent = '';
+        busyButton(btn, allow ? 'Connecting…' : 'Cancelling…');
+        api('POST', '/oauth/approve', Object.assign({}, ask, { allow: allow })).then(function (x) { location.href = x.redirect; })
+          .catch(function (x) { err.textContent = x.message; });
+      };
+      view.appendChild(el('section', { class: 'card authorize' }, [
+        el('img', { src: '/mark.svg', alt: '', width: '48', height: '48' }),
+        el('h1', { text: 'Connect ' + b.client_name + ' to Heresay?' }),
+        el('p', { class: 'mute', text: 'As ' + me.email + '. It will be able to:' }),
+        el('ul', { class: 'can' }, [
+          el('li', { text: 'See the names of the apps on this Heresay' }),
+          el('li', { text: 'Send bugs and ideas to them as you, with context from the conversation. They wait for someone to accept them.' }),
+          el('li', { text: 'See what happened to the requests you sent' }),
+        ]),
+        el('p', { class: 'mute', text: 'It can’t read anyone else’s reports, or accept, decline or fix anything. You can disconnect it any time under Chat apps.' }),
+        el('div', { class: 'row' }, [
+          el('button', { class: 'btn primary', type: 'button', text: 'Connect', onclick: function (e) { answer(true, e.currentTarget); } }),
+          el('button', { class: 'btn ghost', type: 'button', text: 'Cancel', onclick: function (e) { answer(false, e.currentTarget); } }),
+        ]),
+        el('p', { class: 'hint', text: 'You’ll go back to ' + b.redirect_host + '.' }),
+        err,
+      ]));
+    }).catch(function (x) {
+      view.textContent = '';
+      view.appendChild(el('section', { class: 'card' }, [el('h1', { text: 'This link doesn’t work' }), el('p', { class: 'mute', text: x.message })]));
+    });
   }
 
   function teamView(view) {

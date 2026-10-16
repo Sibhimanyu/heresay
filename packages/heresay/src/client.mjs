@@ -107,7 +107,7 @@ export function client(conn) {
 
 // ---- guides, fetched from the Heresay itself ----------------------------------------------
 
-export const SKILL_VERSION = 5;
+export const SKILL_VERSION = 6;
 
 /** The bootstrap skill version installed in this repo, or null. */
 export function repoSkillVersion(root) {
@@ -294,7 +294,7 @@ export function skipUpdate(id, { root = repoAt().root, by = 'the team' } = {}) {
 }
 
 /** The files `heresay connect` writes, if they exist here but aren't committed. */
-export const AGENT_FILES = ['.mcp.json', '.claude/skills/heresay/SKILL.md', DECISIONS, 'AGENTS.md', 'CLAUDE.md'];
+export const AGENT_FILES = ['.mcp.json', '.claude/settings.json', '.claude/skills/heresay/SKILL.md', DECISIONS, 'AGENTS.md', 'CLAUDE.md'];
 export function uncommittedAgentFiles(root) {
   const loose = [];
   for (const f of AGENT_FILES) {
