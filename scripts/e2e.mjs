@@ -791,6 +791,27 @@ try {
   await dash.locator('.members li', { hasText: 'Chat token' }).getByRole('button', { name: 'Disconnect' }).click();
   await dash.getByText('None yet.').waitFor();
 
+  step('duplicates: a similar report is suggested, merged into one card, and its reporter hears the outcome');
+  const sendAs = (text, dev) => fetch(`${BASE}/v1/reports`, { method: 'POST', headers: { 'content-type': 'text/plain', origin: BASE },
+    body: JSON.stringify({ key, device_id: dev, type: 'broken', text, context: { route: '/settings' } }) }).then((x) => x.json());
+  const first = (await sendAs('Changing the avatar photo fails with an error', 'e2e_dup_device_00000001')).report;
+  const second = (await sendAs('Avatar photo change fails, shows an error', 'e2e_dup_device_00000002')).report;
+  await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  const dupCard = dash.locator('article.report', { hasText: 'Avatar photo change fails, shows an error' });
+  await dupCard.locator('.suggest', { hasText: 'Changing the avatar photo fails with an error' }).waitFor();
+  await dupCard.getByRole('button', { name: 'Merge into it' }).click();
+  const keep = dash.locator('article.report', { hasText: 'Changing the avatar photo fails with an error' });
+  await keep.getByText('2 people reported this').waitFor();
+  assert.equal(await dash.locator('article.report', { hasText: 'Avatar photo change fails, shows an error' }).filter({ hasNot: dash.locator('.dups') }).count(), 0, 'the merged one left the list');
+  await keep.locator('.dups summary').click();
+  await keep.screenshot({ path: `${SHOTS}e2e-11a-duplicates.png` });
+  assert.equal((await api('POST', `/projects/${project.id}/reports/${first.id}/decline`, { reason: 'Fixed by the new upload flow in 2.0.' })).status, 200);
+  const theirs = await (await fetch(`${BASE}/v1/reports/mine`, { method: 'POST', headers: { 'content-type': 'text/plain', origin: BASE },
+    body: JSON.stringify({ key, device_id: 'e2e_dup_device_00000002' }) })).json();
+  const heard = theirs.reports.find((x) => x.id === second.id);
+  assert.equal(heard.status, 'declined');
+  assert.equal(heard.decline_reason, 'Fixed by the new upload flow in 2.0.', 'the merged reporter reads the same reason');
+
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;
   const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 760 } });

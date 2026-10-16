@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.30] - 2026-10-16
+
+### Added
+
+- **Duplicates.** **Merge into…** on an open report puts it under another one about the same thing, across a product's platforms. The dashboard suggests likely duplicates ("Looks like the same as …"); a person decides. The card shows how many people reported it and their words, and ranks higher for it. Accepting, declining or fixing it does the same for every merged report, with the same reason or note, so each reporter hears the outcome; the coding agent's brief includes everyone's words. **Unmerge** undoes a mistaken merge while it's still open.
+
 ## [0.2.29] - 2026-10-16
 
 ### Added

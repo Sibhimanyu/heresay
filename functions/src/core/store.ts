@@ -25,6 +25,8 @@ export interface Store {
   getReport(project_id: string, id: string): Promise<Report | null>;
   listReports(project_id: string): Promise<Report[]>;
   listReportsForDevice(project_id: string, device_id: string): Promise<Report[]>;
+  /** Change fields of a report that aren't its status (merging). Nothing if it doesn't exist. */
+  updateReport(project_id: string, id: string, patch: Partial<Report>): Promise<void>;
 
   /** Atomic: open -> accepted and the task is written together, or neither happens. */
   accept(project_id: string, report_id: string, task: Task, at: string): Promise<Transition>;
@@ -101,6 +103,10 @@ export class MemoryStore implements Store {
   }
   async listReportsForDevice(project_id: string, device_id: string) {
     return (await this.listReports(project_id)).filter((r) => r.device_id === device_id);
+  }
+  async updateReport(project_id: string, id: string, patch: Partial<Report>) {
+    const r = this.reports.get(id);
+    if (r && r.project_id === project_id) this.reports.set(id, { ...r, ...patch, id, project_id, status: r.status });
   }
 
   async accept(project_id: string, report_id: string, task: Task, at: string): Promise<Transition> {

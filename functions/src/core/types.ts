@@ -96,10 +96,18 @@ export interface CodeRef { path: string; line: number | null }
 /** A document a chat app attached to a request: a title and Markdown. */
 export interface ChatDocument { title: string | null; markdown: string }
 
+/** A report a person merged into another: it follows that one's outcome. */
+export interface DuplicateOf { project_id: string; report_id: string; by: string; at: string }
+
+/** What another reporter said about the same thing, for the brief. */
+export interface AlsoReported { report_id: string; type: ReportType; text: string; created_at: string; source: string }
+
 export interface Report {
   id: string;
   project_id: string;
   device_id: string;
+  /** Merged into another report: its status, reason and fix note follow that one. */
+  duplicate_of?: DuplicateOf | null;
   type: ReportType;
   text: string;
   /** Unset for reports from the app. */
@@ -216,6 +224,8 @@ export interface Task {
   /** source 'agent': the repo it was found in, and where in the code. */
   from_repo?: string | null;
   files?: CodeRef[] | null;
+  /** Other reports merged into this one: the same thing, in other people's words. Fenced too. */
+  also_reported?: AlsoReported[];
   note: string | null;    // what the accepter added
   accepted_by: string;
   accepted_at: string;
