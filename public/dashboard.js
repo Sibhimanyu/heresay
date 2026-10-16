@@ -1374,6 +1374,14 @@
       .filter(Boolean).join(' · ');
   }
 
+  /** The device around the app: what layout, language and timing bugs depend on. */
+  function deviceLine(c) {
+    var s = c.session_s;
+    var inApp = s == null ? null : 'in the app ' + (s < 60 ? s + ' s' : s < 3600 ? Math.floor(s / 60) + ' min' : Math.floor(s / 3600) + ' h ' + Math.floor(s % 3600 / 60) + ' min');
+    return [c.device, c.screen, c.theme && c.theme + ' mode', c.locale, c.timezone, c.network, c.settings, inApp]
+      .filter(Boolean).join(' · ');
+  }
+
   var TRAIL_LABEL = { page: 'Page', click: 'Click', request: 'Request', error: 'Error', warn: 'Warning', state: 'Device' };
 
   /**
@@ -1548,6 +1556,7 @@
       ]),
       el('p', { class: 'text', text: r.text }),
       el('div', { class: 'ctx', text: ctxLine(r.context) }),
+      deviceLine(r.context) ? el('div', { class: 'ctx', text: deviceLine(r.context) }) : null,
       r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
       reporterLine(r.context, r.reporter),
       trailView(r.trail),

@@ -73,9 +73,14 @@ default says what matters.
 **The trail**
 
 With each report, the widget attaches what happened in the app in the last few minutes:
-pages visited, what was clicked (by its label), requests that failed, errors and console
-warnings. The reporter sees it in the form and can switch it off or leave parts out. Never what
-anyone typed, request bodies, headers or query strings. On by default; change it only when asked.
+pages visited (with their titles), what was clicked (by its label, and the dialog, form or menu
+it was in), forms sent and fields the browser refused (by label and why), requests that failed
+or took 3 s or more (with how long), errors, console warnings, alerts the app showed, freezes of
+a second or more, and leaving the tab and coming back. Each report also carries the device
+around the app: phone or desktop, touch or mouse, screen, light or dark, language, time zone,
+connection, and settings such as reduced motion. The reporter sees all of it in the form and can
+switch the trail off or leave parts out. Never what anyone typed, request bodies, headers or
+query strings. On by default; change it only when asked.
 
 | Attribute | Values |
 | --- | --- |

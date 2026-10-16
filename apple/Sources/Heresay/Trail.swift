@@ -7,6 +7,8 @@ import MetricKit
 #endif
 #if os(macOS)
 import AppKit
+#else
+import UIKit
 #endif
 
 /// The parts of the trail an app keeps: what happened in it before a report, sent only with a
@@ -43,7 +45,7 @@ struct TrailEvent: Codable, Sendable, Equatable {
     var n: Int
 }
 
-/// The trail on this device: in memory only (the newest 30, for 5 minutes), plus the app's log
+/// The trail on this device: in memory only (the newest 50, for 5 minutes), plus the app's log
 /// read when someone reports. Leaves only with a report.
 final class Trail: @unchecked Sendable {
     struct Entry: Equatable, Sendable, Identifiable {
@@ -55,7 +57,7 @@ final class Trail: @unchecked Sendable {
         var id: String { "\(kind.rawValue)\(at.timeIntervalSinceReferenceDate)\(text)" }
     }
 
-    static let maxEvents = 30
+    static let maxEvents = 50
     static let maxAge: TimeInterval = 5 * 60
 
     private let lock = NSLock()
@@ -208,6 +210,10 @@ final class TrailCollectors {
     private let defaults: UserDefaults
     private var path: NWPathMonitor?
     private var online: Bool?
+    /// The connection as the system sees it, for each report: "wifi", "cellular, low data", "offline".
+    private(set) var network: String?
+    private var lifecycle: [NSObjectProtocol] = []
+    private var awaySince: Date?
     #if os(macOS)
     private var clickMonitor: Any?
     private var menuObserver: NSObjectProtocol?
@@ -225,8 +231,10 @@ final class TrailCollectors {
     func start(_ parts: HeresayTrail, crashed: (@Sendable () -> Void)? = nil) {
         stop()
         trail.setParts(parts)
-        guard !parts.isEmpty else { return }
+        // The connection goes in every report's context; its changes only in the trail.
         watchConnection()
+        guard !parts.isEmpty else { return }
+        watchLifecycle()
         #if os(macOS)
         if parts.contains(.clicks) { watchClicks() }
         #endif
@@ -240,7 +248,9 @@ final class TrailCollectors {
     }
 
     func stop() {
-        path?.cancel(); path = nil; online = nil
+        path?.cancel(); path = nil; online = nil; network = nil
+        for o in lifecycle { NotificationCenter.default.removeObserver(o) }
+        lifecycle = []; awaySince = nil
         #if os(macOS)
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
         if let menuObserver { NotificationCenter.default.removeObserver(menuObserver) }
@@ -257,14 +267,57 @@ final class TrailCollectors {
         let m = NWPathMonitor()
         m.pathUpdateHandler = { [weak self, trail] p in
             let up = p.status == .satisfied
+            let summary = Self.describe(p)
             Task { @MainActor in
                 guard let self else { return }
                 if let was = self.online, was != up { trail.note(.state, up ? "Back online" : "Went offline") }
                 self.online = up
+                self.network = summary
             }
         }
         m.start(queue: DispatchQueue(label: "dev.heresay.path"))
         path = m
+    }
+
+    nonisolated static func describe(_ p: NWPath) -> String {
+        guard p.status == .satisfied else { return "offline" }
+        let kind = p.usesInterfaceType(.wifi) ? "wifi" : p.usesInterfaceType(.cellular) ? "cellular"
+            : p.usesInterfaceType(.wiredEthernet) ? "wired" : "other"
+        return kind + (p.isConstrained ? ", low data" : p.isExpensive && kind != "cellular" ? ", metered" : "")
+    }
+
+    /// Leaving the app and coming back, low memory, the device getting hot: things that explain a
+    /// session that expired, a view that reloaded, an app that slowed down.
+    private func watchLifecycle() {
+        let nc = NotificationCenter.default
+        #if os(macOS)
+        let (away, back) = (NSApplication.didResignActiveNotification, NSApplication.didBecomeActiveNotification)
+        #else
+        let (away, back) = (UIApplication.didEnterBackgroundNotification, UIApplication.willEnterForegroundNotification)
+        #endif
+        lifecycle.append(nc.addObserver(forName: away, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.awaySince = Date() }
+        })
+        lifecycle.append(nc.addObserver(forName: back, object: nil, queue: .main) { [weak self, trail] _ in
+            MainActor.assumeIsolated {
+                guard let self, let since = self.awaySince else { return }
+                self.awaySince = nil
+                let s = Int(Date().timeIntervalSince(since).rounded())
+                if s >= 5 { trail.note(.state, "Came back to the app after \(Device.away(s))") }
+            }
+        })
+        #if os(iOS)
+        lifecycle.append(nc.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [trail] _ in
+            trail.note(.warn, "The system warned the app that memory is low")
+        })
+        #endif
+        lifecycle.append(nc.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { [trail] _ in
+            switch ProcessInfo.processInfo.thermalState {
+            case .serious: trail.note(.state, "The device is running hot")
+            case .critical: trail.note(.state, "The device is running very hot and slowing down")
+            default: break
+            }
+        })
     }
 
     #if os(macOS)

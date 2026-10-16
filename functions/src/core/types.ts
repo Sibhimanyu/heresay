@@ -49,6 +49,17 @@ export interface ReportContext {
   page_title?: string | null;
   page_url?: string | null;   // origin + path + hash, never the query string
   viewport?: string | null;   // '1280x720'
+  /** The device around the app, for bugs that depend on it. All optional; older SDKs leave them out. */
+  locale?: string | null;     // 'en-IN'
+  timezone?: string | null;   // 'Asia/Kolkata'
+  theme?: 'light' | 'dark' | null;
+  device?: string | null;     // 'phone, touch' on the web; 'iPhone16,1', 'MacBookPro18,3' on Apple
+  network?: string | null;    // '4g', 'wifi', 'cellular, low data', 'offline'
+  screen?: string | null;     // '1512x982@2x'
+  /** Seconds since the page loaded or the app launched. */
+  session_s?: number | null;
+  /** Settings that change how the app looks or runs: 'reduced motion, larger text', 'low power'. */
+  settings?: string | null;
 }
 
 /**

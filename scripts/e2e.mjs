@@ -621,10 +621,13 @@ try {
   const tcard = dash.locator('article.report', { hasText: 'Saving my profile does nothing.' });
   await tcard.locator('details.trail[open]').waitFor();
   await tcard.locator('.trail li.k-request', { hasText: 'PATCH /api/profile → 404' }).waitFor();
+  await tcard.locator('.ctx', { hasText: /desktop, mouse · \d+x\d+@\d/ }).waitFor();
   await tcard.screenshot({ path: `${SHOTS}e2e-8c-trail-dashboard.png` });
   assert.equal((await api('POST', `/projects/${project.id}/reports/${withTrail.id}/accept`)).status, 200);
   const tprompt = (await (await api('GET', `/projects/${project.id}/reports/${withTrail.id}/prompt`)).json()).prompt;
   assert.match(tprompt, /Request: PATCH \/api\/profile → 404/);
+  assert.match(tprompt, /- Device: desktop, mouse/);
+  assert.match(tprompt, /Last thing that went wrong, \d+ s before they sent it: TypeError: user\.avatar is undefined/);
   assert.ok(tprompt.indexOf('Request: PATCH') < tprompt.lastIndexOf('\"\"\"'), 'inside the fence');
 
   step('offering help: a button that does nothing, pressed again and again, brings a note that opens the form');

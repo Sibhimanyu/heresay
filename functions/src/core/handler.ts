@@ -98,6 +98,14 @@ export function parseContext(v: unknown): ReportContext {
     framework: isFramework(c.framework) ? c.framework : null,
     page_title: f('page_title'), page_url: pageUrl(c.page_url),
     viewport: typeof c.viewport === 'string' && /^\d{1,5}x\d{1,5}$/.test(c.viewport) ? c.viewport : null,
+    locale: typeof c.locale === 'string' && /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8}){0,3}$/.test(c.locale) ? c.locale : null,
+    timezone: typeof c.timezone === 'string' && /^[A-Za-z0-9_+\-/]{1,64}$/.test(c.timezone) ? c.timezone : null,
+    theme: c.theme === 'light' || c.theme === 'dark' ? c.theme : null,
+    device: str(c.device, 80), network: str(c.network, 80),
+    screen: typeof c.screen === 'string' && /^\d{1,5}x\d{1,5}(@[\d.]{1,4}x)?$/.test(c.screen) ? c.screen : null,
+    session_s: typeof c.session_s === 'number' && Number.isFinite(c.session_s) && c.session_s >= 0
+      ? Math.min(Math.round(c.session_s), 30 * 86_400) : null,
+    settings: str(c.settings, 120),
   };
 }
 
@@ -145,8 +153,13 @@ export function agentPrompt(project: Project, t: Task): string {
   const ctx = [
     ['Screen / route', c.route], ['Page', c.page_title], ['URL', c.page_url],
     ['App version', c.app_version], ['Platform', c.platform], ['OS', c.os], ['Browser', c.browser],
-    ['Viewport', c.viewport],
+    ['Device', c.device], ['Viewport', c.viewport], ['Screen', c.screen], ['Theme', c.theme],
+    ['Language', c.locale], ['Time zone', c.timezone], ['Network', c.network], ['Settings', c.settings],
+    ['In the app for', c.session_s != null ? duration(c.session_s) : null],
   ].filter(([, v]) => v).map(([k, v]) => `- ${k}: ${v}`).join('\n');
+  // The last thing that went wrong, so it isn't lost in a long trail.
+  const worst = [...(t.trail ?? [])].reverse().find((e) => e.kind === 'error')
+    ?? [...(t.trail ?? [])].reverse().find((e) => e.kind === 'request' || e.kind === 'warn');
   const fence = '"""';
   return [
     `A user of ${project.name} reported something and the developer accepted it. Fix it.`,
@@ -159,11 +172,19 @@ export function agentPrompt(project: Project, t: Task): string {
     fence,
     t.text.replaceAll(fence, "''"),
     ...(t.reporter_note ? ['', `About their setup: ${t.reporter_note.replaceAll(fence, "''")}`] : []),
+    ...(worst ? ['', `Last thing that went wrong, ${duration(worst.ago)} before they sent it: ${worst.text.replaceAll(fence, "''")}`] : []),
     ...(t.trail?.length ? ['', 'What happened in the app before they sent it, recorded by the SDK on their device (oldest first):',
       ...trailLines(t.trail).map((l) => l.replaceAll(fence, "''"))] : []),
     fence,
     ...(t.note ? ['', `Developer's note: ${t.note}`] : []),
   ].join('\n');
+}
+
+/** 75 → '1 min 15 s', 7300 → '2 h 1 min'. */
+export function duration(s: number): string {
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ''}`;
+  return `${Math.floor(s / 3600)} h${Math.floor(s % 3600 / 60) ? ` ${Math.floor(s % 3600 / 60)} min` : ''}`;
 }
 
 export async function handle(req: Req, deps: Deps): Promise<Res> {

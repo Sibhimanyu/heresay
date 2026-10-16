@@ -664,6 +664,13 @@ struct TrailBox: View {
 
     private var w: Words { heresay.words }
 
+    /// The device details that go with the report too, so nothing is sent unseen.
+    private var deviceLine: String? {
+        let c = heresay.context()
+        let parts = [c.device, c.screen, c.theme, c.locale, c.timezone, c.network, c.settings].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     private var counts: [(TrailKind, Int)] {
         TrailKind.allCases.compactMap { k in
             let n = entries.filter { $0.kind == k }.reduce(0) { $0 + $1.n }
@@ -692,6 +699,12 @@ struct TrailBox: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.bottom, 2)
                         ForEach(entries.reversed()) { e in line(e) }
+                        if let d = deviceLine {
+                            Text(w[.alsoSent] + d)
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 4)
+                        }
                     }
                     .padding(.top, 4)
                 } label: {

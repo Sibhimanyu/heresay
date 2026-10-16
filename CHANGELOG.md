@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.22] - 2026-10-16
+
+### Added
+
+- **More context with every report.** The device around the app: phone, tablet or desktop and touch or mouse (on Apple, the model), screen and scale, light or dark, language, time zone, connection, how long the page or app has been open, and settings such as reduced motion, more contrast or larger text. Shown on the dashboard under the report, in the agent prompt, and to the reporter under **See it**.
+- **A more telling trail on the web:** pages with their titles; clicks with the dialog, form or menu they were in (`button "Save" in dialog "Edit profile"`); forms sent and fields the browser refused, by label and why, never their value; how long a failed request took, and requests that worked but took 3 s or more; alerts the app showed (`The app showed: "Payment failed"`); the page freezing for a second or more; Content Security Policy blocks; and coming back to the tab after being away.
+- **On iOS and macOS:** coming back to the app after being away, the device running hot, and on iOS the system's low-memory warning.
+- **The agent prompt names the last thing that went wrong** before the trail, so it isn't lost in a long one.
+
+### Changed
+
+- The trail keeps the newest 50 events instead of 30.
+- The "connection change" chip is now "device event": it also counts leaving and coming back.
+
 ## [0.2.21] - 2026-10-16
 
 ### Added

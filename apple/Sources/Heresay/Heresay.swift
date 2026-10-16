@@ -375,13 +375,19 @@ public final class Heresay: ObservableObject {
         return id
     }
 
-    func context() -> ReportContext {
+    func context(now: Date = Date()) -> ReportContext {
         ReportContext(
             route: screen, appVersion: version, platform: Self.platform, os: Self.osDescription(),
             browser: nil, userId: userId, userLabel: userLabel, userEmail: userEmail, framework: "swiftui",
-            viewport: Self.windowSize()
+            viewport: Self.windowSize(),
+            locale: Device.locale(), timezone: Device.timezone(), theme: Device.theme(), device: Device.model(),
+            network: collectors.network, screen: Device.screen(),
+            sessionS: max(0, Int(now.timeIntervalSince(started).rounded())), settings: Device.settings()
         )
     }
+
+    /// When this launch began, near enough: Heresay is made when the app configures it.
+    private let started = Date()
 
     /// The size of the window people were looking at, in points.
     static func windowSize() -> String? {

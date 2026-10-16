@@ -53,9 +53,21 @@ struct ReportContext: Codable, Sendable, Equatable {
     var framework: String?
     /// The window's size in points, e.g. "1280x720". Layout bugs depend on it.
     var viewport: String? = nil
+    /// The device around the app (`Device.swift`): what layout, language and timing bugs depend on.
+    var locale: String? = nil
+    var timezone: String? = nil
+    var theme: String? = nil
+    var device: String? = nil
+    var network: String? = nil
+    var screen: String? = nil
+    /// Seconds since the app launched.
+    var sessionS: Int? = nil
+    var settings: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case route, platform, os, browser, framework, viewport
+        case locale, timezone, theme, device, network, screen, settings
+        case sessionS = "session_s"
         case appVersion = "app_version"
         case userId = "user_id"
         case userLabel = "user_label"

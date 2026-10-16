@@ -91,12 +91,18 @@ Each report carries the last five minutes in the app, the same as the web widget
 - **The app's own errors**: `Logger` lines at `.error` and `.fault` (Apple's frameworks left
   out), read from the app's log only when someone reports. Log a failure and it shows up here.
 - **The last crash**, from MetricKit at the next launch, sent with one report.
-- **Going offline and back.**
+- **Going offline and back**, leaving the app and coming back, the device running hot, and on
+  iOS the system warning that memory is low.
 - **macOS: clicks and menu commands.** A click by its control's accessibility label
   (`button "Export"`, `toolbar item "Export"`), a menu command by its path
   (`menu "File › Export…"`), including from its keyboard shortcut. Controls SwiftUI draws itself
   only have labels while an assistive app such as VoiceOver is running; AppKit's controls, toolbar
   items and menus always do. iOS records no taps: that would mean swizzling.
+
+Each report also carries the device around the app: the model (`iPhone16,1`, `MacBookPro18,3`),
+screen and scale, light or dark, language, time zone, connection (`wifi`, `cellular, low data`,
+`offline`), how long the app has been open, and settings that change how it looks or runs
+(reduced motion, more contrast, bold or larger text, low power). They are listed under **See it**.
 
 Never what anyone typed: fields by their label, secure fields and list rows by their kind only.
 Emails, tokens, long numbers, query strings and home-folder paths are blanked on the device and
