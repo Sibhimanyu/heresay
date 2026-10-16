@@ -32,6 +32,10 @@
  *                                  (pages, clicks, requests, errors). What happened in the app before
  *                                  a report; see "the trail" below. data-heresay-private on any element
  *                                  keeps its text out of click records.
+ *   Offering help: data-nudge  off (default) | on | the signals to watch, e.g. "clicks errors"
+ *                                  (clicks, errors, requests). When someone seems stuck, a small note
+ *                                  by the button asks if they want to tell the team. See "offering
+ *                                  help" below.
  * Optional calls, any time after the script runs:
  *   Feedback.identify({ id, label, email })   who is signed in; then nobody is asked their name
  *   Feedback.setVersion("1.4.0")
@@ -39,6 +43,7 @@
  *   Feedback.open({ type, text })     type and text optional: starts a report already filled in
  *   Feedback.on("sent", fn)           fn({ id, type }) after each report is sent; returns an off()
  *   Feedback.introduce({ title, body })   once per device: a bubble saying the button is there
+ *   Feedback.nudge()                  the app saw trouble itself: offer to report it, as data-nudge does
  *   data-preview                      for the dashboard's designer: nothing is sent or stored
  *   Feedback.openPreferences()        a note about their setup, and a name and email if not signed in
  *
@@ -111,6 +116,7 @@
       trailHint: 'Recent pages, clicks and errors in this app. Never what you typed.',
       seeTrail: 'See it',
       trail: { page: ['page', 'pages'], click: ['click', 'clicks'], request: ['failed request', 'failed requests'], error: ['error', 'errors'], warn: ['warning', 'warnings'], state: ['connection change', 'connection changes'] },
+      nudgeAria: 'Offer to report a problem', nudgeTitle: 'Something not working?', nudgeBody: 'Tell the team what happened. A real person reads it.', nudgeYes: 'Tell the team', nudgeNo: 'Not now',
       sentTo: 'Sent to this app’s team', powered: 'Powered by Heresay',
     },
     fr: {
@@ -148,6 +154,7 @@
       trailHint: 'Pages, clics et erreurs récents dans cette app. Jamais ce que vous avez saisi.',
       seeTrail: 'Voir',
       trail: { page: ['page', 'pages'], click: ['clic', 'clics'], request: ['requête échouée', 'requêtes échouées'], error: ['erreur', 'erreurs'], warn: ['avertissement', 'avertissements'], state: ['changement de connexion', 'changements de connexion'] },
+      nudgeAria: 'Proposition de signaler un problème', nudgeTitle: 'Quelque chose ne marche pas ?', nudgeBody: 'Dites à l’équipe ce qui s’est passé. Une vraie personne le lit.', nudgeYes: 'Signaler', nudgeNo: 'Pas maintenant',
       sentTo: 'Envoyé à l’équipe de cette app', powered: 'Propulsé par Heresay',
     },
     ta: {
@@ -185,6 +192,7 @@
       trailHint: 'இந்த ஆப்பில் சமீபத்திய பக்கங்கள், கிளிக்குகள், பிழைகள். நீங்கள் தட்டச்சு செய்தது ஒருபோதும் இல்லை.',
       seeTrail: 'பார்',
       trail: { page: ['பக்கம்', 'பக்கங்கள்'], click: ['கிளிக்', 'கிளிக்குகள்'], request: ['தோல்வியடைந்த கோரிக்கை', 'தோல்வியடைந்த கோரிக்கைகள்'], error: ['பிழை', 'பிழைகள்'], warn: ['எச்சரிக்கை', 'எச்சரிக்கைகள்'], state: ['இணைப்பு மாற்றம்', 'இணைப்பு மாற்றங்கள்'] },
+      nudgeAria: 'சிக்கலைத் தெரிவிக்க ஒரு அழைப்பு', nudgeTitle: 'ஏதாவது வேலை செய்யவில்லையா?', nudgeBody: 'என்ன நடந்தது என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.', nudgeYes: 'குழுவிடம் சொல்', nudgeNo: 'இப்போது வேண்டாம்',
       sentTo: 'இந்த ஆப்பின் குழுவுக்கு அனுப்பப்படும்', powered: 'Heresay மூலம் இயங்குகிறது',
     },
     hi: {
@@ -222,6 +230,7 @@
       trailHint: 'इस ऐप में हाल के पेज, क्लिक और त्रुटियाँ। आपने जो टाइप किया, वह कभी नहीं।',
       seeTrail: 'देखें',
       trail: { page: ['पेज', 'पेज'], click: ['क्लिक', 'क्लिक'], request: ['विफल अनुरोध', 'विफल अनुरोध'], error: ['त्रुटि', 'त्रुटियाँ'], warn: ['चेतावनी', 'चेतावनियाँ'], state: ['कनेक्शन बदलाव', 'कनेक्शन बदलाव'] },
+      nudgeAria: 'समस्या बताने का सुझाव', nudgeTitle: 'कुछ काम नहीं कर रहा?', nudgeBody: 'टीम को बताइए क्या हुआ। इसे कोई इंसान पढ़ता है।', nudgeYes: 'टीम को बताएँ', nudgeNo: 'अभी नहीं',
       sentTo: 'इस ऐप की टीम को भेजा जाता है', powered: 'Heresay द्वारा संचालित',
     },
   };
@@ -426,6 +435,16 @@
     return on;
   })();
   var TRAIL_MAX = 30, TRAIL_AGE = 5 * 60000;
+  // data-nudge, read here because the request watchers below serve both. See "offering help".
+  var NUDGE_SIGNALS = ['clicks', 'errors', 'requests'];
+  var NUDGE = (function () {
+    var v = attr('nudge').toLowerCase(), on = {};
+    if (PREVIEW || !v || /^(off|none|false|no)$/.test(v)) return on;
+    (v === 'on' ? NUDGE_SIGNALS : v.split(/[\s,]+/)).forEach(function (w) {
+      if (NUDGE_SIGNALS.indexOf(w) >= 0) on[w] = true;
+    });
+    return on;
+  })();
   var trail = [];
 
   /** The same blanking the server does (trail.ts), so it never leaves the device in the first place. */
@@ -546,7 +565,7 @@
   }
 
   // Requests: only the ones that failed, by method, path and status.
-  if (TRAIL.request && window.fetch) {
+  if ((TRAIL.request || NUDGE.requests) && window.fetch) {
     var ofetch = window.fetch;
     window.fetch = function (input, init) {
       var p = ofetch.apply(window, arguments);
@@ -555,16 +574,18 @@
         if (url && !ours(url)) {
           var method = String(init && init.method || input && input.method || 'GET').toUpperCase();
           p.then(function (res) {
-            if (!res.ok && res.type !== 'opaque') note('request', method + ' ' + shortUrl(url) + ' → ' + res.status);
+            if (!res.ok && res.type !== 'opaque') { note('request', method + ' ' + shortUrl(url) + ' → ' + res.status); requestFailed(res.status); }
           }, function (err) {
-            if (!(err && err.name === 'AbortError')) note('request', method + ' ' + shortUrl(url) + ' → failed (' + (navigator.onLine === false ? 'offline' : 'network error') + ')');
+            if (err && err.name === 'AbortError') return;
+            note('request', method + ' ' + shortUrl(url) + ' → failed (' + (navigator.onLine === false ? 'offline' : 'network error') + ')');
+            requestFailed(0);
           });
         }
       } catch (e) { /* ignore */ }
       return p;
     };
   }
-  if (TRAIL.request && window.XMLHttpRequest) {
+  if ((TRAIL.request || NUDGE.requests) && window.XMLHttpRequest) {
     var XP = XMLHttpRequest.prototype, xopen = XP.open, xsend = XP.send;
     XP.open = function (m, u) {
       try { this.__heresay = { m: String(m || 'GET').toUpperCase(), u: String(u) }; } catch (e) { /* ignore */ }
@@ -577,8 +598,8 @@
           var aborted = false;
           x.addEventListener('abort', function () { aborted = true; });
           x.addEventListener('loadend', function () {
-            if (x.status >= 400) note('request', r.m + ' ' + shortUrl(r.u) + ' → ' + x.status);
-            else if (x.status === 0 && !aborted) note('request', r.m + ' ' + shortUrl(r.u) + ' → failed (network error)');
+            if (x.status >= 400) { note('request', r.m + ' ' + shortUrl(r.u) + ' → ' + x.status); requestFailed(x.status); }
+            else if (x.status === 0 && !aborted) { note('request', r.m + ' ' + shortUrl(r.u) + ' → failed (network error)'); requestFailed(0); }
           });
         }
       } catch (e) { /* ignore */ }
@@ -622,6 +643,93 @@
     window.addEventListener('offline', function () { note('state', 'Went offline'); });
     window.addEventListener('online', function () { note('state', 'Back online'); });
   }
+
+  // ---- offering help ---------------------------------------------------------------------
+
+  /**
+   * data-nudge: when someone seems stuck, a small note by the button asks whether they want to
+   * tell the team. Off unless the host turns it on: it is the host's page it appears on. Watched
+   * here on the device and never sent anywhere; it only offers the form, with the trail.
+   *
+   *   clicks    the same button or link pressed 3 times in 10 s, and the page did not change
+   *   errors    an uncaught error or failed promise within 5 s of a click
+   *   requests  2 requests failing (5xx or no answer) within 30 s, while online
+   *
+   * At most once per tab, and not for 7 days after "Not now".
+   */
+  var DEAD_WAIT = 1500, DEAD_SPAN = 10000, DEAD_COUNT = 3;
+  var lastPress = 0;
+
+  // Clicks that did nothing: no change to the page and no new address within 1.5 s. Buttons and
+  // links only; fields, checkboxes and sliders change without touching the page.
+  var PRESSABLE = 'a[href],button,input[type=button],input[type=submit],input[type=reset],[role=button],[role=link],[role=menuitem],[role=tab],summary';
+  var presses = [], pending = 0, pageWatch = null;
+  function pageChanged() {
+    var now = Date.now();
+    presses.forEach(function (p) { if (now - p.at <= DEAD_WAIT) p.changed = true; });
+  }
+  function judge(p) {
+    if (--pending === 0 && pageWatch) { pageWatch.disconnect(); pageWatch = null; }
+    if (p.changed || location.href !== p.href) return;
+    p.dead = true;
+    var cut = Date.now() - DEAD_SPAN;
+    presses = presses.filter(function (q) { return q.at >= cut; });
+    var same = presses.filter(function (q) { return q.dead && q.el === p.el; });
+    if (same.length >= DEAD_COUNT) { presses = []; trouble('clicks'); }
+  }
+  if (NUDGE.clicks || NUDGE.errors) {
+    // pointerdown, not click: a disabled button gets no click, and it is the classic one to press again.
+    document.addEventListener('pointerdown', function (e) {
+      if (!e.isPrimary || e.button > 0 || !host || host.contains(e.target) || e.target === host) return;
+      lastPress = Date.now();
+      if (!NUDGE.clicks || !e.target.closest) return;
+      var c = e.target.closest(PRESSABLE);
+      if (!c || c.closest('[data-feedback-sdk]')) return;
+      // A new tab, a download, an email: the page stays as it was, and that is fine.
+      if (c.tagName === 'A' && (/^(mailto|tel|sms):/i.test(c.getAttribute('href')) || c.hasAttribute('download')
+        || (c.target && c.target !== '_self'))) return;
+      var p = { el: c, at: lastPress, href: location.href, changed: false, dead: false };
+      presses.push(p);
+      if (!pageWatch && window.MutationObserver) {
+        pageWatch = new MutationObserver(pageChanged);
+        pageWatch.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
+      }
+      pending++;
+      setTimeout(function () { judge(p); }, DEAD_WAIT);
+    }, true);
+  }
+
+  // Errors right after a click. Not from browser extensions, not the browser's ResizeObserver
+  // notice, not cross-origin "Script error." with nothing to go on.
+  function appError(msg, where) {
+    if (!lastPress || Date.now() - lastPress > 5000) return false;
+    if (/ResizeObserver loop/.test(msg || '')) return false;
+    if (/^(chrome|moz|safari(-web)?)-extension:/.test(where || '')) return false;
+    if (where && script.src && where.indexOf(script.src.split(/[?#]/)[0]) === 0) return false;
+    return true;
+  }
+  if (NUDGE.errors) {
+    window.addEventListener('error', function (e) {
+      if (e.target && e.target !== window) return; // a file that did not load
+      if (!e.filename && !e.error) return;
+      if (appError(e.message, e.filename)) trouble('errors');
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e.reason, stack = r && r.stack ? String(r.stack) : '';
+      if (/(chrome|moz|safari(-web)?)-extension:/.test(stack)) return;
+      if (appError(r && r.message, '')) trouble('errors');
+    });
+  }
+
+  // Requests failing in a row: the server, or the way to it. A 4xx is usually the app answering.
+  var fails = [];
+  function requestFailed(status) {
+    if (!NUDGE.requests || navigator.onLine === false || (status && status < 500)) return;
+    var now = Date.now();
+    fails = fails.filter(function (t) { return now - t < 30000; }).concat(now);
+    if (fails.length >= 2) { fails = []; trouble('requests'); }
+  }
+  function trouble(why) { if (NUDGE[why]) offerHelp(); }
 
   // ---- network ---------------------------------------------------------------------------
 
@@ -719,6 +827,8 @@
     '.intro .by{margin-top:12px;padding-top:8px}',
     '@keyframes fb-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}',
     '@media (prefers-reduced-motion:reduce){.intro{animation:none}}',
+    // offering help: the introduction's bubble; with no button to point at, it sits in its place
+    '.intro.free:after{display:none}.intro.free.b{bottom:var(--fb-y)}.intro.free.t{top:var(--fb-y)}',
     '.mark{display:inline-flex;color:var(--fb-mark)}.mark svg{display:block}.eye{fill:var(--fb-eye)}',
     '.dot{width:8px;height:8px;border-radius:50%;background:var(--fb-acc)}',
 
@@ -889,6 +999,7 @@
     var off = !revealed || hiddenHere();
     if (off) fab.setAttribute('hidden', ''); else fab.removeAttribute('hidden');
     if (off && bubble) { bubble.remove(); bubble = null; }
+    if (off && nudgeEl) { nudgeEl.remove(); nudgeEl = null; }
   }
   /** Can the reporter see the button right now? The introduction points at it. */
   function fabShowing() {
@@ -910,6 +1021,7 @@
     if (dead) return;
     if (scrim) { if (which) { view = which; renderPanel(); } return; }
     if (bubble) { bubble.remove(); bubble = null; }
+    if (nudgeEl) { nudgeEl.remove(); nudgeEl = null; }
     lastFocus = document.activeElement;
     view = which || (unseen() ? 'mine' : 'new');
     var cls = PANEL === 'center' ? 'center' : PLACE + (PANEL === 'sheet' ? ' sheet' : '');
@@ -1172,6 +1284,60 @@
     return true;
   }
 
+  // ---- offering help: the note -----------------------------------------------------------
+
+  // Someone seems stuck (data-nudge), or the app says so (nudge()). A note by the button, which
+  // takes no focus and goes by itself after 15 s unless it is being read. "Tell the team" opens
+  // the form as Broken, with the trail. At most once per tab; "Not now" quiets it for 7 days.
+  var NUDGE_NO = 'fbsdk.nudge.no.' + KEY, NUDGE_TAB = 'fbsdk.nudged.' + KEY, NUDGE_REST = 7 * 864e5;
+  var nudgeEl = null;
+  /** True if this tab was already offered help; otherwise marks it. */
+  function offeredInTab() {
+    try {
+      if (PREVIEW) throw 0;
+      if (sessionStorage.getItem(NUDGE_TAB)) return true;
+      sessionStorage.setItem(NUDGE_TAB, '1');
+    } catch (e) {
+      if (mem[NUDGE_TAB]) return true;
+      mem[NUDGE_TAB] = '1';
+    }
+    return false;
+  }
+  function offerHelp() {
+    if (dead || scrim || bubble || nudgeEl || !host.isConnected || hiddenHere() || document.visibilityState === 'hidden') return false;
+    if (Date.now() - (+load(NUDGE_NO) || 0) < NUDGE_REST) return false;
+    if (offeredInTab()) return false;
+    var timer = null;
+    var done = function (no) {
+      clearTimeout(timer);
+      if (no) save(NUDGE_NO, String(Date.now()));
+      if (nudgeEl) { nudgeEl.remove(); nudgeEl = null; }
+    };
+    var later = function () { clearTimeout(timer); timer = setTimeout(function () { done(false); }, 15000); };
+    var stay = function () { clearTimeout(timer); };
+    nudgeEl = el('div', {
+      class: 'intro nudge ' + PLACE + ' st-' + STYLE + (fabShowing() ? '' : ' free'),
+      role: 'status', 'aria-label': S.nudgeAria,
+      onpointerenter: stay, onpointerleave: later, onfocusin: stay, onfocusout: later,
+      onkeydown: function (e) { if (e.key === 'Escape') done(true); },
+    }, [
+      el('b', { text: S.nudgeTitle }),
+      el('p', { text: S.nudgeBody }),
+      el('div', { class: 'row' }, [
+        el('button', { class: 'link', type: 'button', text: S.nudgeNo, onclick: function () { done(true); } }),
+        el('button', { class: 'send', type: 'button', text: S.nudgeYes, onclick: function () {
+          done(false);
+          if (!state.type && OFFERED.some(function (t) { return t.id === 'broken'; })) state.type = 'broken';
+          open('new');
+        } }),
+      ]),
+      byline(false),
+    ]);
+    root.appendChild(nudgeEl);
+    later();
+    return true;
+  }
+
   function mount() {
     if (dead) return;
     if (!host.isConnected) document.body.appendChild(host);
@@ -1205,6 +1371,9 @@
     openPreferences: function () { if (PREFS_TAB) open('prefs'); },
     /** Show the one-time introduction now. False if it was already shown on this device. */
     introduce: function (o) { return introduce(o); },
+    /** The app saw trouble itself (an error screen, a retry that failed): offer to report it.
+     *  Works without data-nudge; the same limits apply. False if it did not show. */
+    nudge: function () { return offerHelp(); },
     /** on('sent', fn): fn({ id, type }) after each report is sent. Returns a function that stops it. */
     on: function (event, fn) {
       if (event !== 'sent' || typeof fn !== 'function') return function () {};

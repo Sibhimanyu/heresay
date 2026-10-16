@@ -627,6 +627,33 @@ try {
   assert.match(tprompt, /Request: PATCH \/api\/profile → 404/);
   assert.ok(tprompt.indexOf('Request: PATCH') < tprompt.lastIndexOf('\"\"\"'), 'inside the fence');
 
+  step('offering help: a button that does nothing, pressed again and again, brings a note that opens the form');
+  const ctx4 = await browser.newContext({ viewport: { width: 1100, height: 760 } });
+  const stuck = await ctx4.newPage();
+  await stuck.goto(`${BASE}/demo.html?key=${key}&nudge=on`);
+  const ssdk = stuck.locator('[data-feedback-sdk]');
+  await ssdk.getByRole('button', { name: /Report a problem/ }).waitFor();
+  await stuck.evaluate(() => {
+    const b = document.createElement('button');
+    b.textContent = 'Place order';
+    document.querySelector('main').append(b);
+  });
+  for (let i = 0; i < 3; i++) await stuck.getByRole('button', { name: 'Place order' }).click();
+  const offer = ssdk.getByRole('status', { name: 'Offer to report a problem' });
+  await offer.getByText('Something not working?').waitFor({ timeout: 5000 });
+  await stuck.waitForTimeout(400); // past the fade-in
+  await stuck.screenshot({ path: `${SHOTS}e2e-9a-nudge.png` });
+  await offer.getByRole('button', { name: 'Tell the team' }).click();
+  assert.equal(await ssdk.getByRole('button', { name: /Broken/ }).getAttribute('aria-pressed'), 'true', 'opens as Broken');
+  await ssdk.getByLabel('What happened?').fill('Place order does nothing.');
+  await ssdk.getByRole('button', { name: '3 clicks' }).waitFor();
+  await ssdk.getByRole('button', { name: 'Send' }).click();
+  await ssdk.getByText('Waiting for the developer').waitFor();
+  await ctx4.close();
+  const nudged = (await (await api('GET', `/projects/${project.id}/reports`)).json()).reports
+    .find((r) => r.text === 'Place order does nothing.');
+  assert.ok(nudged.trail.some((e) => e.kind === 'click' && e.text === 'button "Place order"' && e.n === 3), 'the clicks went with it');
+
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;
   const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 760 } });

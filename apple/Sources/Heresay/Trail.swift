@@ -221,7 +221,8 @@ final class TrailCollectors {
         self.defaults = defaults
     }
 
-    func start(_ parts: HeresayTrail) {
+    /// `crashed` is called when MetricKit hands over a crash, for `HeresayNudge.crash`.
+    func start(_ parts: HeresayTrail, crashed: (@Sendable () -> Void)? = nil) {
         stop()
         trail.setParts(parts)
         guard !parts.isEmpty else { return }
@@ -231,7 +232,7 @@ final class TrailCollectors {
         #endif
         #if canImport(MetricKit) && !os(tvOS)
         if parts.contains(.errors) {
-            let s = CrashSubscriber(defaults: defaults)
+            let s = CrashSubscriber(defaults: defaults, crashed: crashed)
             MXMetricManager.shared.add(s)
             crashes = s
         }
@@ -289,13 +290,17 @@ final class TrailCollectors {
 /// MetricKit hands over how the last run crashed, at the next launch. Kept for the next report.
 final class CrashSubscriber: NSObject, MXMetricManagerSubscriber, @unchecked Sendable {
     private let defaults: UserDefaults
-    init(defaults: UserDefaults) { self.defaults = defaults }
+    private let crashed: (@Sendable () -> Void)?
+    init(defaults: UserDefaults, crashed: (@Sendable () -> Void)? = nil) { self.defaults = defaults; self.crashed = crashed }
 
     func didReceive(_ payloads: [MXDiagnosticPayload]) {
+        var any = false
         for p in payloads {
             guard let c = p.crashDiagnostics?.last else { continue }
             Trail.keepCrash(defaults, at: p.timeStampEnd, text: Self.describe(c), frames: Trail.frames(fromCallStackJSON: c.callStackTree.jsonRepresentation()))
+            any = true
         }
+        if any { crashed?() }
     }
 
     static func describe(_ c: MXCrashDiagnostic) -> String {

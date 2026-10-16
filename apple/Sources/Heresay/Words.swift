@@ -17,6 +17,7 @@ enum W: String, CaseIterable {
     case attachTrail, trailHint, trailHintTouch, seeTrail
     case trailPage, trailPages, trailClick, trailClicks, trailRequest, trailRequests
     case trailError, trailErrors, trailWarn, trailWarns, trailState, trailStates
+    case nudgeTitle, nudgeBody, nudgeCrashTitle, nudgeCrashBody, nudgeYes, nudgeNo
     case powered
 }
 
@@ -76,6 +77,9 @@ struct Words: Sendable {
         .trailPage: "screen", .trailPages: "screens", .trailClick: "click", .trailClicks: "clicks",
         .trailRequest: "failed request", .trailRequests: "failed requests", .trailError: "error", .trailErrors: "errors",
         .trailWarn: "warning", .trailWarns: "warnings", .trailState: "connection change", .trailStates: "connection changes",
+        .nudgeTitle: "Something not working?", .nudgeBody: "Tell the team what happened. A real person reads it.",
+        .nudgeCrashTitle: "The app closed unexpectedly", .nudgeCrashBody: "Tell the team what you were doing when it closed. A real person reads it.",
+        .nudgeYes: "Tell the team", .nudgeNo: "Not now",
         .clearAll: "Clear all", .powered: "Powered by Heresay",
     ]
 
@@ -117,6 +121,9 @@ struct Words: Sendable {
         .trailPage: "écran", .trailPages: "écrans", .trailClick: "clic", .trailClicks: "clics",
         .trailRequest: "requête échouée", .trailRequests: "requêtes échouées", .trailError: "erreur", .trailErrors: "erreurs",
         .trailWarn: "avertissement", .trailWarns: "avertissements", .trailState: "changement de connexion", .trailStates: "changements de connexion",
+        .nudgeTitle: "Quelque chose ne marche pas ?", .nudgeBody: "Dites à l’équipe ce qui s’est passé. Une vraie personne le lit.",
+        .nudgeCrashTitle: "L’app s’est fermée sans prévenir", .nudgeCrashBody: "Dites à l’équipe ce que vous faisiez à ce moment. Une vraie personne le lit.",
+        .nudgeYes: "Signaler", .nudgeNo: "Pas maintenant",
         .clearAll: "Tout effacer", .powered: "Propulsé par Heresay",
     ]
 
@@ -160,6 +167,9 @@ struct Words: Sendable {
         .trailPage: "திரை", .trailPages: "திரைகள்", .trailClick: "கிளிக்", .trailClicks: "கிளிக்குகள்",
         .trailRequest: "தோல்வியடைந்த கோரிக்கை", .trailRequests: "தோல்வியடைந்த கோரிக்கைகள்", .trailError: "பிழை", .trailErrors: "பிழைகள்",
         .trailWarn: "எச்சரிக்கை", .trailWarns: "எச்சரிக்கைகள்", .trailState: "இணைப்பு மாற்றம்", .trailStates: "இணைப்பு மாற்றங்கள்",
+        .nudgeTitle: "ஏதாவது வேலை செய்யவில்லையா?", .nudgeBody: "என்ன நடந்தது என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.",
+        .nudgeCrashTitle: "ஆப் எதிர்பாராமல் மூடப்பட்டது", .nudgeCrashBody: "அப்போது நீங்கள் என்ன செய்துகொண்டிருந்தீர்கள் என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.",
+        .nudgeYes: "குழுவிடம் சொல்", .nudgeNo: "இப்போது வேண்டாம்",
         .clearAll: "அனைத்தையும் அழி", .powered: "Heresay மூலம் இயங்குகிறது",
     ]
 
@@ -201,6 +211,9 @@ struct Words: Sendable {
         .trailPage: "स्क्रीन", .trailPages: "स्क्रीन", .trailClick: "क्लिक", .trailClicks: "क्लिक",
         .trailRequest: "विफल अनुरोध", .trailRequests: "विफल अनुरोध", .trailError: "त्रुटि", .trailErrors: "त्रुटियाँ",
         .trailWarn: "चेतावनी", .trailWarns: "चेतावनियाँ", .trailState: "कनेक्शन बदलाव", .trailStates: "कनेक्शन बदलाव",
+        .nudgeTitle: "कुछ काम नहीं कर रहा?", .nudgeBody: "टीम को बताइए क्या हुआ। इसे कोई इंसान पढ़ता है।",
+        .nudgeCrashTitle: "ऐप अचानक बंद हो गया", .nudgeCrashBody: "टीम को बताइए कि उस समय आप क्या कर रहे थे। इसे कोई इंसान पढ़ता है।",
+        .nudgeYes: "टीम को बताएँ", .nudgeNo: "अभी नहीं",
         .clearAll: "सब हटाएँ", .powered: "Heresay द्वारा संचालित",
     ]
 }

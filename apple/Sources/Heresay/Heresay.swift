@@ -41,6 +41,13 @@ public final class Heresay: ObservableObject {
     @Published var introPending = false
     /// The app's own words for the introduction, if it gave any.
     var introWords: (title: String?, message: String?) = (nil, nil)
+    /// The note asking whether they want to tell the team (`Nudge.swift`), while it is up.
+    @Published private(set) var offer: HelpOffer?
+    private var offeredThisLaunch = false
+    private(set) var nudges: HeresayNudge = []
+    #if os(macOS)
+    private lazy var nudgeWatcher = NudgeWatcher()
+    #endif
     /// What `present(type:text:)` filled in, for the sheet to start with.
     var draft: (type: ReportType?, text: String) = (nil, "")
     /// How it looks. The defaults are the recommended setup.
@@ -88,21 +95,35 @@ public final class Heresay: ObservableObject {
     ///   - trail: What happened in the app before a report, attached unless the reporter switches
     ///     it off: screens, clicks and menu commands (macOS), the app's `Logger` errors and the last
     ///     crash. `[]` turns it off; `[.screens, .errors]` keeps only those.
+    ///   - nudge: When someone seems stuck, offer to report it: `.clicks` (macOS), `.crash`, or
+    ///     `.all`. Off by default. `Heresay.nudge()` offers it from the app's own code.
     public static func configure(key: String, url: URL, version: String? = nil, accent: Color? = nil,
                                  style: HeresayStyle = HeresayStyle(), trail: HeresayTrail = .all,
-                                 session: URLSession = .shared) {
-        shared.configure(key: key, url: url, version: version, accent: accent, style: style, trail: trail, session: session)
+                                 nudge: HeresayNudge = [], session: URLSession = .shared) {
+        shared.configure(key: key, url: url, version: version, accent: accent, style: style, trail: trail, nudge: nudge, session: session)
     }
 
     func configure(key: String, url: URL, version: String?, accent: Color?, style: HeresayStyle = HeresayStyle(),
-                   trail parts: HeresayTrail = .all, session: URLSession) {
+                   trail parts: HeresayTrail = .all, nudge: HeresayNudge = [], session: URLSession) {
         client = Client(base: url, key: key, session: session)
         isDisabled = false
         self.version = version ?? Self.bundleVersion()
         if let accent { self.accent = accent; customAccent = true }
         setStyle(style)
-        collectors.start(parts)
+        collectors.start(parts) { [weak self] in Task { @MainActor in self?.crashArrived() } }
         if let screen { trail.note(.page, screen) }
+        nudges = nudge
+        #if os(macOS)
+        if nudge.contains(.clicks) { nudgeWatcher.start(self) } else { nudgeWatcher.stop() }
+        #endif
+        // A crash MetricKit handed over on an earlier launch, not yet offered. After a moment, so
+        // the app's window is up.
+        if nudge.contains(.crash), Trail.lastCrash(defaults) != nil {
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1.5))
+                self?.crashArrived()
+            }
+        }
         Task { await refresh() }
     }
 
@@ -183,6 +204,50 @@ public final class Heresay: ObservableObject {
     }
 
     var introTitle: String { introWords.title ?? words[.introTitle] }
+
+    // MARK: Offering help
+
+    /// The app saw trouble itself (an error screen, a retry that failed): offer to report it, with
+    /// a small note by the button. Works without `nudge:` in `configure`; the same limits apply
+    /// (once per launch, not for 7 days after "Not now"). Returns whether it showed.
+    @discardableResult
+    public static func nudge() -> Bool { shared.offerHelp(.trouble) }
+
+    @discardableResult
+    func offerHelp(_ why: HelpOffer, now: Date = Date()) -> Bool {
+        guard client != nil, buttonVisible, !isPresented, !introPending, offer == nil, !offeredThisLaunch else { return false }
+        #if os(macOS)
+        guard !IntroWindow.isOpen else { return false }
+        #endif
+        if let no = defaults.object(forKey: Keys.nudgeDeclined) as? Date, now.timeIntervalSince(no) < Self.nudgeRest { return false }
+        offeredThisLaunch = true
+        offer = why
+        NudgeCard.announce(words[why == .crash ? .nudgeCrashTitle : .nudgeTitle])
+        return true
+    }
+
+    static let nudgeRest: TimeInterval = 7 * 86_400
+
+    /// "Tell the team" opens the sheet as Broken, with the trail; "Not now" quiets it for 7 days.
+    func answerOffer(_ yes: Bool, now: Date = Date()) {
+        offer = nil
+        if yes {
+            if draft.type == nil, style.types.contains(.broken) { draft.type = .broken }
+            present(.report)
+        } else {
+            defaults.set(now, forKey: Keys.nudgeDeclined)
+        }
+    }
+
+    /// Gone by itself, unanswered.
+    func dropOffer() { offer = nil }
+
+    /// MetricKit handed over a crash, now or on an earlier launch: offer once per crash.
+    func crashArrived() {
+        guard nudges.contains(.crash), let crash = Trail.lastCrash(defaults),
+              (defaults.object(forKey: Keys.nudgedCrash) as? Date) != crash.at else { return }
+        if offerHelp(.crash) { defaults.set(crash.at, forKey: Keys.nudgedCrash) }
+    }
 
     /// Where to find it, in this app, and who it's from.
     var introMessage: String { introBody + "\n\n" + words[.powered] }
@@ -368,6 +433,8 @@ public final class Heresay: ObservableObject {
         static let seen = "heresay.seen"
         static let prefs = "heresay.prefs"
         static let introduced = "heresay.introduced"
+        static let nudgeDeclined = "heresay.nudge.declined"
+        static let nudgedCrash = "heresay.nudge.crash"
     }
 }
 

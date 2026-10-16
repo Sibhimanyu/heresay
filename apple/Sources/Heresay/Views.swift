@@ -40,14 +40,38 @@ struct ReportButtonModifier: ViewModifier {
     @ObservedObject var heresay = Heresay.shared
     let alignment: Alignment?
     let showsButton: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if os(iOS)
     @State private var tryAfterIntro = false
+    #else
+    /// The note offering help shows in the window being used, not in every window.
+    @Environment(\.controlActiveState) private var windowState
     #endif
 
+    private var offer: HelpOffer? {
+        #if os(macOS)
+        windowState == .inactive ? nil : heresay.offer
+        #else
+        heresay.offer
+        #endif
+    }
+
     func body(content: Content) -> some View {
+        let corner = alignment ?? heresay.style.alignment
+        let top = corner.vertical == .top
         content
-            .overlay(alignment: alignment ?? heresay.style.alignment) {
-                if showsButton && heresay.buttonVisible { ReportButton(heresay: heresay).padding(heresay.style.offset) }
+            .overlay(alignment: corner) {
+                // The note sits by the button: above it, or below one at the top.
+                VStack(alignment: corner.horizontal, spacing: 10) {
+                    if top && showsButton && heresay.buttonVisible { ReportButton(heresay: heresay) }
+                    if let offer {
+                        NudgeCard(heresay: heresay, offer: offer)
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: top ? .top : .bottom)))
+                    }
+                    if !top && showsButton && heresay.buttonVisible { ReportButton(heresay: heresay) }
+                }
+                .padding(heresay.style.offset)
+                .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: heresay.offer)
             }
             .modifier(SheetPresenter(heresay: heresay))
             #if os(iOS)
