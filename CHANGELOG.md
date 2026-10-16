@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.21] - 2026-10-16
+
+### Added
+
+- **Offering help when someone seems stuck.** A small note by the Report button asks "Something not working?" and opens the form as Broken, with the trail. It takes no focus and goes by itself after 15 seconds. Watched on the device and never sent; at most once per tab or launch, and quiet for 7 days after "Not now". Off until the app turns it on.
+- Web: `data-nudge="on"`, or some of `clicks` (the same button or link pressed 3 times in 10 s with no change to the page, including a disabled one), `errors` (an uncaught error within 5 s of a click) and `requests` (2 requests failing with 5xx or no answer within 30 s).
+- Swift: `Heresay.configure(…, nudge: .all)`, or `.clicks` (macOS: a disabled control clicked 3 times, or one spot clicked 5 times in 2 s) and `.crash` (the app crashed last time, offered once at the next launch).
+- `Heresay.nudge()` on both, for an app that saw trouble itself, such as an error screen.
+
 ## [0.2.20] - 2026-10-14
 
 ### Added

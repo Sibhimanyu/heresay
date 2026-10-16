@@ -71,12 +71,24 @@ anyone typed. On by default; change it only when asked.
 | `configure(…, trail:)` | `.all` (default) · `[]` (off) · some of `[.screens, .clicks, .errors]` |
 | `.heresayPrivate()` | on a view whose controls are named after someone's data: clicks inside it are recorded as "button", without the label |
 
+**Offering help**
+
+When someone seems stuck, a small note by the button (or in its corner on macOS) asks "Something
+not working?" and opens the sheet as Broken, with the trail. Watched on the device, never sent. At
+most once per launch, and not for 7 days after "Not now". Off by default: it appears on the app's
+own screen, so add it only when asked.
+
+| Option | Values |
+| --- | --- |
+| `configure(…, nudge:)` | `[]` (default, off) · `.all` · `.clicks` (macOS: a disabled control clicked 3 times in 10 s, or one spot clicked 5 times in 2 s; leave it out for games and drawing apps) · `.crash` (the app crashed last time; once, at the next launch) |
+
 Screens make the trail readable: if the app has several screens and doesn't name them yet, add
 `.heresayScreen("<name>")` to each screen's root view.
 
 **Calls**
 
 - `Heresay.present(type:text:)`: opens the sheet, filled in. The person still reviews and sends it.
+- `Heresay.nudge()`: the app saw trouble itself (an error screen, a retry that failed): offer to report it. Works without `nudge:`; the same limits apply.
 - `Heresay.onSent { event in ... }`: after each report is sent, with `event.id` and `event.type`, never the text.
 - `Heresay.introduce(title:message:)`: the one-time introduction in your own words. Leave the
   words out unless asked; the default says where to find it.

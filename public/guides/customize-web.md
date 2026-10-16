@@ -82,9 +82,21 @@ anyone typed, request bodies, headers or query strings. On by default; change it
 | `data-trail` | on (default) · `off` · the parts to keep, e.g. `pages errors requests` (from `pages`, `clicks`, `requests`, `errors`) |
 | `data-heresay-private` | on any element of the app: clicks on it are recorded as "button", without its text |
 
+**Offering help**
+
+When someone seems stuck, a small note by the button asks "Something not working?" and opens the
+form as Broken, with the trail. Watched on the device, never sent. At most once per tab, and not
+for 7 days after "Not now". Off by default: it appears on the app's own page, so add it only when
+asked.
+
+| Attribute | Values |
+| --- | --- |
+| `data-nudge` | off (default) · `on` · the signals to watch, e.g. `clicks errors` (from `clicks`: the same button or link pressed 3 times in 10 s with no change to the page; `errors`: an uncaught error within 5 s of a click; `requests`: 2 requests failing with 5xx or no answer within 30 s) |
+
 **Calls**
 
 - `window.Heresay?.open({ type, text })`: opens the form, filled in. The person still reviews and sends it.
+- `window.Heresay?.nudge()`: the app saw trouble itself (an error screen, a retry that failed): offer to report it. Works without `data-nudge`; the same limits apply.
 - `window.Heresay?.on('sent', ({ id, type }) => ...)`: after each report is sent, for example to thank them or count it in the app's analytics. It returns a function that stops listening. It never gets the report text.
 
 ## Can't be changed

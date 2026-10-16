@@ -47,6 +47,8 @@ macOS: use `ContentView().heresay()` and add `.commands { HeresayCommands() }` t
 | `configure(…, accent:)` | Your brand colour; the mark follows it. Defaults to Heresay peacock. |
 | `configure(…, style:)` | How it looks: see below. `Heresay.setStyle(_:)` changes it later. |
 | `configure(…, trail:)` | What happened before a report: see below. `.all` by default, `[]` for none. |
+| `configure(…, nudge:)` | Offer to report when someone seems stuck: see below. Off by default. |
+| `Heresay.nudge()` | The app saw trouble itself (an error screen, a retry that failed): a small note offers to report it. |
 | `.heresayScreen(_:)` | On a screen's view: names it while it's shown, the same as `setScreen` in `onAppear`. |
 | `.heresayPrivate()` | On a view whose controls are named after someone's data: its clicks are recorded without labels. |
 
@@ -102,6 +104,22 @@ again on the server. The reporter sees it in the sheet (**Attach what happened**
 **See it** for every line) and can switch it off or leave a kind out. `trail: [.screens, .errors]`
 keeps only those parts; `trail: []` turns it off.
 
+## Offering help
+
+`nudge: .all` in `configure` watches for someone stuck and puts a small note by the button (on
+macOS, in the window's corner): "Something not working?", with **Tell the team**, which opens the
+sheet as Broken with the trail, and **Not now**. It takes no focus, VoiceOver announces it, and it
+goes by itself after 15 seconds unless the pointer is on it.
+
+- `.clicks` (macOS): a disabled control clicked 3 times in 10 seconds, or one spot clicked 5 times
+  in 2 seconds. Text, sliders, steppers and scroll bars don't count. Leave it out for games and
+  drawing apps.
+- `.crash`: the app crashed last time (MetricKit). Offered once, at the next launch.
+
+Watched on the device; nothing is sent unless the person sends a report. At most once per launch,
+and not for 7 days after **Not now**. `Heresay.nudge()` offers it from the app's own code, with the
+same limits. iOS has no taps to watch, so there it is `.crash` and `nudge()`.
+
 The key is public: it can only send reports. Each device gets a random id (kept in
 `UserDefaults`), which is how people see their own reports and nobody else's; no accounts.
 
@@ -120,4 +138,5 @@ cd Example && xcodegen && open HeresayExample.xcodeproj    # a tiny app to try i
 
 `npm run e2e:apple` in the main repo sends real reports from macOS and the iOS simulator to the
 emulators, then uses the example Mac app (`HERESAY_DEMO_TRAIL=1`) and checks the trail that
-arrives with its report.
+arrives with its report. `HERESAY_DEMO_NUDGE=/tmp/shot` makes the example app click Sync now five
+times fast, for the note offering help.

@@ -17,7 +17,9 @@ struct ExampleApp: App {
             key: env["HERESAY_KEY"] ?? "pk_replace_me",
             url: URL(string: env["HERESAY_URL"] ?? "http://127.0.0.1:5055")!,
             accent: env["HERESAY_ACCENT"].flatMap(Self.color),
-            style: Self.demoStyle(env)
+            style: Self.demoStyle(env),
+            // Offer to report when someone seems stuck (clicking again and again) or after a crash.
+            nudge: .all
         )
     }
 
@@ -102,6 +104,8 @@ struct NotesView: View {
                 // HERESAY_DEMO_TRAIL plays someone using the app before reporting (the trail);
                 // HERESAY_SNAPSHOT=path opens the sheet for a screenshot of it.
                 if env["HERESAY_DEMO_TRAIL"] == "1" { await Self.playTrail() }
+                // HERESAY_DEMO_NUDGE=path clicks Sync now five times fast, for the note offering help.
+                if let path = env["HERESAY_DEMO_NUDGE"] { await Self.playStuck(to: path) }
                 if let path = env["HERESAY_SNAPSHOT"] {
                     Heresay.present(type: .broken, text: "I clicked Export and nothing happened.")
                     await Self.snapshotSheet(to: path)
@@ -151,6 +155,27 @@ extension NotesView {
         try? await Task.sleep(for: .seconds(0.3))
         Heresay.setScreen("Notes")
         try? await Task.sleep(for: .seconds(0.5))
+    }
+
+    /// Sync now clicked five times in a second, as someone stuck would. The window number goes in
+    /// `path.wid` for `screencapture -l`. The demo app only.
+    @MainActor static func playStuck(to path: String) async {
+        try? await Task.sleep(for: .seconds(1.5))
+        guard let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        w.makeKeyAndOrderFront(nil)
+        let sync = NSPoint(x: syncFrame.midX, y: w.frame.height - syncFrame.midY)
+        for _ in 0..<5 {
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                if let e = NSEvent.mouseEvent(with: type, location: sync, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                              windowNumber: w.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                    NSApp.postEvent(e, atStart: false)
+                }
+            }
+            try? await Task.sleep(for: .seconds(0.15))
+        }
+        try? await Task.sleep(for: .seconds(1.5))
+        try? "\(w.windowNumber)".write(toFile: path + ".wid", atomically: true, encoding: .utf8)
     }
 
     /// For screenshots: the sheet scrolled to the trail, and its window number in `path.wid` for

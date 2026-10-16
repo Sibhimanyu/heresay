@@ -121,7 +121,8 @@
         <tr><td><code>data-backdrop</code></td><td><code>dim</code> · <code>clear</code> · <code>blur</code></td></tr>
         <tr><td><code>data-preferences</code></td><td><code>show</code> · <code>hide</code></td></tr>
         <tr><td><code>data-trail</code></td><td>on · <code>off</code> · the parts to keep, like <code>pages errors requests</code>. What happened before a report: pages, clicks, failed requests, errors. The reporter sees it and can take it off. Never what anyone typed.</td></tr>
-        <tr><td><code>data-heresay-private</code></td><td>on any element of your app: clicks on it are recorded without its text</td></tr></table>
+        <tr><td><code>data-heresay-private</code></td><td>on any element of your app: clicks on it are recorded without its text</td></tr>
+        <tr><td><code>data-nudge</code></td><td>off · <code>on</code> · the signals to watch, like <code>clicks errors</code>. When someone seems stuck (a button pressed again and again with nothing happening, an error right after a click, requests failing), a small note by the button offers to report it. Watched on the device, never sent. Once per tab; quiet for 7 days after “Not now”.</td></tr></table>
       <p>Always there, whatever you choose: the Heresay mark on the button, the <b>Your reports</b> tab (people read why a report was declined), and <b>Powered by Heresay</b> in the panel and the introduction, so people can tell your app uses an outside tool. The widget lives in a shadow root, so your CSS can't restyle it.</p>
 
       <h2 id="api">JavaScript API</h2>
@@ -133,6 +134,7 @@
         <tr><td><code>Heresay.open({ type, text })</code></td><td>Open the report form from your own button or menu item. <code>type</code> and <code>text</code> are optional and fill it in, for example from an error screen; the person still reviews and sends it.</td></tr>
         <tr><td><code>Heresay.on("sent", fn)</code></td><td>Calls <code>fn({ id, type })</code> after each report is sent, to thank people or count it in your analytics. Returns a function that stops it.</td></tr>
         <tr><td><code>Heresay.introduce({ title, body })</code></td><td>Once per device, a small bubble over the button says what it's for, so people know it exists. Call it when your main screen is up (after sign-in or onboarding), or add <code>data-intro="auto"</code> to the tag. Later calls do nothing. <code>title</code> and <code>body</code> are optional, to use your own words.</td></tr>
+        <tr><td><code>Heresay.nudge()</code></td><td>Your app saw trouble itself, such as an error screen or a retry that failed: a small note by the button offers to report it. Works without <code>data-nudge</code>; the same limits apply. Returns whether it showed.</td></tr>
         <tr><td><code>Heresay.openPreferences()</code></td><td>Open the Preferences tab: a note about their setup, sent with every report. People who aren't signed in can also add a name and an email for replies. It's all optional and saved on their device. Where the button sits is yours to choose, with <code>data-position</code>.</td></tr>
         <tr><td><code>Heresay.close()</code></td><td>Close the panel.</td></tr></table>
       <p>Each report also carries the page it came from: its title, its address without the query string, and the window size.</p>

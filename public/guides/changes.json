@@ -2,6 +2,15 @@
   "about": "Features added to Heresay since apps were first installed. An agent in a connected repo checks these with whats_new, tells the person what's new, and asks before adding any. `detect` is what the code contains once a feature is in; `platforms` limits it to those apps; `sign_in` limits it to apps that answered that.",
   "changes": [
     {
+      "id": "nudge",
+      "since": "0.2.21",
+      "title": "Offer help when someone seems stuck",
+      "summary": "A small note by the Report button asks “Something not working?” when someone presses a button again and again with nothing happening, hits an error right after a click, or sees requests fail (web), clicks a disabled control again and again (macOS), or comes back after a crash (iOS and macOS). It opens the form as Broken, with what happened attached. Watched on the device, never sent; once per visit, and quiet for a week after “Not now”. Off until the app turns it on.",
+      "platforms": ["web", "ios", "macos"],
+      "detect": ["data-nudge", "nudge:", "nudge()"],
+      "how": { "web": "guide customize-web, Offering help", "ios": "guide customize-apple, Offering help", "macos": "guide customize-apple, Offering help" }
+    },
+    {
       "id": "design-apple",
       "since": "0.2.11",
       "title": "Make Heresay fit the app",

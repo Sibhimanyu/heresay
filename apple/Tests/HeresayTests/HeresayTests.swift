@@ -549,3 +549,132 @@ final class ClickTests: XCTestCase {
     }
 }
 #endif
+
+/// No reports, and nothing recorded: `configure` asks for this device's reports in the
+/// background, which must not land in another test's `StubProtocol.sent`.
+final class NoReports: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"reports":[]}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+@MainActor
+final class NudgeTests: XCTestCase {
+    private func configured(_ d: UserDefaults = UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!,
+                            nudge: HeresayNudge = []) -> Heresay {
+        let c = URLSessionConfiguration.ephemeral
+        c.protocolClasses = [NoReports.self]
+        let h = Heresay(defaults: d)
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1", accent: nil, trail: [], nudge: nudge, session: URLSession(configuration: c))
+        return h
+    }
+
+    func testOffDefaultsToNothingAndTheAppCanStillAsk() {
+        XCTAssertEqual(configured().nudges, [], "off unless the app turns it on")
+        XCTAssertFalse(Heresay(defaults: .standard).offerHelp(.trouble), "not before configure")
+        let h = configured()
+        XCTAssertTrue(h.offerHelp(.trouble))
+        XCTAssertEqual(h.offer, .trouble)
+    }
+
+    func testOncePerLaunchAndQuietForSevenDaysAfterNotNow() {
+        let d = UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!
+        let h = configured(d)
+        XCTAssertTrue(h.offerHelp(.trouble))
+        h.dropOffer()
+        XCTAssertFalse(h.offerHelp(.trouble), "once per launch, even when it went by itself")
+
+        let next = configured(d)
+        XCTAssertTrue(next.offerHelp(.trouble), "a new launch may ask again")
+        next.answerOffer(false)
+        XCTAssertNil(next.offer)
+        XCTAssertFalse(configured(d).offerHelp(.trouble), "not for 7 days after Not now")
+        XCTAssertTrue(configured(d).offerHelp(.trouble, now: Date().addingTimeInterval(8 * 86_400)))
+    }
+
+    func testNotOverTheSheetTheIntroductionOrAHiddenScreen() {
+        let h = configured()
+        h.present()
+        XCTAssertFalse(h.offerHelp(.trouble))
+        h.isPresented = false
+        h.introPending = true
+        XCTAssertFalse(h.offerHelp(.trouble))
+        h.introPending = false
+        h.setStyle(HeresayStyle(hiddenOnScreens: ["Checkout"]))
+        h.setScreen("Checkout")
+        XCTAssertFalse(h.offerHelp(.trouble))
+        h.setScreen("Cart")
+        XCTAssertTrue(h.offerHelp(.trouble))
+    }
+
+    func testTellTheTeamOpensTheSheetAsBroken() {
+        let h = configured()
+        h.offerHelp(.trouble)
+        h.answerOffer(true)
+        XCTAssertNil(h.offer)
+        XCTAssertTrue(h.isPresented)
+        XCTAssertEqual(h.draft.type, .broken)
+
+        let without = configured()
+        without.setStyle(HeresayStyle(types: [.idea, .confusing]))
+        without.offerHelp(.trouble)
+        without.answerOffer(true)
+        XCTAssertNil(without.draft.type, "only a type the app offers")
+    }
+
+    func testALastCrashIsOfferedOnceWhenAsked() {
+        let d = UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!
+        Trail.keepCrash(d, at: Date().addingTimeInterval(-60), text: "The app crashed: EXC_BAD_ACCESS: SIGSEGV", frames: [])
+        let off = configured(d)
+        off.crashArrived()
+        XCTAssertNil(off.offer, "not without .crash")
+
+        let h = configured(d, nudge: .crash)
+        h.crashArrived()
+        XCTAssertEqual(h.offer, .crash)
+        h.dropOffer()
+        let again = configured(d, nudge: .crash)
+        again.crashArrived()
+        XCTAssertNil(again.offer, "once per crash")
+        XCTAssertTrue(again.offerHelp(.trouble), "other trouble still can")
+    }
+
+    func testClickWatchSeesADisabledControlPressedAgainAndAgain() {
+        var w = ClickWatch()
+        let t = Date()
+        XCTAssertFalse(w.press(at: t, point: CGPoint(x: 10, y: 10), window: 1, kind: .disabled(7)))
+        XCTAssertFalse(w.press(at: t + 3, point: CGPoint(x: 12, y: 11), window: 1, kind: .disabled(7)))
+        XCTAssertTrue(w.press(at: t + 6, point: CGPoint(x: 11, y: 9), window: 1, kind: .disabled(7)))
+        XCTAssertFalse(w.press(at: t + 7, point: .zero, window: 1, kind: .disabled(7)), "starts counting again")
+
+        var slow = ClickWatch()
+        for i in 0..<3 { XCTAssertFalse(slow.press(at: t + Double(i) * 6, point: .zero, window: 1, kind: .disabled(7)), "not 10 s apart") }
+    }
+
+    func testClickWatchSeesRapidClicksInOneSpotButNotText() {
+        var w = ClickWatch()
+        let t = Date()
+        for i in 0..<4 { XCTAssertFalse(w.press(at: t + Double(i) * 0.3, point: CGPoint(x: 100, y: 100), window: 1, kind: .other)) }
+        XCTAssertTrue(w.press(at: t + 1.2, point: CGPoint(x: 103, y: 98), window: 1, kind: .other))
+
+        var spread = ClickWatch()
+        for i in 0..<6 { XCTAssertFalse(spread.press(at: t + Double(i) * 0.2, point: CGPoint(x: Double(i) * 30, y: 0), window: 1, kind: .other), "moving: drawing, not stuck") }
+        var text = ClickWatch()
+        for i in 0..<6 { XCTAssertFalse(text.press(at: t + Double(i) * 0.1, point: .zero, window: 1, kind: .ignored), "selecting text") }
+        var windows = ClickWatch()
+        for i in 0..<6 { XCTAssertFalse(windows.press(at: t + Double(i) * 0.1, point: .zero, window: i % 2, kind: .other)) }
+    }
+
+    func testEveryLanguageCanOfferHelpInItsOwnWords() {
+        for lang in Words.languages where lang != "en" {
+            for k in [W.nudgeTitle, .nudgeBody, .nudgeCrashTitle, .nudgeCrashBody, .nudgeYes, .nudgeNo] {
+                XCTAssertNotEqual(Words(lang)[k], Words("en")[k], "\(lang) \(k)")
+            }
+        }
+    }
+}
