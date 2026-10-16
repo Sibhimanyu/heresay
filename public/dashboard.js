@@ -2127,19 +2127,49 @@
    */
   function chatView(view) {
     var mcpUrl = location.origin + '/v1/mcp';
-    view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'ChatGPT and other chat apps' })]));
+    view.appendChild(el('div', { class: 'head' }, [el('h1', { text: 'Chat apps' })]));
     view.appendChild(el('p', { class: 'mute', text: 'Send ideas and bugs from a conversation straight to an app’s inbox, with what the conversation worked out. They arrive as from you and wait for someone to accept them, like any report. The chat app can’t read other people’s reports, accept, decline or fix anything.' }));
-    view.appendChild(el('section', { class: 'card' }, [
-      el('h2', { text: 'Add Heresay to ChatGPT' }),
-      el('ol', { class: 'howto' }, [
-        el('li', { html: 'In ChatGPT, open <b>Settings › Apps &amp; Connectors</b>. Under <b>Advanced settings</b>, turn on <b>Developer mode</b>.' }),
-        el('li', { html: 'Choose <b>Create</b>, name it <b>Heresay</b>, and paste this as the <b>MCP server URL</b>. Authentication: <b>OAuth</b>.' }),
-        el('li', {}, [el('div', { class: 'copy-prompt' }, [el('code', { class: 'url', text: mcpUrl }), copyButton(function () { return mcpUrl; }, 'Copy address')])]),
-        el('li', { text: 'ChatGPT opens this dashboard to ask if it may send requests as you. Say yes.' }),
-        el('li', { html: 'In a conversation, say <i>“Send this to Heresay as an idea for Greenroom”</i>, or <i>“What happened to my Heresay requests?”</i>.' }),
-      ]),
-      el('p', { class: 'hint', text: 'Claude, Cursor and other apps that take a remote MCP server use the same address.' }),
-    ]));
+    // One address for every chat app that takes a remote MCP server; each signs in as the member.
+    var steps = {
+      ChatGPT: [
+        'In ChatGPT, open <b>Settings › Apps &amp; Connectors</b>. Under <b>Advanced settings</b>, turn on <b>Developer mode</b>.',
+        'Choose <b>Create</b>, name it <b>Heresay</b>, paste the address below as the <b>MCP server URL</b>, and pick <b>OAuth</b>.',
+        'If your workspace says plugins with MCPs aren’t allowed, use a chat token with a ChatGPT Sites bridge instead (below).',
+      ],
+      Claude: [
+        'In Claude (claude.ai or the desktop app), open <b>Settings › Connectors</b> and choose <b>Add custom connector</b>.',
+        'Name it <b>Heresay</b> and paste the address below as the <b>remote MCP server URL</b>. Leave the client ID and secret empty.',
+        'In a conversation, turn Heresay on from the tools menu if it isn’t already.',
+      ],
+      Perplexity: [
+        'In Perplexity (Pro, Max or Enterprise), open <b>Settings › Connectors</b> and choose <b>Add custom connector</b>, then <b>Remote</b>.',
+        'Name it <b>Heresay</b>, paste the address below, set the transport to <b>Streamable HTTP</b> and the auth to <b>OAuth 2.0</b>.',
+        'If OAuth doesn’t connect, pick <b>API key</b> and paste a chat token from below instead.',
+      ],
+      Gemini: [
+        'In the Gemini app, open <b>Settings &amp; help › Connected apps</b>, and under <b>Custom apps</b> choose <b>Add a custom app</b>. (For now Google offers this to personal accounts in the US.)',
+        'Paste the address below as the MCP server URL and follow the prompts. On Gemini Enterprise, an admin adds it under <b>Manage team › Connected apps › Add MCP server</b>.',
+      ],
+      Others: [
+        'Cursor, Claude Code, Codex, Windsurf and any app that takes a remote MCP server: add the address below as a Streamable HTTP server with OAuth.',
+        'Apps that only take a fixed key: send <code>Authorization: Bearer &lt;chat token&gt;</code> with a chat token from below.',
+      ],
+    };
+    var which = 'ChatGPT';
+    var stepBox = el('ol', { class: 'howto' });
+    var tabs = el('div', { class: 'seg', role: 'tablist', 'aria-label': 'Chat app' });
+    function drawSteps() {
+      stepBox.textContent = '';
+      steps[which].forEach(function (h) { stepBox.appendChild(el('li', { html: h })); });
+      stepBox.appendChild(el('li', {}, [el('div', { class: 'copy-prompt' }, [el('code', { class: 'url', text: mcpUrl }), copyButton(function () { return mcpUrl; }, 'Copy address')])]));
+      stepBox.appendChild(el('li', { text: 'It opens this dashboard to ask if it may send requests as you. Say yes. Then, in a conversation: “Send this to Heresay as an idea for Greenroom”, or “What happened to my Heresay requests?”.' }));
+      tabs.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.app === which)); });
+    }
+    Object.keys(steps).forEach(function (name) {
+      tabs.appendChild(el('button', { type: 'button', role: 'tab', class: 'seg-btn', 'data-app': name, text: name, onclick: function () { which = name; drawSteps(); } }));
+    });
+    view.appendChild(el('section', { class: 'card' }, [el('h2', { text: 'Add Heresay to a chat app' }), tabs, stepBox]));
+    drawSteps();
     // For chat apps that can't sign in with OAuth: a ChatGPT workspace that blocks MCP plugins
     // (use a ChatGPT Sites bridge), or a script. Shown once.
     var tokenName = el('input', { name: 'token-name', value: 'ChatGPT', 'aria-label': 'What it is for', maxlength: '80' });

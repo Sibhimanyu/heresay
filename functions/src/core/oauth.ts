@@ -118,9 +118,9 @@ export async function register(req: Req, deps: Deps): Promise<Res> {
   if (!uris.length || uris.some((u) => !u)) {
     return json(400, { error: 'invalid_redirect_uri', error_description: 'redirect_uris must be https URLs (or http on localhost)' }, OPEN_CORS);
   }
-  if (b.token_endpoint_auth_method && b.token_endpoint_auth_method !== 'none') {
-    return json(400, { error: 'invalid_client_metadata', error_description: 'only public clients (token_endpoint_auth_method "none")' }, OPEN_CORS);
-  }
+  // Every client is public here (PKCE does the proving). One that asks for a secret is told, in
+  // the response, that it has none; refusing it would leave apps that default to a secret
+  // (some do) unable to connect at all.
   const client_id = `hc_${secret(16)}`;
   const name = str(b.client_name, 80) ?? new URL(uris[0]!).hostname;
   await deps.store.putAuth({
@@ -233,6 +233,13 @@ export const pkce = (verifier: string) => createHash('sha256').update(verifier).
 export async function token(req: Req, deps: Deps): Promise<Res> {
   if (!(await limited('token', 240, req, deps))) return tokenError('too_many_requests', 'Try again later.', 429);
   const b = fields(req.body);
+  // A client that registered as if it had a secret may send its id in Basic auth instead. The
+  // secret part means nothing here (there is none); the id still has to match.
+  const basic = /^Basic\s+([A-Za-z0-9+/=]+)$/.exec(req.headers['authorization'] ?? '');
+  if (basic && !b.client_id) {
+    const id = Buffer.from(basic[1]!, 'base64').toString('utf8').split(':')[0];
+    if (id) b.client_id = decodeURIComponent(id);
+  }
   const instance = await deps.store.getInstance();
   if (b.grant_type === 'authorization_code') {
     const code = str(b.code, 200), verifier = str(b.code_verifier, 200);

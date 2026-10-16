@@ -307,3 +307,23 @@ test('a Markdown document goes with a request: previewed by size, kept whole, fe
   const big = await call('draft_request', { app: 'Greenroom', type: 'idea', text: 'Big', document: 'x'.repeat(100_001) });
   assert.match(big.content[0]!.text, /the limit is 100000/);
 });
+
+test('apps that default to a client secret (Perplexity, some others) still connect, as public clients', async () => {
+  const s = setup();
+  const reg = await s.call({ method: 'POST', path: '/v1/oauth/register', body: { client_name: 'Perplexity', redirect_uris: ['https://www.perplexity.ai/rest/connections/oauth_callback'], token_endpoint_auth_method: 'client_secret_basic' } });
+  assert.equal(reg.status, 201);
+  const c = reg.body as { client_id: string; token_endpoint_auth_method: string; client_secret?: string };
+  assert.equal(c.token_endpoint_auth_method, 'none');
+  assert.equal(c.client_secret, undefined);
+  const verifier = randomBytes(32).toString('base64url');
+  const q = { response_type: 'code', client_id: c.client_id, redirect_uri: 'https://www.perplexity.ai/rest/connections/oauth_callback',
+    code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' };
+  const code = new URL(((await s.call({ method: 'POST', path: '/v1/oauth/approve', headers: s.as('alice'), body: { ...q, allow: true } })).body as { redirect: string }).redirect).searchParams.get('code')!;
+  // The id in Basic auth, not in the body.
+  const tok = await s.call({ method: 'POST', path: '/v1/oauth/token',
+    headers: { host: 'heresay.example', authorization: `Basic ${Buffer.from(`${c.client_id}:whatever`).toString('base64')}` },
+    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: q.redirect_uri, code_verifier: verifier }).toString() });
+  assert.equal(tok.status, 200, JSON.stringify(tok.body));
+  const r = await s.call({ method: 'POST', path: '/v1/chat-connections', headers: s.as('alice'), body: {} });
+  assert.equal(r.status, 201, 'and a chat token works as an API key for apps that take one');
+});

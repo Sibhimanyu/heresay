@@ -740,7 +740,12 @@ try {
   assert.ok(chatPrompt.indexOf('ruled out') < chatPrompt.lastIndexOf('"""'));
 
   await dash.goto(`${BASE}/app/#/chat`);
-  await dash.getByRole('heading', { name: 'ChatGPT and other chat apps' }).waitFor();
+  await dash.getByRole('heading', { name: 'Chat apps', exact: true }).waitFor();
+  await dash.getByRole('tab', { name: 'Claude' }).click();
+  await dash.getByText('Add custom connector', { exact: false }).first().waitFor();
+  await dash.getByRole('tab', { name: 'Perplexity' }).click();
+  await dash.getByText(/Streamable HTTP/).first().waitFor();
+  await dash.screenshot({ path: `${SHOTS}e2e-10f-chat-apps-perplexity.png`, fullPage: true });
   await dash.locator('.members li', { hasText: 'ChatGPT' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-10c-chat-apps.png`, fullPage: true });
   await dash.locator('.members li', { hasText: 'ChatGPT' }).getByRole('button', { name: 'Disconnect' }).click();
