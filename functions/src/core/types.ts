@@ -89,6 +89,9 @@ export type { TrailEvent, TrailKind } from './trail.js';
  */
 export type ReportSource = 'sdk' | 'chat';
 
+/** A document a chat app attached to a request: a title and Markdown. */
+export interface ChatDocument { title: string | null; markdown: string }
+
 export interface Report {
   id: string;
   project_id: string;
@@ -106,6 +109,8 @@ export interface Report {
    * web pages, so untrusted like report text, and fenced for an agent the same way.
    */
   details?: string | null;
+  /** source 'chat': a Markdown document attached to it (a spec, a write-up). Untrusted like the text. */
+  document?: ChatDocument | null;
   context: ReportContext;
   /** null when the reporter set no preferences. */
   reporter?: ReporterPrefs | null;
@@ -199,6 +204,8 @@ export interface Task {
   from_member?: string | null;
   via?: string | null;
   details?: string | null;
+  /** source 'chat': a Markdown document attached to it (a spec, a write-up). Untrusted like the text. */
+  document?: ChatDocument | null;
   note: string | null;    // what the accepter added
   accepted_by: string;
   accepted_at: string;
@@ -270,6 +277,8 @@ export interface AuthRecord {
 export const LIMITS = {
   textMax: 2000,
   detailsMax: 8000,
+  documentMax: 100_000,
+  documentTitleMax: 120,
   contextFieldMax: 200,
   deviceIdMin: 16,
   deviceIdMax: 64,

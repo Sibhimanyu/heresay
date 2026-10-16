@@ -14,7 +14,7 @@ import { createHash } from 'node:crypto';
 import type { Deps, Req, Res } from './handler.js';
 import { OPEN_CORS, baseUrl, chatCaller, signInFirst } from './oauth.js';
 import { notify } from './notifications.js';
-import { LIMITS, REPORT_TYPES, isReportType, type Member, type Project, type Report } from './types.js';
+import { LIMITS, REPORT_TYPES, isReportType, type ChatDocument, type Member, type Project, type Report } from './types.js';
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const json = (status: number, body: unknown, headers?: Record<string, string>): Res =>
@@ -34,7 +34,8 @@ const INSTRUCTIONS = [
   'Sending takes two steps. draft_request prepares one and returns a preview (the app, the type, the text, and the other',
   'apps); nothing is sent. send_draft sends a draft, to the app in the preview or to another one. `text` is the request as',
   'a teammate would read it; `details` is what the conversation worked out (why it matters, what was considered or ruled',
-  'out, examples, constraints, open questions). A sent request stays open until someone on the team accepts it; sending',
+  'out, examples, constraints, open questions); both may be Markdown. `document` attaches a longer Markdown write-up (a spec,',
+  'a summary of the whole conversation), up to 100,000 characters. A sent request stays open until someone on the team accepts it; sending',
   'does not start any work. my_requests says what happened to the ones this member sent.',
 ].join(' ');
 
@@ -60,7 +61,9 @@ const TOOLS = [
         app: { type: 'string', description: 'The app\'s id or name, from list_apps, when the conversation names it' },
         type: { type: 'string', enum: [...REPORT_TYPES], description: 'broken: doesn\'t work. confusing: works, but people can\'t tell how. improvement: works, could be better. idea: doesn\'t exist yet.' },
         text: { type: 'string', maxLength: LIMITS.textMax, description: 'The request in a few plain sentences, as a teammate would read it.' },
-        details: { type: 'string', maxLength: LIMITS.detailsMax, description: 'Context from the conversation: why, what was considered or ruled out, examples, constraints, open questions.' },
+        details: { type: 'string', maxLength: LIMITS.detailsMax, description: 'Context from the conversation: why, what was considered or ruled out, examples, constraints, open questions. Markdown.' },
+        document: { type: 'string', maxLength: LIMITS.documentMax, description: 'A longer Markdown document attached to the request: a spec, a write-up of the conversation, notes. Optional.' },
+        document_title: { type: 'string', maxLength: LIMITS.documentTitleMax, description: 'The attached document\'s title.' },
       },
       required: ['type', 'text'],
       additionalProperties: false,
@@ -193,6 +196,12 @@ async function draftRequest(a: Record<string, unknown>, member: Member, via: str
   const text = str(a.text, LIMITS.textMax);
   if (!text) throw new ToolError('Say what the request is, in text.');
   const details = str(a.details, LIMITS.detailsMax);
+  // Refused rather than cut, so a long write-up isn't silently missing its end.
+  if (typeof a.document === 'string' && a.document.length > LIMITS.documentMax) {
+    throw new ToolError(`The document is ${a.document.length} characters; the limit is ${LIMITS.documentMax}. Shorten it or split it across requests.`);
+  }
+  const markdown = typeof a.document === 'string' && a.document.trim() ? a.document.replace(/\r\n/g, '\n').trim() : null;
+  const document = markdown ? { title: str(a.document_title, LIMITS.documentTitleMax), markdown } : null;
   const all = (await deps.store.listProjects()).sort((x, y) => x.created_at.localeCompare(y.created_at));
   if (!str(a.app, 100)) {
     return result(`No app named, so no draft yet. The apps on this Heresay: ${appNames(all) || 'none yet'}. Which one is it for?`,
@@ -202,17 +211,19 @@ async function draftRequest(a: Record<string, unknown>, member: Member, via: str
   const id = createHash('sha256').update(`${member.email}${deps.now()}${Math.random()}`).digest('hex').slice(0, 24);
   await deps.store.putAuth({
     kind: 'draft', id, expires_at: new Date(deps.now() + DRAFT_TTL_MS).toISOString(),
-    data: { email: member.email, project_id: project.id, type: a.type, text, details, via },
+    data: { email: member.email, project_id: project.id, type: a.type, text, details, document, via },
   });
   const others = all.filter((p) => p.id !== project.id);
   return result([
     `Draft, not sent yet. App: ${project.name} (${project.platform}). Type: ${a.type}.`,
     `Text: ${text}`,
     details ? `Details: ${details}` : null,
+    document ? `Attached document: ${document.title ? `"${document.title}", ` : ''}${document.markdown.length} characters of Markdown.` : null,
     others.length ? `Other apps it could go to instead: ${appNames(others)}.` : null,
     `send_draft with draft_id ${id} sends it${others.length ? ' (with app set to send it elsewhere)' : ''}. Drafts last two hours.`,
   ].filter(Boolean).join('\n'), {
     draft_id: id, sent: false, app: project.name, type: a.type, text, details,
+    document: document ? { title: document.title, characters: document.markdown.length } : null,
     other_apps: others.map((p) => ({ id: p.id, name: p.name, platform: p.platform })),
   });
 }
@@ -228,11 +239,11 @@ async function sendDraft(a: Record<string, unknown>, member: Member, req: Req, d
   // Once only, however many times it's called.
   if (!(await deps.store.takeAuth('draft', id!))) throw new ToolError('That draft was already sent.');
   return createChatReport(project, d.data.type as Report['type'], String(d.data.text), (d.data.details as string | null) ?? null,
-    member, String(d.data.via ?? 'a chat app'), req, deps);
+    (d.data.document as ChatDocument | null) ?? null, member, String(d.data.via ?? 'a chat app'), req, deps);
 }
 
 async function createChatReport(project: Project, type: Report['type'], text: string, details: string | null,
-  member: Member, via: string, req: Req, deps: Deps) {
+  document: ChatDocument | null, member: Member, via: string, req: Req, deps: Deps) {
   const now = deps.now();
   for (const l of CHAT_LIMITS) {
     const start = Math.floor(now / l.windowMs) * l.windowMs;
@@ -244,7 +255,7 @@ async function createChatReport(project: Project, type: Report['type'], text: st
   const report: Report = {
     id: `r_${createHash('sha256').update(`${member.email}${now}${Math.random()}`).digest('base64url').slice(0, 16)}`,
     project_id: project.id, device_id: chatDevice(member.email), type, text,
-    source: 'chat', from_member: member.email, via: str(via, 80), details,
+    source: 'chat', from_member: member.email, via: str(via, 80), details, document,
     context: {
       route: null, app_version: null, platform: 'chat', os: null, browser: null,
       user_id: null, user_label: null, user_email: null, framework: null,
