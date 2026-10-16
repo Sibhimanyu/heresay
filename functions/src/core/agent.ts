@@ -5,8 +5,8 @@
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  CLAIM_TTL_MS, LIMITS, PLATFORMS, isPlatform,
-  type AgentToken, type Member, type Project, type Task, type TaskNote,
+  CLAIM_TTL_MS, LIMITS, PLATFORMS, REPORT_TYPES, isPlatform, isReportType, toReporterView,
+  type AgentToken, type CodeRef, type Member, type Project, type Report, type Task, type TaskNote,
 } from './types.js';
 import type { Deps, Req, Res } from './handler.js';
 import { notify } from './notifications.js';
@@ -183,6 +183,8 @@ export async function agent(
     return json(404, { error: 'not found' });
   }
 
+  if (p[0] === 'findings') return findings(p, req, deps, body, token, repoName, apps, now);
+
   if (p[0] !== 'briefs') return json(404, { error: 'not found' });
 
   if (p.length === 1 && req.method === 'GET') {
@@ -285,3 +287,93 @@ const appView = (p: Project) => ({
   product_id: p.product_id ?? p.id,
   framework_detected: !!p.framework_detected, key: p.key, allowed_origins: p.allowed_origins,
 });
+
+// ---- findings: agents as a source -----------------------------------------------------------
+
+/** Per repo: an agent can notice a lot in one session, but not flood the inbox. */
+export const FINDING_LIMITS = [
+  { limit: 30, windowMs: 3600_000 },
+  { limit: 150, windowMs: 24 * 3600_000 },
+] as const;
+
+/** One repo's findings share a device id, so "the ones I filed" works like a reporter's own. */
+export const agentDevice = (repo: string) => `agent_${hash(repo).slice(0, 32)}`;
+
+const sameText = (a: string, b: string) => a.toLowerCase().replace(/\s+/g, ' ').trim() === b.toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** Paths relative to the repo, no "..", optional line numbers. Anything malformed is dropped. */
+function parseFiles(v: unknown): CodeRef[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: CodeRef[] = [];
+  for (const f of v.slice(0, LIMITS.filesMax)) {
+    const o = (typeof f === 'string' ? { path: f } : f) as Record<string, unknown> | null;
+    if (!o || typeof o !== 'object') continue;
+    let path = str(o.path, LIMITS.pathMax);
+    let line = typeof o.line === 'number' && Number.isInteger(o.line) && o.line > 0 ? o.line : null;
+    if (!path) continue;
+    const m = /^(.*?):(\d+)$/.exec(path);
+    if (m && line === null) { path = m[1]!; line = Number(m[2]); }
+    path = path.replace(/^\.\/+/, '').replace(/^\/+/, '');
+    if (!path || path.split('/').includes('..')) continue;
+    out.push({ path, line });
+  }
+  return out.length ? out : null;
+}
+
+/**
+ * POST /v1/agent/findings: something a coding agent noticed while working (a bug, dead code, a
+ * risk, an idea), filed in the inbox like any report. It waits for a person to accept it; only
+ * then does it become a brief. GET /v1/agent/findings: what happened to this repo's findings.
+ */
+async function findings(p: string[], req: Req, deps: Deps, body: Record<string, unknown>,
+  token: AgentToken, repoName: string, apps: Project[], now: number): Promise<Res> {
+  const device = agentDevice(repoName);
+  if (p.length === 1 && req.method === 'GET') {
+    const out = [];
+    for (const app of apps) {
+      for (const r of await deps.store.listReportsForDevice(app.id, device)) out.push({ ...toReporterView(r), app: { id: app.id, name: app.name } });
+    }
+    out.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return json(200, { repo: repoName, findings: out.slice(0, 100) });
+  }
+  if (p.length !== 1 || req.method !== 'POST') return json(404, { error: 'not found' });
+
+  const want = str(body.app, 100);
+  const app = want ? apps.find((a) => a.id === want || a.name.toLowerCase() === want.toLowerCase())
+    : apps.length === 1 ? apps[0] : undefined;
+  if (!app) {
+    return json(400, { error: want ? `this repo is not connected to an app called "${want}"` : 'say which app it is for', apps: apps.map(appView) });
+  }
+  // The type, never a priority: the inbox orders by type for agents and people alike.
+  if (!isReportType(body.type)) return json(400, { error: `type must be one of ${REPORT_TYPES.join(', ')}` });
+  const text = str(body.text, LIMITS.textMax);
+  if (!text) return json(400, { error: 'say what you found, in text' });
+  const details = str(body.details, LIMITS.detailsMax);
+  const files = parseFiles(body.files);
+
+  // The same finding again from this repo, still open: the one already there, not a second.
+  const open = (await deps.store.listReportsForDevice(app.id, device)).find((r) => r.status === 'open' && sameText(r.text, text));
+  if (open) return json(200, { finding: { ...toReporterView(open), app: { id: app.id, name: app.name } }, duplicate: true });
+
+  for (const l of FINDING_LIMITS) {
+    const start = Math.floor(now / l.windowMs) * l.windowMs;
+    if (!(await deps.store.hit(`finding:${l.windowMs}:${token.id}:${start}`, l.limit, start + l.windowMs))) {
+      return json(429, { error: 'that is a lot of findings from one repo in a short time; try again later' });
+    }
+  }
+  const at = new Date(now).toISOString();
+  const report: Report = {
+    id: `r_${randomBytes(12).toString('base64url')}`, project_id: app.id, device_id: device, type: body.type, text,
+    source: 'agent', from_repo: repoName, via: str(body.agent, 60), details, files,
+    context: {
+      route: null, app_version: null, platform: 'agent', os: null, browser: null,
+      user_id: null, user_label: null, user_email: null, framework: null,
+    },
+    reporter: null, trail: null,
+    status: 'open', decline_reason: null, fix_note: null, created_at: at, updated_at: at, triaged_by: null,
+  };
+  await deps.store.createReport(report);
+  deps.log('api.finding_filed', { project_id: app.id, report_id: report.id, repo: repoName });
+  await notify('new_report', app, report.id, deps);
+  return json(201, { finding: { ...toReporterView(report), app: { id: app.id, name: app.name } }, duplicate: false });
+}

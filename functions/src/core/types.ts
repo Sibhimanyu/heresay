@@ -86,8 +86,12 @@ export type { TrailEvent, TrailKind } from './trail.js';
 /**
  * Where a report came from. Absent or 'sdk': someone using the app, through the Report button.
  * 'chat': a member of the team, from a conversation in ChatGPT or another chat app (chat.ts).
+ * 'agent': a coding agent in a connected repo, about something it noticed while working (agent.ts).
  */
-export type ReportSource = 'sdk' | 'chat';
+export type ReportSource = 'sdk' | 'chat' | 'agent';
+
+/** Where in the code an agent's finding is. */
+export interface CodeRef { path: string; line: number | null }
 
 /** A document a chat app attached to a request: a title and Markdown. */
 export interface ChatDocument { title: string | null; markdown: string }
@@ -111,6 +115,9 @@ export interface Report {
   details?: string | null;
   /** source 'chat': a Markdown document attached to it (a spec, a write-up). Untrusted like the text. */
   document?: ChatDocument | null;
+  /** source 'agent': the repo it was found in, and where in the code. */
+  from_repo?: string | null;
+  files?: CodeRef[] | null;
   context: ReportContext;
   /** null when the reporter set no preferences. */
   reporter?: ReporterPrefs | null;
@@ -206,6 +213,9 @@ export interface Task {
   details?: string | null;
   /** source 'chat': a Markdown document attached to it (a spec, a write-up). Untrusted like the text. */
   document?: ChatDocument | null;
+  /** source 'agent': the repo it was found in, and where in the code. */
+  from_repo?: string | null;
+  files?: CodeRef[] | null;
   note: string | null;    // what the accepter added
   accepted_by: string;
   accepted_at: string;
@@ -279,6 +289,8 @@ export const LIMITS = {
   detailsMax: 8000,
   documentMax: 100_000,
   documentTitleMax: 120,
+  filesMax: 20,
+  pathMax: 300,
   contextFieldMax: 200,
   deviceIdMin: 16,
   deviceIdMax: 64,

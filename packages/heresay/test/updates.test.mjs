@@ -67,11 +67,11 @@ test('finds the Swift pin in Xcode bundles and SwiftPM, not in dependencies', ()
 test('lists what is behind: the Heresay, the Swift package, the agent files', async () => {
   const root = oldRepo();
   const { updates, ask_first } = await u.allUpdates(undefined, { root });
-  assert.deepEqual(updates.map((x) => x.id), ['instance@0.2.22', 'swift@0.2.22', 'agent-files@6']);
+  assert.deepEqual(updates.map((x) => x.id), ['instance@0.2.22', 'swift@0.2.22', 'agent-files@7']);
   assert.match(updates[0].how, /npx create-heresay update/);
   assert.match(updates[1].title, /from 0\.2\.11 to 0\.2\.22/);
   assert.match(updates[1].how, /Update to Latest Package Versions/);
-  assert.match(updates[2].summary, /skill \(version 5, now 6\).*heresay@0.*session-start/);
+  assert.match(updates[2].summary, /skill \(version 5, now 7\).*heresay@0.*session-start/);
   assert.match(ask_first, /Apply nothing without a yes/);
 });
 

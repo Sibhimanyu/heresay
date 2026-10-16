@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.28] - 2026-10-16
+
+### Added
+
+- **Agents file what they notice.** A coding agent in a connected repo that finds something outside its task (a bug, a risk, dead code, a confusing flow, an idea) files it with the new `file_finding` tool or `npx heresay file`. It arrives in the inbox as "From an agent", with the repo, the agent and the files (linked on GitHub), and waits for a person like any report; accepted, it becomes a brief. `my_findings` shows what happened to them. The same open finding isn't filed twice. The skill and guides tell agents to file rather than fix outside their task.
+
+### Changed
+
+- ChatGPT now sees the document option as attaching a Markdown (.md) file. In ChatGPT, use Refresh tools on the Heresay plugin to pick it up.
+
 ## [0.2.27] - 2026-10-16
 
 ### Added

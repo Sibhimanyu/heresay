@@ -321,3 +321,54 @@ test('deleting an app: owners only, typed name, and everything goes with it', as
   const me = (await w.call({ path: '/v1/agent/me', headers: w.as(tok) })).body as { apps: { id: string }[] };
   assert.deepEqual(me.apps.map((a) => a.id), [w.other.id], 'the token stays, without the app');
 });
+
+test('findings: an agent files what it noticed; it waits for a person like any report, then becomes a brief', async () => {
+  const w = await world();
+  const tok = await w.token('github.com/acme/web', [w.web.id]);
+  const file = (body: Record<string, unknown>) => w.call({ method: 'POST', path: '/v1/agent/findings', headers: w.as(tok), body });
+
+  const r = await file({ app: 'Web', type: 'broken', agent: 'Claude Code',
+    text: 'The export button swallows errors: a failed request shows nothing.',
+    details: 'Found while fixing the CSV brief. `exportNotes()` catches and ignores the error.',
+    files: [{ path: 'src/export.ts', line: 42 }, './src/ui/Button.tsx:7', '../etc/passwd', { path: '/abs/ok.ts' }] });
+  assert.equal(r.status, 201);
+  const f = (r.body as { finding: { id: string; status: string } }).finding;
+  assert.equal(f.status, 'open');
+  const stored = w.store.reports.get(f.id)!;
+  assert.equal(stored.source, 'agent');
+  assert.equal(stored.from_repo, 'github.com/acme/web');
+  assert.equal(stored.via, 'Claude Code');
+  assert.deepEqual(stored.files, [{ path: 'src/export.ts', line: 42 }, { path: 'src/ui/Button.tsx', line: 7 }, { path: 'abs/ok.ts', line: null }], 'no ".." paths');
+
+  // Not a brief until a person accepts it: no agent works on another agent's say-so.
+  assert.deepEqual(await w.briefs(tok), []);
+  const again = await file({ app: 'Web', type: 'broken', text: '  the export button swallows errors: a failed request shows NOTHING. ' });
+  assert.equal((again.body as { duplicate: boolean }).duplicate, true, 'the same finding again is the one already there');
+  assert.equal([...w.store.reports.values()].length, 1);
+
+  await w.accept(w.web, f.id);
+  assert.deepEqual((await w.briefs(tok)).map((b) => b.id), [f.id]);
+  const prompt = ((await w.call({ path: `/v1/projects/${w.web.id}/reports/${f.id}/prompt`, headers: w.alice })).body as { prompt: string }).prompt;
+  assert.match(prompt, /A coding agent \(Claude Code\) working in github\.com\/acme\/web found this in Web while doing something else/);
+  assert.match(prompt, /Where it is:\n- src\/export\.ts:42\n- src\/ui\/Button\.tsx:7/);
+  assert.match(prompt, /Check it against the code before acting/);
+  assert.equal(prompt.split('"""').length, 3);
+
+  const mine = (await w.call({ path: '/v1/agent/findings', headers: w.as(tok) })).body as { findings: { id: string; status: string }[] };
+  assert.deepEqual(mine.findings.map((x) => x.status), ['accepted']);
+});
+
+test('findings: only for this repo\'s apps, a type and never a priority, and limited per repo', async () => {
+  const w = await world();
+  const tok = await w.token('github.com/acme/web', [w.web.id]);
+  const file = (body: Record<string, unknown>) => w.call({ method: 'POST', path: '/v1/agent/findings', headers: w.as(tok), body });
+  assert.equal((await file({ app: 'Other', type: 'idea', text: 'x' })).status, 400, 'not connected to that app');
+  assert.equal((await file({ type: 'idea', text: 'One app connected, so no need to name it' })).status, 201);
+  assert.equal((await file({ app: 'Web', type: 'urgent', text: 'x' })).status, 400);
+  assert.equal((await file({ app: 'Web', type: 'idea', text: '  ' })).status, 400);
+  let last = 0;
+  for (let i = 0; i < 31; i++) last = (await file({ type: 'idea', text: `Idea ${i}` })).status;
+  assert.equal(last, 429);
+  const two = await w.token('github.com/acme/two', [w.web.id, w.other.id]);
+  assert.equal((await w.call({ method: 'POST', path: '/v1/agent/findings', headers: w.as(two), body: { type: 'idea', text: 'Which app?' } })).status, 400, 'two apps: say which');
+});

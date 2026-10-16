@@ -44,6 +44,9 @@ or an idea. A person on the team accepts or declines each report. Accepted repor
 4. **Never accept or decline reports.** People do that. You only get briefs someone accepted.
 5. **Claim before you start** (\`claim_brief\`); **hand off** (\`handoff\`) if the fix belongs in
    another repo; **mark fixed** with a note written for the reporter.
+6. **Noticed something outside your task? File it, don't fix it.** A bug, a risk, dead code, a
+   confusing flow or an idea in this app: \`file_finding\` (type, text, details, files). It goes
+   to the team's inbox and waits for a person; it never becomes work by itself.
 
 ## Installing: not done until all of these are true
 
@@ -106,6 +109,8 @@ Look and placement are \`data-\` attributes on the web tag (guide \`customize-we
 \`HeresayStyle\` in Swift (guide \`customize-apple\`); the defaults are recommended, so change
 them only when asked or clearly needed, never with CSS or by covering Heresay's views.
 Fix flow: \`npx heresay briefs\`, \`claim <id>\`, \`brief <id>\`, fix and test, \`fixed <id> "<note for the reporter>"\`.
+Noticed something outside your task (a bug, a risk, an idea)? File it instead of fixing it: the
+\`file_finding\` tool, or \`npx heresay file <type> "<text>" --file <path:line>\`. A person accepts it first.
 ${AGENTS_END}`;
 
 // @latest, not a pinned major: npx re-checks it on each start, so repos don't stay on an old

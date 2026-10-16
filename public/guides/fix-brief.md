@@ -30,7 +30,16 @@ If the fix belongs in another repo (for example the report is about the web app,
 is in the API), `handoff(id, repo, note)`. Say what you found and where, so the next agent
 starts from there. `list_briefs` errors list the repos you can hand to.
 
-## 5. Done
+## 5. Noticed something else?
+
+While you work you may find other problems: a bug next to the one you're fixing, a security
+risk, dead code, a confusing flow, an idea. Don't fix them in this brief. File each one with
+`file_finding` (or `npx heresay file <type> "<text>" --file path:line`): the type, what you found
+in plain words, how you found it and what a fix might look like in `details`, and the files. It
+goes to the team's inbox as from an agent in this repo, and becomes a brief only if a person
+accepts it. `my_findings` shows what happened to them.
+
+## 6. Done
 
 When the fix is merged or ready to merge, `mark_fixed(id, note)`. The reporter reads the note
 in the app next to "Fixed", so write it for them: see `write-note`.

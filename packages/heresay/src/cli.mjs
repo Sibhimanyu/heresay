@@ -29,6 +29,9 @@ const HELP = `
     heresay note <id> "<text>"             private progress note
     heresay handoff <id> <repo> "<text>"   move it to the repo where the fix belongs
     heresay fixed <id> "<note>"            the reporter reads the note in the app
+    heresay file <type> "<text>" [--app <app>] [--file <path:line>]… [--details "<md>"]
+                                           file something you noticed; a person accepts it first
+    heresay findings                       what happened to this repo's findings
 
   Your Heresay itself
     npx create-heresay                     set one up    (also: update, status, open, remove)
@@ -100,6 +103,11 @@ export async function main(argv) {
       case 'note': return print(await api.note(need(rest[0], 'the brief id'), need(rest.slice(1).join(' '), 'the note')));
       case 'handoff': return print(await api.handoff(need(rest[0], 'the brief id'), need(rest[1], 'the repo'), need(rest.slice(2).join(' '), 'the note')));
       case 'fixed': return print(await api.fixed(need(rest[0], 'the brief id'), need(rest.slice(1).join(' '), 'a note for the reporter')));
+      case 'file': return print(await api.file({
+        type: need(rest[0], 'the type (broken, confusing, improvement, idea)'), text: need(rest.slice(1).join(' '), 'what you found'),
+        app: args.app, details: args.details, files: [].concat(args.file ?? []), agent: args.agent ?? 'heresay CLI',
+      }));
+      case 'findings': return print(await api.findings());
       default:
         console.log(`Unknown command: ${cmd}\n${HELP}`);
         process.exit(2);

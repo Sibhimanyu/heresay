@@ -467,3 +467,8 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .authorize { max-width:520px; margin:6vh auto 0; text-align:left; }
 .authorize h1 { margin:10px 0 6px; font-size:22px; }
 .authorize .can { margin:6px 0 12px; padding-left:20px; line-height:1.6; }
+
+/* findings from agents */
+.pill.agent-pill { background:#fef3c7; color:#92400e; }
+.report .files { margin:4px 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:6px; font-size:12.5px; }
+.report .files a, .report .files code { font:12.5px var(--mono, ui-monospace, monospace); padding:2px 6px; border-radius:6px; background:rgba(127,127,127,.12); color:inherit; }
