@@ -27,14 +27,14 @@ export const CHAT_LIMITS = [
   { limit: 300, windowMs: 24 * 3600_000 },
 ] as const;
 
+// Descriptive, not prescriptive: chat apps flag tool text that tells the model when to ask for
+// approval or what counts as sensitive ("Suspicious Instruction"). Their own rules cover that.
 const INSTRUCTIONS = [
   'Heresay is this team\'s inbox for what should change in their apps: bugs, confusing parts, improvements and ideas.',
-  'When the person says to send, save, log or file something to Heresay (or asks you to put an idea "in Heresay"), use send_request.',
-  'Write `text` as the request itself, plainly, as a teammate would read it. Put what the conversation worked out in `details`:',
-  'why it matters, what was considered or ruled out, examples, constraints, open questions. Never put secrets, passwords or',
-  'personal data about other people in either. If it isn\'t clear which app, call list_apps and ask.',
-  'Confirm with the person before sending if they didn\'t clearly ask to send. Requests wait for a person on the team to accept',
-  'them; sending does not start any work. my_requests says what happened to the ones they sent.',
+  'send_request files one in an app\'s inbox as the signed-in team member: `text` is the request as a teammate would read it,',
+  '`details` is what the conversation worked out (why it matters, what was considered or ruled out, examples, constraints,',
+  'open questions). list_apps names the apps. A request stays open until someone on the team accepts it; sending does not',
+  'start any work. my_requests says what happened to the ones this member sent.',
 ].join(' ');
 
 const TOOLS = [
@@ -48,8 +48,8 @@ const TOOLS = [
   {
     name: 'send_request',
     title: 'Send to Heresay',
-    description: 'Send a bug, a confusing part, an improvement or an idea to one app\'s Heresay inbox, as the signed-in team member, '
-      + 'with the context from this conversation. It waits for someone on the team to accept it. Ask the person first unless they asked you to send it.',
+    description: 'Sends a bug, a confusing part, an improvement or an idea to one app\'s Heresay inbox, as the signed-in team member, '
+      + 'with context from the conversation. It stays open until someone on the team accepts it.',
     inputSchema: {
       type: 'object',
       properties: {
