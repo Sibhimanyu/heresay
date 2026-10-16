@@ -14,7 +14,7 @@ Planned visually in `docs/plan/trail-plan.html`.
   chip per kind ("2 pages", "1 error"). One switch removes all of it, a chip removes one kind,
   and "See it" lists every line that would be sent. Off by default would mean almost nobody
   turned it on.
-- **Only when a person reports.** The trail lives in memory on the device (the newest 30, for 5
+- **Only when a person reports.** The trail lives in memory on the device (the newest 50 since 2026-10-16, for 5
   minutes) and leaves only with a report. No background error collection, no reports without
   words. Heresay is what people say; the trail is evidence for it, not an error tracker.
 - **Never captured:** what anyone typed (fields are recorded by their label, never their value),
@@ -48,6 +48,25 @@ Planned visually in `docs/plan/trail-plan.html`.
   rows by their kind; `.heresayPrivate()` is the Swift `data-heresay-private`.
 - **No taps on iOS, no failed requests on either.** Both need swizzling or a URLProtocol in the
   app's sessions.
+
+## More context (2026-10-16)
+
+- **The device around the app goes with every report**, as `context` fields: `device`, `screen`,
+  `theme`, `locale`, `timezone`, `network`, `session_s` (time since load or launch) and
+  `settings` (reduced motion, more contrast, larger text, low power…). Layout, language, timing
+  and slow-network bugs depend on them, and nobody can be asked. The form says "device details
+  are attached" and **See it** lists them. Nothing that identifies the person: no fingerprinting
+  values (fonts, canvas, GPU), no IP-derived location.
+- **More of what the person saw and did, still never what they typed:** page titles; the dialog,
+  form or menu a click was in; forms sent and fields the browser refused, by label and reason;
+  request durations, and requests of 3 s or more that worked; alerts the app announced
+  (`role=alert`, `aria-live=assertive`), scrubbed like everything else and skipped under
+  `data-heresay-private`; freezes of a second or more; CSP blocks; leaving and coming back.
+  On Apple: back from the background, running hot, low memory.
+- **The newest 50, not 30.** More kinds of events would push the useful ones out. The server's
+  total size cap went from 8,000 to 12,000 characters.
+- **The prompt names the last thing that went wrong** (an error before a failed request or a
+  warning), inside the fence: the device wrote it.
 
 ## Later
 

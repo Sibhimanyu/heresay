@@ -89,8 +89,8 @@
       what: 'What is it?', whatHappened: 'What happened?', ph: 'What happened, or what would you change?',
       send: 'Send', sending: 'Sending…',
       pickType: 'Pick what kind of report this is.', sayWhat: 'Say what happened.', cantSend: 'Could not send. Try again.',
-      attachedPrefs: 'This page, the app version and your preferences are attached.',
-      attached: 'This page and the app version are attached.',
+      attachedPrefs: 'This page, the app version, device details and your preferences are attached.',
+      attached: 'This page, the app version and device details are attached.',
       types: {
         broken: ['Broken', 'Something does not work'],
         confusing: ['Confusing', 'I could not tell how to do something'],
@@ -114,8 +114,8 @@
       got: 'Got it', tryIt: 'Try it',
       attachTrail: 'Attach what happened',
       trailHint: 'Recent pages, clicks and errors in this app. Never what you typed.',
-      seeTrail: 'See it',
-      trail: { page: ['page', 'pages'], click: ['click', 'clicks'], request: ['failed request', 'failed requests'], error: ['error', 'errors'], warn: ['warning', 'warnings'], state: ['connection change', 'connection changes'] },
+      seeTrail: 'See it', alsoSent: 'Also sent: ',
+      trail: { page: ['page', 'pages'], click: ['click', 'clicks'], request: ['failed request', 'failed requests'], error: ['error', 'errors'], warn: ['warning', 'warnings'], state: ['device event', 'device events'] },
       nudgeAria: 'Offer to report a problem', nudgeTitle: 'Something not working?', nudgeBody: 'Tell the team what happened. A real person reads it.', nudgeYes: 'Tell the team', nudgeNo: 'Not now',
       sentTo: 'Sent to this app’s team', powered: 'Powered by Heresay',
     },
@@ -127,8 +127,8 @@
       what: 'De quoi s’agit-il ?', whatHappened: 'Que s’est-il passé ?', ph: 'Que s’est-il passé, ou que changeriez-vous ?',
       send: 'Envoyer', sending: 'Envoi…',
       pickType: 'Choisissez le type de signalement.', sayWhat: 'Dites ce qui s’est passé.', cantSend: 'Envoi impossible. Réessayez.',
-      attachedPrefs: 'Cette page, la version de l’app et vos préférences sont jointes.',
-      attached: 'Cette page et la version de l’app sont jointes.',
+      attachedPrefs: 'Cette page, la version de l’app, les détails de l’appareil et vos préférences sont joints.',
+      attached: 'Cette page, la version de l’app et les détails de l’appareil sont joints.',
       types: {
         broken: ['Cassé', 'Quelque chose ne marche pas'],
         confusing: ['Déroutant', 'Je ne voyais pas comment faire'],
@@ -152,8 +152,8 @@
       got: 'Compris', tryIt: 'Essayer',
       attachTrail: 'Joindre ce qui s’est passé',
       trailHint: 'Pages, clics et erreurs récents dans cette app. Jamais ce que vous avez saisi.',
-      seeTrail: 'Voir',
-      trail: { page: ['page', 'pages'], click: ['clic', 'clics'], request: ['requête échouée', 'requêtes échouées'], error: ['erreur', 'erreurs'], warn: ['avertissement', 'avertissements'], state: ['changement de connexion', 'changements de connexion'] },
+      seeTrail: 'Voir', alsoSent: 'Aussi envoyé : ',
+      trail: { page: ['page', 'pages'], click: ['clic', 'clics'], request: ['requête échouée', 'requêtes échouées'], error: ['erreur', 'erreurs'], warn: ['avertissement', 'avertissements'], state: ['événement de l’appareil', 'événements de l’appareil'] },
       nudgeAria: 'Proposition de signaler un problème', nudgeTitle: 'Quelque chose ne marche pas ?', nudgeBody: 'Dites à l’équipe ce qui s’est passé. Une vraie personne le lit.', nudgeYes: 'Signaler', nudgeNo: 'Pas maintenant',
       sentTo: 'Envoyé à l’équipe de cette app', powered: 'Propulsé par Heresay',
     },
@@ -165,8 +165,8 @@
       what: 'இது என்ன வகை?', whatHappened: 'என்ன நடந்தது?', ph: 'என்ன நடந்தது, அல்லது எதை மாற்ற விரும்புகிறீர்கள்?',
       send: 'அனுப்பு', sending: 'அனுப்புகிறது…',
       pickType: 'இது எந்த வகைப் புகார் என்பதைத் தேர்ந்தெடுக்கவும்.', sayWhat: 'என்ன நடந்தது என்று சொல்லுங்கள்.', cantSend: 'அனுப்ப முடியவில்லை. மீண்டும் முயலவும்.',
-      attachedPrefs: 'இந்தப் பக்கம், ஆப் பதிப்பு மற்றும் உங்கள் விருப்பங்கள் இணைக்கப்படும்.',
-      attached: 'இந்தப் பக்கமும் ஆப் பதிப்பும் இணைக்கப்படும்.',
+      attachedPrefs: 'இந்தப் பக்கம், ஆப் பதிப்பு, சாதன விவரங்கள் மற்றும் உங்கள் விருப்பங்கள் இணைக்கப்படும்.',
+      attached: 'இந்தப் பக்கம், ஆப் பதிப்பு மற்றும் சாதன விவரங்கள் இணைக்கப்படும்.',
       types: {
         broken: ['வேலை செய்யவில்லை', 'ஏதோ ஒன்று சரியாக இயங்கவில்லை'],
         confusing: ['குழப்பமாக உள்ளது', 'எப்படிச் செய்வது என்று புரியவில்லை'],
@@ -190,8 +190,8 @@
       got: 'சரி', tryIt: 'முயன்று பாருங்கள்',
       attachTrail: 'என்ன நடந்தது என்பதையும் இணை',
       trailHint: 'இந்த ஆப்பில் சமீபத்திய பக்கங்கள், கிளிக்குகள், பிழைகள். நீங்கள் தட்டச்சு செய்தது ஒருபோதும் இல்லை.',
-      seeTrail: 'பார்',
-      trail: { page: ['பக்கம்', 'பக்கங்கள்'], click: ['கிளிக்', 'கிளிக்குகள்'], request: ['தோல்வியடைந்த கோரிக்கை', 'தோல்வியடைந்த கோரிக்கைகள்'], error: ['பிழை', 'பிழைகள்'], warn: ['எச்சரிக்கை', 'எச்சரிக்கைகள்'], state: ['இணைப்பு மாற்றம்', 'இணைப்பு மாற்றங்கள்'] },
+      seeTrail: 'பார்', alsoSent: 'இவையும் அனுப்பப்படும்: ',
+      trail: { page: ['பக்கம்', 'பக்கங்கள்'], click: ['கிளிக்', 'கிளிக்குகள்'], request: ['தோல்வியடைந்த கோரிக்கை', 'தோல்வியடைந்த கோரிக்கைகள்'], error: ['பிழை', 'பிழைகள்'], warn: ['எச்சரிக்கை', 'எச்சரிக்கைகள்'], state: ['சாதன நிகழ்வு', 'சாதன நிகழ்வுகள்'] },
       nudgeAria: 'சிக்கலைத் தெரிவிக்க ஒரு அழைப்பு', nudgeTitle: 'ஏதாவது வேலை செய்யவில்லையா?', nudgeBody: 'என்ன நடந்தது என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.', nudgeYes: 'குழுவிடம் சொல்', nudgeNo: 'இப்போது வேண்டாம்',
       sentTo: 'இந்த ஆப்பின் குழுவுக்கு அனுப்பப்படும்', powered: 'Heresay மூலம் இயங்குகிறது',
     },
@@ -203,8 +203,8 @@
       what: 'यह क्या है?', whatHappened: 'क्या हुआ?', ph: 'क्या हुआ, या आप क्या बदलना चाहेंगे?',
       send: 'भेजें', sending: 'भेजा जा रहा है…',
       pickType: 'चुनें कि यह किस तरह की रिपोर्ट है।', sayWhat: 'बताइए क्या हुआ।', cantSend: 'भेजा नहीं जा सका। फिर से कोशिश करें।',
-      attachedPrefs: 'यह पेज, ऐप का वर्शन और आपकी प्राथमिकताएँ साथ भेजी जाती हैं।',
-      attached: 'यह पेज और ऐप का वर्शन साथ भेजे जाते हैं।',
+      attachedPrefs: 'यह पेज, ऐप का वर्शन, डिवाइस की जानकारी और आपकी प्राथमिकताएँ साथ भेजी जाती हैं।',
+      attached: 'यह पेज, ऐप का वर्शन और डिवाइस की जानकारी साथ भेजी जाती है।',
       types: {
         broken: ['टूटा हुआ', 'कुछ काम नहीं कर रहा'],
         confusing: ['उलझन भरा', 'समझ नहीं आया कि कैसे करें'],
@@ -228,8 +228,8 @@
       got: 'ठीक है', tryIt: 'आज़माएँ',
       attachTrail: 'क्या हुआ, वह भी भेजें',
       trailHint: 'इस ऐप में हाल के पेज, क्लिक और त्रुटियाँ। आपने जो टाइप किया, वह कभी नहीं।',
-      seeTrail: 'देखें',
-      trail: { page: ['पेज', 'पेज'], click: ['क्लिक', 'क्लिक'], request: ['विफल अनुरोध', 'विफल अनुरोध'], error: ['त्रुटि', 'त्रुटियाँ'], warn: ['चेतावनी', 'चेतावनियाँ'], state: ['कनेक्शन बदलाव', 'कनेक्शन बदलाव'] },
+      seeTrail: 'देखें', alsoSent: 'यह भी भेजा जाता है: ',
+      trail: { page: ['पेज', 'पेज'], click: ['क्लिक', 'क्लिक'], request: ['विफल अनुरोध', 'विफल अनुरोध'], error: ['त्रुटि', 'त्रुटियाँ'], warn: ['चेतावनी', 'चेतावनियाँ'], state: ['डिवाइस घटना', 'डिवाइस घटनाएँ'] },
       nudgeAria: 'समस्या बताने का सुझाव', nudgeTitle: 'कुछ काम नहीं कर रहा?', nudgeBody: 'टीम को बताइए क्या हुआ। इसे कोई इंसान पढ़ता है।', nudgeYes: 'टीम को बताएँ', nudgeNo: 'अभी नहीं',
       sentTo: 'इस ऐप की टीम को भेजा जाता है', powered: 'Heresay द्वारा संचालित',
     },
@@ -413,14 +413,44 @@
       page_title: (document.title || '').trim() || null,
       page_url: pageUrl(),
       viewport: Math.round(window.innerWidth) + 'x' + Math.round(window.innerHeight),
+      locale: navigator.language || null,
+      timezone: (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } })(),
+      theme: media('(prefers-color-scheme: dark)') ? 'dark' : 'light',
+      device: deviceKind(),
+      network: network(),
+      screen: screen && screen.width ? screen.width + 'x' + screen.height + '@' + (Math.round((window.devicePixelRatio || 1) * 100) / 100) + 'x' : null,
+      session_s: Math.round(((window.performance && performance.now()) || 0) / 1000),
+      settings: [media('(prefers-reduced-motion: reduce)') && 'reduced motion', media('(prefers-contrast: more)') && 'more contrast',
+        media('(forced-colors: active)') && 'forced colours', zoom()].filter(Boolean).join(', ') || null,
     };
+  }
+
+  function media(q) { try { return window.matchMedia(q).matches; } catch (e) { return false; } }
+  /** 'phone, touch', 'tablet, touch', 'desktop, mouse': what the layout had to work on. */
+  function deviceKind() {
+    var ua = navigator.userAgent;
+    var kind = /iPad|Tablet|Android(?!.*Mobi)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'tablet'
+      : /Mobi|iPhone|Android/.test(ua) ? 'phone' : 'desktop';
+    return kind + ', ' + (media('(pointer: coarse)') ? 'touch' : 'mouse');
+  }
+  /** How the connection looked to the browser: '4g', '3g, data saver', 'offline'. Not every browser says. */
+  function network() {
+    if (navigator.onLine === false) return 'offline';
+    var c = navigator.connection;
+    if (!c || !c.effectiveType) return null;
+    return c.effectiveType + (c.saveData ? ', data saver' : '');
+  }
+  /** Page zoom, when the browser shows it: a zoomed page reflows like a narrow one. */
+  function zoom() {
+    var z = window.visualViewport && window.visualViewport.scale;
+    return z && Math.abs(z - 1) > 0.05 ? 'zoomed ' + Math.round(z * 100) + '%' : null;
   }
 
   // ---- the trail -------------------------------------------------------------------------
 
   /**
    * What happened in the app before a report: pages, clicks, requests that failed, errors. Kept
-   * in memory on this device only (the newest 30, for 5 minutes) and sent only with a report,
+   * in memory on this device only (the newest 50, for 5 minutes) and sent only with a report,
    * only if the reporter leaves "Attach what happened" on. Never what anyone typed, never request
    * or response bodies or headers, never query strings. Nothing is recorded inside the widget.
    */
@@ -434,7 +464,7 @@
     if (on.page || on.request || on.error) on.state = true;
     return on;
   })();
-  var TRAIL_MAX = 30, TRAIL_AGE = 5 * 60000;
+  var TRAIL_MAX = 50, TRAIL_AGE = 5 * 60000;
   // data-nudge, read here because the request watchers below serve both. See "offering help".
   var NUDGE_SIGNALS = ['clicks', 'errors', 'requests'];
   var NUDGE = (function () {
@@ -463,17 +493,20 @@
   }
 
   var noting = false;
-  function note(kind, text, detail) {
-    if (!TRAIL[kind] || noting) return;
+  /** `part` is the data-trail part that allows it, when that isn't the kind's own. */
+  function note(kind, text, detail, part) {
+    if (!(part ? TRAIL[part] : TRAIL[kind]) || noting) return;
     noting = true;
     try {
       text = scrub(text, 200);
       if (!text) return;
       var now = Date.now(), last = trail[trail.length - 1];
-      if (last && last.kind === kind && last.text === text) { last.n++; last.at = now; return; }
-      trail.push({ kind: kind, at: now, text: text, detail: detail ? scrub(detail, 600) : null, n: 1 });
+      if (last && last.kind === kind && last.text === text) { last.n++; last.at = now; return last; }
+      var e = { kind: kind, at: now, text: text, detail: detail ? scrub(detail, 600) : null, n: 1 };
+      trail.push(e);
       if (trail.length > TRAIL_MAX) trail.shift();
-    } catch (e) { /* never break the app over a record */ } finally { noting = false; }
+      return e;
+    } catch (x) { /* never break the app over a record */ } finally { noting = false; }
   }
   function recentTrail() {
     var cut = Date.now() - TRAIL_AGE;
@@ -518,12 +551,22 @@
 
   // Pages: any router changes the address through history, so watch that.
   var lastWhere = null;
-  function onPage() {
+  function titled(w) {
+    var t = (document.title || '').replace(/\s+/g, ' ').trim();
+    return w + (t ? ' "' + (t.length > 60 ? t.slice(0, 59) + '…' : t) + '"' : '');
+  }
+  function onPage(first) {
     var w = location.pathname + location.hash;
-    if (w !== lastWhere) { lastWhere = w; note('page', w); }
+    if (w === lastWhere) return;
+    lastWhere = w;
+    if (first === true) { note('page', titled(w)); return; }
+    // Single-page apps set the title just after the address: the entry goes in now, in order,
+    // and gets the title a moment later.
+    var e = note('page', w);
+    if (e) setTimeout(function () { var t = scrub(titled(w), 200); if (t) e.text = t; }, 150);
   }
   if (TRAIL.page) {
-    onPage();
+    onPage(true);
     ['pushState', 'replaceState'].forEach(function (m) {
       var orig = history[m];
       if (typeof orig !== 'function') return;
@@ -539,7 +582,8 @@
 
   // Clicks: what was clicked, by its label. Never a field's value.
   var CLICKABLE = 'a,button,input,select,textarea,label,summary,[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[role=switch],[role=option]';
-  function clicked(t) {
+  /** `bare` leaves out where it is. */
+  function clicked(t, bare) {
     var hit = t.closest && t.closest(CLICKABLE), n = hit || t;
     if (!n.tagName) return null;
     var tag = n.tagName.toLowerCase(), type = (n.getAttribute('type') || '').toLowerCase();
@@ -555,7 +599,24 @@
       || n.getAttribute('title') || n.getAttribute('alt') || '';
     name = name.replace(/\s+/g, ' ').trim();
     if (name.length > 40) name = name.slice(0, 39) + '…';
-    return what + (name ? ' "' + name + '"' : '');
+    return what + (name ? ' "' + name + '"' : '') + (bare ? '' : where(n));
+  }
+
+  /** The dialog, form, menu or region a control is in, by its name: ' in dialog "Edit profile"'. */
+  var AREAS = 'dialog,[role=dialog],[role=alertdialog],[role=menu],[role=tabpanel],form,nav,[role=navigation],[role=search],aside,section[aria-label],section[aria-labelledby],[role=region]';
+  function where(n) {
+    var a = n.parentElement && n.parentElement.closest(AREAS);
+    if (!a || a.closest('[data-heresay-private]')) return '';
+    var tag = a.tagName.toLowerCase(), role = a.getAttribute('role');
+    var kind = role === 'alertdialog' ? 'dialog' : role === 'navigation' || tag === 'nav' ? 'navigation'
+      : role === 'tabpanel' ? 'tab' : role === 'search' ? 'search' : role || (tag === 'aside' ? 'sidebar' : tag === 'section' ? 'section' : tag);
+    var by = a.getAttribute('aria-labelledby');
+    var label = a.getAttribute('aria-label')
+      || (by && by.split(/\s+/).map(function (id) { var x = document.getElementById(id); return x ? x.textContent : ''; }).join(' '))
+      || ((a.querySelector('h1,h2,h3,legend') || {}).textContent) || '';
+    label = label.replace(/\s+/g, ' ').trim();
+    if (label.length > 30) label = label.slice(0, 29) + '…';
+    return ' in ' + kind + (label ? ' "' + label + '"' : '');
   }
   if (TRAIL.click) {
     document.addEventListener('click', function (e) {
@@ -564,7 +625,34 @@
     }, true);
   }
 
-  // Requests: only the ones that failed, by method, path and status.
+  // Forms: sent, and the fields the browser refused, by their label and why. Never their value.
+  var WHY = { valueMissing: 'is required', typeMismatch: 'is not in the right format', patternMismatch: 'does not match the format asked for',
+    tooShort: 'is too short', tooLong: 'is too long', rangeUnderflow: 'is too low', rangeOverflow: 'is too high',
+    stepMismatch: 'is not an allowed value', badInput: 'could not be read' };
+  if (TRAIL.click) {
+    document.addEventListener('submit', function (e) {
+      var f = e.target;
+      if (!f || !f.tagName || host.contains(f)) return;
+      var name = f.closest('[data-heresay-private]') ? '' : (f.getAttribute('aria-label') || f.getAttribute('name') || ((f.querySelector('h1,h2,h3,legend') || {}).textContent) || '');
+      name = name.replace(/\s+/g, ' ').trim().slice(0, 40);
+      note('click', 'form' + (name ? ' "' + name + '"' : '') + ' sent');
+    }, true);
+    document.addEventListener('invalid', function (e) {
+      var t = e.target;
+      if (!t || !t.validity || host.contains(t)) return;
+      var why = Object.keys(WHY).filter(function (k) { return t.validity[k]; })[0];
+      note('warn', clicked(t, true) + ' ' + (WHY[why] || 'was refused'), null, 'click');
+    }, true);
+  }
+
+  // Requests: the ones that failed, and the ones so slow someone would notice, by method, path,
+  // status and how long they took.
+  /** ' in 2.4 s', past a second; quicker than that, the time says nothing. */
+  function took(t0) { var ms = Date.now() - t0; return ms >= 1000 ? ' in ' + (Math.round(ms / 100) / 10) + ' s' : ''; }
+  /** A request that worked but took 3 s or more: a warning, since nothing failed. */
+  function slow(method, url, status, t0) {
+    if (Date.now() - t0 >= 3000) note('warn', 'Slow request: ' + method + ' ' + shortUrl(url) + ' → ' + status + took(t0), null, 'request');
+  }
   if ((TRAIL.request || NUDGE.requests) && window.fetch) {
     var ofetch = window.fetch;
     window.fetch = function (input, init) {
@@ -573,11 +661,13 @@
         var url = typeof input === 'string' ? input : input && (input.url || String(input));
         if (url && !ours(url)) {
           var method = String(init && init.method || input && input.method || 'GET').toUpperCase();
+          var t0 = Date.now();
           p.then(function (res) {
-            if (!res.ok && res.type !== 'opaque') { note('request', method + ' ' + shortUrl(url) + ' → ' + res.status); requestFailed(res.status); }
+            if (!res.ok && res.type !== 'opaque') { note('request', method + ' ' + shortUrl(url) + ' → ' + res.status + took(t0)); requestFailed(res.status); }
+            else slow(method, url, res.status, t0);
           }, function (err) {
             if (err && err.name === 'AbortError') return;
-            note('request', method + ' ' + shortUrl(url) + ' → failed (' + (navigator.onLine === false ? 'offline' : 'network error') + ')');
+            note('request', method + ' ' + shortUrl(url) + ' → failed (' + (navigator.onLine === false ? 'offline' : 'network error') + ')' + took(t0));
             requestFailed(0);
           });
         }
@@ -595,11 +685,12 @@
       var x = this, r = x.__heresay;
       try {
         if (r && !ours(r.u)) {
-          var aborted = false;
+          var aborted = false, t0 = Date.now();
           x.addEventListener('abort', function () { aborted = true; });
           x.addEventListener('loadend', function () {
-            if (x.status >= 400) { note('request', r.m + ' ' + shortUrl(r.u) + ' → ' + x.status); requestFailed(x.status); }
-            else if (x.status === 0 && !aborted) { note('request', r.m + ' ' + shortUrl(r.u) + ' → failed (network error)'); requestFailed(0); }
+            if (x.status >= 400) { note('request', r.m + ' ' + shortUrl(r.u) + ' → ' + x.status + took(t0)); requestFailed(x.status); }
+            else if (x.status === 0 && !aborted) { note('request', r.m + ' ' + shortUrl(r.u) + ' → failed (network error)' + took(t0)); requestFailed(0); }
+            else if (x.status) slow(r.m, r.u, x.status, t0);
           });
         }
       } catch (e) { /* ignore */ }
@@ -639,9 +730,49 @@
       };
     });
   }
+  if (TRAIL.error) {
+    // Something the page's own security policy blocked: often why a script or an embed is missing.
+    document.addEventListener('securitypolicyviolation', function (e) {
+      note('error', 'Blocked by the Content Security Policy (' + (e.effectiveDirective || e.violatedDirective) + '): ' +
+        (/^https?:/.test(e.blockedURI) ? shortUrl(e.blockedURI) : e.blockedURI || 'inline'));
+    });
+    // The page stopped answering: a long task of a second or more.
+    try {
+      new PerformanceObserver(function (l) {
+        l.getEntries().forEach(function (t) {
+          if (t.duration >= 1000) note('warn', 'The page froze for ' + (Math.round(t.duration / 100) / 10) + ' s');
+        });
+      }).observe({ type: 'longtask', buffered: true });
+    } catch (e) { /* not in this browser */ }
+    // What the app told the person: alerts, as screen readers announce them. Checked at most every
+    // 300 ms, only when the page changes.
+    var shown = typeof WeakMap === 'function' ? new WeakMap() : null, alertTimer = null;
+    var checkAlerts = function () {
+      alertTimer = null;
+      document.querySelectorAll('[role=alert],[role=alertdialog],[aria-live=assertive]').forEach(function (a) {
+        if (host.contains(a) || a.closest('[data-heresay-private]')) return;
+        var t = (a.getAttribute('aria-label') || a.textContent || '').replace(/\s+/g, ' ').trim();
+        if (shown.get(a) === t) return;
+        shown.set(a, t);
+        if (t) note('warn', 'The app showed: "' + (t.length > 120 ? t.slice(0, 119) + '…' : t) + '"');
+      });
+    };
+    if (shown && window.MutationObserver) {
+      new MutationObserver(function () { if (!alertTimer) alertTimer = setTimeout(checkAlerts, 300); })
+        .observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+    }
+  }
   if (TRAIL.state) {
     window.addEventListener('offline', function () { note('state', 'Went offline'); });
     window.addEventListener('online', function () { note('state', 'Back online'); });
+    // Leaving the tab and coming back: a session can expire, a socket drop, while they are away.
+    var hiddenAt = 0;
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      var s = hiddenAt ? Math.round((Date.now() - hiddenAt) / 1000) : 0;
+      hiddenAt = 0;
+      if (s >= 5) note('state', 'Came back to the tab after ' + (s >= 60 ? Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2) + ' min' : s + ' s'));
+    });
   }
 
   // ---- offering help ---------------------------------------------------------------------
@@ -1161,7 +1292,10 @@
     }));
     box.appendChild(el('label', { class: 'switch' }, [on, el('span', { text: S.attachTrail })]));
     box.appendChild(el('div', { class: 'chips' }, chips));
-    box.appendChild(el('details', {}, [el('summary', { text: S.seeTrail }), el('p', { class: 'small', text: S.trailHint }), list]));
+    var c = context();
+    var device = [c.device, c.screen, c.theme, c.locale, c.timezone, c.network, c.settings].filter(Boolean).join(' · ');
+    box.appendChild(el('details', {}, [el('summary', { text: S.seeTrail }), el('p', { class: 'small', text: S.trailHint }), list,
+      device ? el('p', { class: 'small', text: S.alsoSent + device }) : null]));
     return box;
   }
 

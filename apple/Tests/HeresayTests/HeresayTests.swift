@@ -185,6 +185,29 @@ final class HeresayTests: XCTestCase {
         Heresay.identify()
         XCTAssertNil(Heresay.shared.context().userId, "sign-out clears it")
     }
+
+    func testContextCarriesTheDeviceAroundTheAppLikeTheWebSDK() throws {
+        let c = Heresay.shared.context()
+        XCTAssertNotNil(c.locale)
+        XCTAssertEqual(c.timezone, TimeZone.current.identifier)
+        XCTAssertNotNil(c.device, "the model")
+        XCTAssertNotNil(c.sessionS)
+        var all = c
+        all.locale = "en-IN"; all.timezone = "Asia/Kolkata"; all.theme = "dark"; all.device = "MacBookPro18,3"
+        all.network = "wifi"; all.screen = "1512x982@2x"; all.sessionS = 754; all.settings = "reduced motion"
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(all)) as! [String: Any]
+        for (k, v) in ["locale": "en-IN", "timezone": "Asia/Kolkata", "theme": "dark", "device": "MacBookPro18,3",
+                       "network": "wifi", "screen": "1512x982@2x", "settings": "reduced motion"] {
+            XCTAssertEqual(json[k] as? String, v, k)
+        }
+        XCTAssertEqual(json["session_s"] as? Int, 754)
+        XCTAssertEqual(Device.away(5), "5 s")
+        XCTAssertEqual(Device.away(130), "2:10 min")
+        #if os(iOS)
+        XCTAssertNil(Device.textSize(.large), "the default isn't worth saying")
+        XCTAssertEqual(Device.textSize(.accessibilityLarge), "accessibility text size")
+        #endif
+    }
 }
 
 /// Sends a real report when pointed at a Heresay:
@@ -393,16 +416,16 @@ final class TrailTests: XCTestCase {
         XCTAssertEqual(Trail.scrub(String(repeating: "x", count: 500), max: 200)?.count, 200)
     }
 
-    func testRepeatsAreCountedAndOnlyTheNewestThirtyKept() {
+    func testRepeatsAreCountedAndOnlyTheNewestFiftyKept() {
         let t = Trail()
         t.setParts(.all)
         t.note(.click, "button \"Save\"")
         t.note(.click, "button \"Save\"")
         XCTAssertEqual(t.recent().map(\.n), [2])
-        for i in 0..<40 { t.note(.page, "Screen \(i)") }
+        for i in 0..<60 { t.note(.page, "Screen \(i)") }
         let r = t.recent()
-        XCTAssertEqual(r.count, 30)
-        XCTAssertEqual(r.last?.text, "Screen 39")
+        XCTAssertEqual(r.count, 50)
+        XCTAssertEqual(r.last?.text, "Screen 59")
     }
 
     func testOnlyThePartsTheAppKeptAreRecorded() {
@@ -460,7 +483,7 @@ final class TrailTests: XCTestCase {
         _ = try await h.send(type: .broken, text: "It crashed")
         let trail = (try JSONSerialization.jsonObject(with: StubProtocol.lastSubmit) as! [String: Any])["trail"] as? [[String: Any]]
         XCTAssertEqual(trail?.first?["text"] as? String, "The app crashed: EXC_BAD_ACCESS: SIGSEGV")
-        XCTAssertEqual(trail?.first?["ago"] as? Int, 600)
+        XCTAssertTrue((600...601).contains(trail?.first?["ago"] as? Int ?? 0), "ten minutes ago, give or take the send")
         XCTAssertNil(Trail.lastCrash(d), "sent once")
     }
 

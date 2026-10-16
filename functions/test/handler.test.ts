@@ -139,6 +139,44 @@ test('page details: query string dropped, only http(s), viewport shape checked',
   assert.equal(bad.viewport, null);
 });
 
+test('device details: shapes checked, junk dropped, given to an agent with the last thing that went wrong', async () => {
+  const { call, asOwner, project, submit, store } = await withProject();
+  const r = await submit({
+    type: 'broken', text: 'The chart is blank',
+    context: {
+      route: '/reports', locale: 'en-IN', timezone: 'Asia/Kolkata', theme: 'dark', device: 'phone, touch',
+      network: '3g, data saver', screen: '390x844@3x', session_s: 754.4, settings: 'reduced motion',
+    },
+    trail: [
+      { kind: 'error', ago: 40, text: 'TypeError: rows is undefined' },
+      { kind: 'request', ago: 9, text: 'GET /api/chart → 503 in 2.1 s' },
+      { kind: 'click', ago: 3, text: 'button "Retry"' },
+    ],
+  });
+  const id = (r.body as { report: { id: string } }).report.id;
+  const c = store.reports.get(id)!.context;
+  assert.deepEqual([c.locale, c.timezone, c.theme, c.device, c.network, c.screen, c.session_s, c.settings],
+    ['en-IN', 'Asia/Kolkata', 'dark', 'phone, touch', '3g, data saver', '390x844@3x', 754, 'reduced motion']);
+
+  const bad = (await submit({ type: 'idea', text: 'x', context: {
+    locale: 'en-IN<script>', timezone: 'Asia/Kolkata; drop', theme: 'sepia', screen: 'huge', session_s: -4, device: 'x'.repeat(300),
+  } })).body as { report: { id: string } };
+  const b = store.reports.get(bad.report.id)!.context;
+  assert.deepEqual([b.locale, b.timezone, b.theme, b.screen, b.session_s], [null, null, null, null, null]);
+  assert.equal(b.device!.length, 80);
+
+  const base = `/v1/projects/${project.id}/reports/${id}`;
+  await call({ method: 'POST', path: `${base}/accept`, headers: asOwner() });
+  const prompt = ((await call({ path: `${base}/prompt`, headers: asOwner() })).body as { prompt: string }).prompt;
+  for (const line of ['- Device: phone, touch', '- Screen: 390x844@3x', '- Theme: dark', '- Language: en-IN',
+    '- Time zone: Asia/Kolkata', '- Network: 3g, data saver', '- Settings: reduced motion', '- In the app for: 12 min 34 s']) {
+    assert.ok(prompt.includes(line), line);
+  }
+  assert.match(prompt, /Last thing that went wrong, 40 s before they sent it: TypeError: rows is undefined/, 'an error over a request');
+  assert.ok(prompt.indexOf('Last thing that went wrong') > prompt.indexOf('"""'), 'inside the fence: the device wrote it');
+  assert.equal(prompt.split('"""').length, 3);
+});
+
 test('reporter preferences: stored for the team, never sent back, only the note reaches an agent', async () => {
   const { call, asOwner, project, submit, store } = await withProject();
   const r = await submit({
@@ -371,7 +409,7 @@ test('trail: missing, switched off or junk is fine, and capped', async () => {
   assert.equal(await trailOf([{ kind: 'page', text: '   ' }]), null);
   const many = Array.from({ length: 80 }, (_, i) => ({ kind: 'click', ago: 80 - i, text: `button "${i}" ${'x'.repeat(400)}` }));
   const t = (await trailOf(many))!;
-  assert.equal(t.length, 30, 'only the newest 30');
-  assert.match(t[29].text, /"79"/);
+  assert.equal(t.length, 50, 'only the newest 50');
+  assert.match(t[49].text, /"79"/);
   assert.ok(t.every((e) => e.text.length <= 200));
 });

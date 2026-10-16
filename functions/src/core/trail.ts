@@ -22,7 +22,7 @@ export interface TrailEvent {
   n: number;
 }
 
-export const TRAIL_LIMITS = { events: 30, textMax: 200, detailMax: 600, totalMax: 8000, agoMax: 3600, nMax: 999 } as const;
+export const TRAIL_LIMITS = { events: 50, textMax: 200, detailMax: 600, totalMax: 12000, agoMax: 3600, nMax: 999 } as const;
 
 /**
  * Blanks what tends to be personal or secret, in case the SDK missed it or something other than
