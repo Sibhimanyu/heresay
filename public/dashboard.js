@@ -2006,6 +2006,27 @@
       ]),
       el('p', { class: 'hint', text: 'Claude, Cursor and other apps that take a remote MCP server use the same address.' }),
     ]));
+    // For chat apps that can't sign in with OAuth: a ChatGPT workspace that blocks MCP plugins
+    // (use a ChatGPT Sites bridge), or a script. Shown once.
+    var tokenName = el('input', { name: 'token-name', value: 'ChatGPT', 'aria-label': 'What it is for', maxlength: '80' });
+    var tokenOut = el('div');
+    var tokenErr = el('p', { class: 'err', role: 'alert' });
+    var tokenForm = el('form', { class: 'invite' }, [tokenName, el('button', { class: 'btn', text: 'Create chat token' })]);
+    tokenForm.onsubmit = function (e) {
+      e.preventDefault();
+      tokenErr.textContent = '';
+      api('POST', '/chat-connections', { name: tokenName.value }).then(function (b) {
+        tokenOut.textContent = '';
+        tokenOut.appendChild(el('p', { class: 'hint', text: 'Shown once. Paste it where the chat app asks for a Heresay token, with the address above. It sends requests as you; disconnect it below to stop it.' }));
+        tokenOut.appendChild(el('div', { class: 'copy-prompt' }, [el('code', { class: 'url token-out', text: b.token }), copyButton(function () { return b.token; }, 'Copy token')]));
+        load();
+      }).catch(function (x) { tokenErr.textContent = x.message; });
+    };
+    view.appendChild(el('section', { class: 'card' }, [
+      el('h2', { text: 'Can’t add MCP servers? Use a token' }),
+      el('p', { class: 'mute', text: 'Some ChatGPT workspaces don’t allow plugins with MCPs. A ChatGPT Sites app (a bridge) can call this Heresay with a chat token instead, and works in Chat on every device. Scripts can use one too.' }),
+      tokenForm, tokenErr, tokenOut,
+    ]));
     var list = el('ul', { class: 'members' }, [loading('li')]);
     var err = el('p', { class: 'err', role: 'alert' });
     view.appendChild(el('section', { class: 'card' }, [el('h2', { text: me.role === 'owner' ? 'Connected chat apps' : 'Your connected chat apps' }), list, err]));
@@ -2016,7 +2037,7 @@
         list.appendChild(el('li', {}, [
           el('span', { class: 'avatar', text: (c.client_name || '?').charAt(0).toUpperCase() }),
           el('div', {}, [el('b', { text: c.client_name + (c.email === me.email ? '' : ' · ' + c.email) }),
-            el('span', { class: 'mute', text: 'Connected ' + new Date(c.created_at).toLocaleDateString() + (c.last_used_at ? ' · last used ' + new Date(c.last_used_at).toLocaleString() : '') })]),
+            el('span', { class: 'mute', text: (c.kind === 'token' ? 'Chat token · created ' : 'Connected ') + new Date(c.created_at).toLocaleDateString() + (c.last_used_at ? ' · last used ' + new Date(c.last_used_at).toLocaleString() : '') })]),
           el('button', { class: 'btn ghost', type: 'button', text: 'Disconnect', onclick: function () {
             err.textContent = '';
             api('DELETE', '/chat-connections/' + c.id).then(load).catch(function (x) { err.textContent = x.message; });

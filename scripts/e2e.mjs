@@ -745,6 +745,18 @@ try {
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }) });
   assert.equal(after.status, 401, 'disconnected: the chat app stops at once');
 
+  // A workspace that blocks MCP plugins: a chat token for a ChatGPT Sites bridge instead.
+  await dash.getByRole('button', { name: 'Create chat token' }).click();
+  const chatToken = await dash.locator('code.token-out').textContent();
+  assert.match(chatToken, /^hct_/);
+  await dash.screenshot({ path: `${SHOTS}e2e-10d-chat-token.png`, fullPage: true });
+  const viaToken = await (await fetch(`${BASE}/v1/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chatToken}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'send_request', arguments: { app: 'Acme Notes', type: 'improvement', text: 'Sent through a bridge with a chat token.' } } }) })).json();
+  assert.equal(viaToken.result.structuredContent.status, 'open');
+  await dash.reload();
+  await dash.locator('.members li', { hasText: 'Chat token' }).getByRole('button', { name: 'Disconnect' }).click();
+  await dash.getByText('None yet.').waitFor();
+
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;
   const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 760 } });

@@ -216,3 +216,27 @@ test('a member\'s chat requests are rate limited per member, not per network', a
   assert.equal(last.isError, true);
   assert.equal([...s.store.reports.values()].length, 60);
 });
+
+test('a chat token, for chat apps that can\'t sign in with OAuth: same tools, as the member, revocable', async () => {
+  const s = setup();
+  await addApp(s);
+  const made = await s.call({ method: 'POST', path: '/v1/chat-connections', headers: s.as('bob'), body: { name: 'ChatGPT' } });
+  assert.equal(made.status, 201);
+  const { token, id, mcp_url } = made.body as { token: string; id: string; mcp_url: string };
+  assert.match(token, /^hct_[a-f0-9]{24}_/);
+  assert.equal(mcp_url, `${BASE}/v1/mcp`);
+  assert.ok(!JSON.stringify(s.store.auth.get(`grant:${id}`)).includes(token.split('_')[2]!), 'stored hashed');
+
+  const sent = ((await rpc(s, token, 'tools/call', { name: 'send_request', arguments: { app: 'Greenroom', type: 'idea', text: 'From the bridge', details: 'Phone chat' } })).body as { result: { structuredContent: { id: string } } }).result;
+  const r = s.store.reports.get(sent.structuredContent.id)!;
+  assert.equal(r.from_member, 'bob@example.com');
+  assert.equal(r.via, 'ChatGPT');
+
+  const listed = (await s.call({ path: '/v1/chat-connections', headers: s.as('bob') })).body as { connections: { id: string; kind: string }[] };
+  assert.deepEqual(listed.connections.map((c) => c.kind), ['token']);
+  assert.equal((await rpc(s, token.slice(0, -2) + 'xx', 'ping')).status, 401, 'a wrong secret');
+  assert.equal((await s.call({ method: 'POST', path: '/v1/oauth/token', body: { grant_type: 'refresh_token', refresh_token: `hrt_${id}_${'x'.repeat(30)}` } })).status, 400, 'not a refresh token');
+  await s.call({ method: 'DELETE', path: `/v1/chat-connections/${id}`, headers: s.as('bob') });
+  assert.equal((await rpc(s, token, 'ping')).status, 401, 'revoked');
+  assert.equal((await s.call({ method: 'POST', path: '/v1/chat-connections', headers: {}, body: { name: 'x' } })).status, 401, 'only a signed-in member makes one');
+});
