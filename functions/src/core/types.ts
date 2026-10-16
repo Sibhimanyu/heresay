@@ -257,9 +257,9 @@ export const toReporterView = (r: Report): ReporterView => ({
 
 /**
  * OAuth for chat apps (oauth.ts): a registered client, a one-time code, a member's connection
- * (grant), an access token. Secrets are stored hashed. `expires_at` lets a backend clean up.
+ * (grant), an access token; and a chat request not sent yet (draft, chat.ts). Secrets are stored hashed. `expires_at` lets a backend clean up.
  */
-export type AuthKind = 'client' | 'code' | 'grant' | 'access';
+export type AuthKind = 'client' | 'code' | 'grant' | 'access' | 'draft';
 export interface AuthRecord {
   kind: AuthKind;
   id: string;

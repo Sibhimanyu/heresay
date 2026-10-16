@@ -31,11 +31,15 @@ export const CHAT_LIMITS = [
 // approval or what counts as sensitive ("Suspicious Instruction"). Their own rules cover that.
 const INSTRUCTIONS = [
   'Heresay is this team\'s inbox for what should change in their apps: bugs, confusing parts, improvements and ideas.',
-  'send_request files one in an app\'s inbox as the signed-in team member: `text` is the request as a teammate would read it,',
-  '`details` is what the conversation worked out (why it matters, what was considered or ruled out, examples, constraints,',
-  'open questions). list_apps names the apps. A request stays open until someone on the team accepts it; sending does not',
-  'start any work. my_requests says what happened to the ones this member sent.',
+  'Sending takes two steps. draft_request prepares one and returns a preview (the app, the type, the text, and the other',
+  'apps); nothing is sent. send_draft sends a draft, to the app in the preview or to another one. `text` is the request as',
+  'a teammate would read it; `details` is what the conversation worked out (why it matters, what was considered or ruled',
+  'out, examples, constraints, open questions). A sent request stays open until someone on the team accepts it; sending',
+  'does not start any work. my_requests says what happened to the ones this member sent.',
 ].join(' ');
+
+/** How long a draft waits to be sent. */
+const DRAFT_TTL_MS = 2 * 3600_000;
 
 const TOOLS = [
   {
@@ -46,22 +50,38 @@ const TOOLS = [
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
-    name: 'send_request',
-    title: 'Send to Heresay',
-    description: 'Sends a bug, a confusing part, an improvement or an idea to one app\'s Heresay inbox, as the signed-in team member, '
-      + 'with context from the conversation. It stays open until someone on the team accepts it.',
+    name: 'draft_request',
+    title: 'Draft a Heresay request',
+    description: 'Prepares a bug, a confusing part, an improvement or an idea for one app\'s Heresay inbox and returns a preview: '
+      + 'the app it would go to, its type and text, and the other apps. Nothing is sent. Without an app it returns the list of apps.',
     inputSchema: {
       type: 'object',
       properties: {
-        app: { type: 'string', description: 'The app\'s id or name, from list_apps' },
+        app: { type: 'string', description: 'The app\'s id or name, from list_apps, when the conversation names it' },
         type: { type: 'string', enum: [...REPORT_TYPES], description: 'broken: doesn\'t work. confusing: works, but people can\'t tell how. improvement: works, could be better. idea: doesn\'t exist yet.' },
         text: { type: 'string', maxLength: LIMITS.textMax, description: 'The request in a few plain sentences, as a teammate would read it.' },
         details: { type: 'string', maxLength: LIMITS.detailsMax, description: 'Context from the conversation: why, what was considered or ruled out, examples, constraints, open questions.' },
       },
-      required: ['app', 'type', 'text'],
+      required: ['type', 'text'],
       additionalProperties: false,
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'send_draft',
+    title: 'Send a Heresay draft',
+    description: 'Sends a draft from draft_request to the inbox, as the signed-in team member. `app` sends it to a different app '
+      + 'than the preview named. It stays open until someone on the team accepts it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        draft_id: { type: 'string', description: 'From draft_request' },
+        app: { type: 'string', description: 'Another app\'s id or name, to send it there instead' },
+      },
+      required: ['draft_id'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
     name: 'my_requests',
@@ -128,7 +148,9 @@ async function one(m: unknown, member: Member, via: string, req: Req, deps: Deps
       const args = (msg.params?.arguments ?? {}) as Record<string, unknown>;
       try {
         if (name === 'list_apps') return rpcResult(msg.id, await listApps(deps));
-        if (name === 'send_request') return rpcResult(msg.id, await sendRequest(args, member, via, req, deps));
+        // send_request is what older bridges call; it drafts too, so nothing is sent unseen.
+        if (name === 'draft_request' || name === 'send_request') return rpcResult(msg.id, await draftRequest(args, member, via, deps));
+        if (name === 'send_draft') return rpcResult(msg.id, await sendDraft(args, member, req, deps));
         if (name === 'my_requests') return rpcResult(msg.id, await myRequests(args, member, req, deps));
         return rpcError(msg.id, -32602, `Unknown tool: ${String(name)}`);
       } catch (e) {
@@ -163,12 +185,54 @@ async function findApp(v: unknown, deps: Deps): Promise<Project> {
 
 const dashboardLink = (req: Req, deps: Deps, p: Project) => `${baseUrl(req, deps)}/app/#/apps/${p.id}`;
 
-async function sendRequest(a: Record<string, unknown>, member: Member, via: string, req: Req, deps: Deps) {
-  const project = await findApp(a.app, deps);
+const appNames = (ps: Project[]) => ps.map((p) => `${p.name} (${p.platform})`).join(', ');
+
+/** A preview, nothing sent: which app, what type, the text, and where else it could go. */
+async function draftRequest(a: Record<string, unknown>, member: Member, via: string, deps: Deps) {
   if (!isReportType(a.type)) throw new ToolError(`type must be one of ${REPORT_TYPES.join(', ')}.`);
   const text = str(a.text, LIMITS.textMax);
   if (!text) throw new ToolError('Say what the request is, in text.');
   const details = str(a.details, LIMITS.detailsMax);
+  const all = (await deps.store.listProjects()).sort((x, y) => x.created_at.localeCompare(y.created_at));
+  if (!str(a.app, 100)) {
+    return result(`No app named, so no draft yet. The apps on this Heresay: ${appNames(all) || 'none yet'}. Which one is it for?`,
+      { draft: null, apps: all.map((p) => ({ id: p.id, name: p.name, platform: p.platform })) });
+  }
+  const project = await findApp(a.app, deps);
+  const id = createHash('sha256').update(`${member.email}${deps.now()}${Math.random()}`).digest('hex').slice(0, 24);
+  await deps.store.putAuth({
+    kind: 'draft', id, expires_at: new Date(deps.now() + DRAFT_TTL_MS).toISOString(),
+    data: { email: member.email, project_id: project.id, type: a.type, text, details, via },
+  });
+  const others = all.filter((p) => p.id !== project.id);
+  return result([
+    `Draft, not sent yet. App: ${project.name} (${project.platform}). Type: ${a.type}.`,
+    `Text: ${text}`,
+    details ? `Details: ${details}` : null,
+    others.length ? `Other apps it could go to instead: ${appNames(others)}.` : null,
+    `send_draft with draft_id ${id} sends it${others.length ? ' (with app set to send it elsewhere)' : ''}. Drafts last two hours.`,
+  ].filter(Boolean).join('\n'), {
+    draft_id: id, sent: false, app: project.name, type: a.type, text, details,
+    other_apps: others.map((p) => ({ id: p.id, name: p.name, platform: p.platform })),
+  });
+}
+
+async function sendDraft(a: Record<string, unknown>, member: Member, req: Req, deps: Deps) {
+  const id = str(a.draft_id, 64);
+  const d = id ? await deps.store.getAuth('draft', id) : null;
+  if (!d || String(d.data.email).toLowerCase() !== member.email.toLowerCase() || Date.parse(d.expires_at ?? '') < deps.now()) {
+    throw new ToolError('That draft doesn\'t exist, has expired or was already sent. Make a new one with draft_request.');
+  }
+  const project = a.app ? await findApp(a.app, deps) : await deps.store.getProject(String(d.data.project_id));
+  if (!project) throw new ToolError('The draft\'s app was deleted. Name another app.');
+  // Once only, however many times it's called.
+  if (!(await deps.store.takeAuth('draft', id!))) throw new ToolError('That draft was already sent.');
+  return createChatReport(project, d.data.type as Report['type'], String(d.data.text), (d.data.details as string | null) ?? null,
+    member, String(d.data.via ?? 'a chat app'), req, deps);
+}
+
+async function createChatReport(project: Project, type: Report['type'], text: string, details: string | null,
+  member: Member, via: string, req: Req, deps: Deps) {
   const now = deps.now();
   for (const l of CHAT_LIMITS) {
     const start = Math.floor(now / l.windowMs) * l.windowMs;
@@ -179,7 +243,7 @@ async function sendRequest(a: Record<string, unknown>, member: Member, via: stri
   const at = new Date(now).toISOString();
   const report: Report = {
     id: `r_${createHash('sha256').update(`${member.email}${now}${Math.random()}`).digest('base64url').slice(0, 16)}`,
-    project_id: project.id, device_id: chatDevice(member.email), type: a.type, text,
+    project_id: project.id, device_id: chatDevice(member.email), type, text,
     source: 'chat', from_member: member.email, via: str(via, 80), details,
     context: {
       route: null, app_version: null, platform: 'chat', os: null, browser: null,

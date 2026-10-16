@@ -73,6 +73,13 @@ async function addApp(s: ReturnType<typeof setup>, name = 'Greenroom') {
 const rpc = (s: ReturnType<typeof setup>, token: string | null, method: string, params?: unknown, id: unknown = 1) =>
   s.call({ method: 'POST', path: '/v1/mcp', headers: token ? { authorization: `Bearer ${token}` } : {}, body: { jsonrpc: '2.0', id, method, params } });
 
+/** Draft, then send: what a chat app does once the person has seen the preview. */
+async function send(s: ReturnType<typeof setup>, token: string, args: Record<string, unknown>) {
+  const draft = ((await rpc(s, token, 'tools/call', { name: 'draft_request', arguments: args })).body as { result: { isError?: boolean; content: { text: string }[]; structuredContent?: { draft_id: string } } }).result;
+  if (draft.isError || !draft.structuredContent?.draft_id) return draft;
+  return ((await rpc(s, token, 'tools/call', { name: 'send_draft', arguments: { draft_id: draft.structuredContent.draft_id } })).body as { result: { isError?: boolean; content: { text: string }[]; structuredContent: { id: string; status: string } } }).result;
+}
+
 test('a chat app with no sign-in is told where to sign in', async () => {
   const s = setup();
   const r = await rpc(s, null, 'initialize', { protocolVersion: '2025-06-18' });
@@ -87,19 +94,19 @@ test('connect, then send an idea with the conversation\'s context: it waits in t
   const { access_token } = await connect(s, 'bob');
   const init = (await rpc(s, access_token, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'chatgpt', version: '1' } })).body as { result: { protocolVersion: string; instructions: string } };
   assert.equal(init.result.protocolVersion, '2025-06-18');
-  assert.match(init.result.instructions, /send_request/);
+  assert.match(init.result.instructions, /draft_request prepares one and returns a preview/);
   assert.equal((await s.call({ method: 'POST', path: '/v1/mcp', headers: { authorization: `Bearer ${access_token}` }, body: { jsonrpc: '2.0', method: 'notifications/initialized' } })).status, 202);
   const tools = ((await rpc(s, access_token, 'tools/list')).body as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
-  assert.deepEqual(tools, ['list_apps', 'send_request', 'my_requests'], 'nothing that reads others\' reports, accepts, declines or fixes');
+  assert.deepEqual(tools, ['list_apps', 'draft_request', 'send_draft', 'my_requests'], 'nothing that reads others\' reports, accepts, declines or fixes');
 
   const raw = await rpc(s, access_token, 'tools/call', { name: 'list_apps', arguments: {} });
   const listed = (raw.body as { result: { structuredContent: { apps: { name: string }[] } } }).result;
   assert.deepEqual(listed.structuredContent.apps.map((a) => a.name), ['Greenroom']);
 
-  const sent = (await rpc(s, access_token, 'tools/call', { name: 'send_request', arguments: {
+  const sent = { result: await send(s, access_token, {
     app: 'greenroom', type: 'idea', text: 'Show a countdown to the next meeting in the menu bar.',
     details: 'Came up while planning the week. Considered a notification instead, ruled out: too noisy. Should respect Focus.',
-  } })).body as { result: { content: { text: string }[]; structuredContent: { id: string; status: string } } };
+  }) as { content: { text: string }[]; structuredContent: { id: string; status: string } } };
   assert.equal(sent.result.structuredContent.status, 'open');
   assert.match(sent.result.content[0]!.text, /waits in the inbox until someone on the team accepts it/);
   const r = s.store.reports.get(sent.result.structuredContent.id)!;
@@ -133,7 +140,7 @@ test('bad arguments come back as tool errors the assistant can read', async () =
   const s = setup();
   await addApp(s);
   const { access_token } = await connect(s);
-  const call = async (args: Record<string, unknown>) => ((await rpc(s, access_token, 'tools/call', { name: 'send_request', arguments: args })).body as { result: { isError?: boolean; content: { text: string }[] } }).result;
+  const call = async (args: Record<string, unknown>) => ((await rpc(s, access_token, 'tools/call', { name: 'draft_request', arguments: args })).body as { result: { isError?: boolean; content: { text: string }[] } }).result;
   assert.match((await call({ app: 'Nope', type: 'idea', text: 'x' })).content[0]!.text, /No app called "Nope". The apps are: Greenroom/);
   assert.match((await call({ app: 'Greenroom', type: 'urgent', text: 'x' })).content[0]!.text, /type must be one of broken, confusing, improvement, idea/, 'never a priority');
   assert.equal((await call({ app: 'Greenroom', type: 'idea', text: '  ' })).isError, true);
@@ -211,7 +218,7 @@ test('a member\'s chat requests are rate limited per member, not per network', a
   const { access_token } = await connect(s);
   let last: { isError?: boolean } = {};
   for (let i = 0; i < 61; i++) {
-    last = ((await rpc(s, access_token, 'tools/call', { name: 'send_request', arguments: { app: 'Greenroom', type: 'idea', text: `Idea ${i}` } })).body as { result: { isError?: boolean } }).result;
+    last = await send(s, access_token, { app: 'Greenroom', type: 'idea', text: `Idea ${i}` });
   }
   assert.equal(last.isError, true);
   assert.equal([...s.store.reports.values()].length, 60);
@@ -227,7 +234,7 @@ test('a chat token, for chat apps that can\'t sign in with OAuth: same tools, as
   assert.equal(mcp_url, `${BASE}/v1/mcp`);
   assert.ok(!JSON.stringify(s.store.auth.get(`grant:${id}`)).includes(token.split('_')[2]!), 'stored hashed');
 
-  const sent = ((await rpc(s, token, 'tools/call', { name: 'send_request', arguments: { app: 'Greenroom', type: 'idea', text: 'From the bridge', details: 'Phone chat' } })).body as { result: { structuredContent: { id: string } } }).result;
+  const sent = await send(s, token, { app: 'Greenroom', type: 'idea', text: 'From the bridge', details: 'Phone chat' }) as { structuredContent: { id: string } };
   const r = s.store.reports.get(sent.structuredContent.id)!;
   assert.equal(r.from_member, 'bob@example.com');
   assert.equal(r.via, 'ChatGPT');
@@ -239,4 +246,41 @@ test('a chat token, for chat apps that can\'t sign in with OAuth: same tools, as
   await s.call({ method: 'DELETE', path: `/v1/chat-connections/${id}`, headers: s.as('bob') });
   assert.equal((await rpc(s, token, 'ping')).status, 401, 'revoked');
   assert.equal((await s.call({ method: 'POST', path: '/v1/chat-connections', headers: {}, body: { name: 'x' } })).status, 401, 'only a signed-in member makes one');
+});
+
+test('nothing is sent without a second step: a draft names the app and the others, and can be sent elsewhere', async () => {
+  const s = setup();
+  await addApp(s, 'Greenroom');
+  await addApp(s, 'RasanAI');
+  const { access_token } = await connect(s);
+  const call = async (name: string, args: Record<string, unknown>) => ((await rpc(s, access_token, 'tools/call', { name, arguments: args })).body as { result: { isError?: boolean; content: { text: string }[]; structuredContent: Record<string, unknown> } }).result;
+
+  const noApp = await call('draft_request', { type: 'idea', text: 'A dark mode' });
+  assert.match(noApp.content[0]!.text, /No app named, so no draft yet\. The apps on this Heresay: Greenroom \(web\), RasanAI \(web\)\. Which one is it for\?/);
+  assert.equal(s.store.reports.size, 0);
+
+  const d = await call('draft_request', { app: 'Greenroom', type: 'idea', text: 'A dark mode', details: 'Night use' });
+  assert.match(d.content[0]!.text, /^Draft, not sent yet\. App: Greenroom \(web\)\. Type: idea\./);
+  assert.match(d.content[0]!.text, /Other apps it could go to instead: RasanAI \(web\)\./);
+  assert.equal(s.store.reports.size, 0, 'a draft is not a report');
+
+  // The old tool name drafts too, so an older bridge never sends unseen.
+  const old = await call('send_request', { app: 'Greenroom', type: 'idea', text: 'Old bridge' });
+  assert.equal(old.structuredContent.sent, false);
+  assert.equal(s.store.reports.size, 0);
+
+  const sent = await call('send_draft', { draft_id: d.structuredContent.draft_id, app: 'RasanAI' });
+  const r = s.store.reports.get(sent.structuredContent.id as string)!;
+  assert.equal(r.project_id, [...s.store.projects.values()].find((p) => p.name === 'RasanAI')!.id, 'sent where the person said');
+  assert.equal(r.details, 'Night use');
+  assert.match((await call('send_draft', { draft_id: d.structuredContent.draft_id })).content[0]!.text, /already sent/, 'once');
+
+  // Someone else's draft can't be sent, and drafts expire.
+  const other = await connect(s, 'bob');
+  const mine = await call('draft_request', { app: 'Greenroom', type: 'idea', text: 'Mine' });
+  const theirs = ((await rpc(s, other.access_token, 'tools/call', { name: 'send_draft', arguments: { draft_id: mine.structuredContent.draft_id } })).body as { result: { isError?: boolean } }).result;
+  assert.equal(theirs.isError, true);
+  s.tick(3 * 3600_000);
+  const later = await connect(s);
+  assert.equal(((await rpc(s, later.access_token, 'tools/call', { name: 'send_draft', arguments: { draft_id: mine.structuredContent.draft_id } })).body as { result: { isError?: boolean } }).result.isError, true, 'two hours');
 });

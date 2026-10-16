@@ -18,7 +18,7 @@ Date: 2026-10-16
   ten minutes, access tokens for an hour, refresh tokens rotated on every use. The "Allow?" page
   is the dashboard (`#/authorize`), so it's the team's normal sign-in. Removing someone from the
   team, or disconnecting under **Chat apps**, stops their chat app on its next call.
-- **Three tools, nothing more:** `list_apps`, `send_request` (app, type, text, details) and
+- **Four tools, nothing more** (three before 2026-10-16): `list_apps`, `draft_request` and `send_draft` (app, type, text, details; see below) and
   `my_requests`. A chat app can't read anyone else's reports, accept, decline, fix or note
   anything. Agent tokens (`agent.ts`) are unchanged and separate.
 - **A chat request is a report like any other.** Status open, in the same inbox, sorted by the
@@ -41,6 +41,17 @@ Date: 2026-10-16
   leaves the team. No refresh, no expiry: it's a connection the member manages by hand.
 - **The bridge holds only that token.** Not an agent token (which can claim and mark briefs
   fixed), and no allowed-sites entry: it never uses the public report endpoint.
+
+## Draft, then send (2026-10-16)
+
+- **Sending takes two tool calls.** In use, ChatGPT sent straight away and picked an app itself
+  (Greenroom) when the person hadn't named one. Telling the model to ask doesn't hold, and
+  ChatGPT flags tool text that prescribes when to ask. So the tools do it: `draft_request`
+  returns a preview (the app, the type, the text, the other apps) and sends nothing; without an
+  app it lists them and asks which. `send_draft` sends it, optionally to another app. Drafts are
+  the member's own, last two hours, and send once.
+- `send_request`, the old name, now drafts too, so a bridge that still calls it never sends
+  unseen.
 
 ## The exception to "origin-checked"
 
