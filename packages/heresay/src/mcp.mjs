@@ -159,6 +159,29 @@ export async function serve() {
     inputSchema: { id: z.string().describe('The update id from whats_new') },
   }, tool(async ({ id }) => text(skipUpdate(id))));
 
+  // ---- findings: what the agent noticed while working --------------------------------------
+
+  server.registerTool('file_finding', {
+    title: 'File a finding in Heresay',
+    description: 'Something you noticed in this repo\'s app while working on something else: a bug, a risk, dead code, a confusing '
+      + 'flow, an improvement or an idea. It goes to the team\'s Heresay inbox as from an agent in this repo and waits for a person '
+      + 'to accept it; it does not become work by itself. Use it instead of fixing things outside your task. The same text again '
+      + 'returns the one already open.',
+    inputSchema: {
+      app: z.string().optional().describe('App id or name from list_apps; optional when the repo has one app'),
+      type: z.enum(['broken', 'confusing', 'improvement', 'idea']).describe('broken: doesn\'t work. confusing: works, people can\'t tell how. improvement: works, could be better. idea: doesn\'t exist yet.'),
+      text: z.string().describe('What you found, in a few plain sentences, as a teammate would read it'),
+      details: z.string().optional().describe('How you found it, why it matters, what a fix might look like. Markdown.'),
+      files: z.array(z.string()).optional().describe('Where in the code, as repo-relative paths, optionally path:line'),
+      agent: z.string().optional().describe('Which agent you are, e.g. "Claude Code", "Codex", "Cursor"'),
+    },
+  }, tool(async (a) => text(await api().file(a))));
+
+  server.registerTool('my_findings', {
+    title: 'Findings this repo filed',
+    description: 'What happened to the findings agents in this repo filed: open, accepted, fixed (with the note) or declined (with the reason).',
+  }, tool(async () => text(await api().findings())));
+
   server.registerTool('mark_fixed', {
     title: 'Mark a brief fixed',
     description: 'The reporter sees "Fixed" and your note in the app. Write the note for them (see heresay_guide write-note).',

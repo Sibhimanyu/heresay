@@ -21,8 +21,8 @@ The token stays in `~/.heresay/connections.json`, never in the repo. Then ask yo
 ## What the agent can do
 
 MCP tools: `heresay_guide`, `list_apps`, `create_app`, `install_guide`, `check_install`,
-`list_briefs`, `get_brief`, `claim_brief`, `add_note`, `handoff`, `mark_fixed`, `whats_new`,
-`skip_update`.
+`list_briefs`, `get_brief`, `claim_brief`, `add_note`, `handoff`, `mark_fixed`, `file_finding`,
+`my_findings`, `whats_new`, `skip_update`.
 
 It sees accepted reports for this repo's apps only. It can't see open reports, and it can't
 accept or decline: people do that. Report text always arrives fenced as a user's description,

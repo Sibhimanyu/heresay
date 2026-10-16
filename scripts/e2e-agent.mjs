@@ -165,6 +165,23 @@ await assert.rejects(call('mark_fixed', { id: r.id, note: '' }), /note/);
 await call('mark_fixed', { id: r.id, note: 'Export now downloads your notes as a CSV.' });
 assert.deepEqual((await call('list_briefs')).briefs, []);
 
+step('while working, the agent files what it noticed; it waits for a person, then becomes a brief');
+assert.ok(tools.includes('file_finding') && tools.includes('my_findings'));
+const filed = await call('file_finding', { type: 'broken', agent: 'Claude Code',
+  text: 'Deleting a note leaves its attachments in storage.', details: 'Seen while fixing export. `deleteNote()` never calls `removeFiles()`.',
+  files: ['src/notes.ts:118'] });
+assert.equal(filed.finding.status, 'open');
+assert.deepEqual((await call('list_briefs')).briefs.map((b) => b.id), [], 'not work until a person accepts it');
+const inbox = await person('GET', `/projects/${app.id}/reports`);
+const asReport = inbox.body.reports.find((x) => x.id === filed.finding.id);
+assert.equal(asReport.source, 'agent');
+assert.equal(asReport.from_repo, repoName);
+assert.deepEqual(asReport.files, [{ path: 'src/notes.ts', line: 118 }]);
+assert.equal((await person('POST', `/projects/${app.id}/reports/${filed.finding.id}/accept`)).status, 200);
+assert.ok((await call('list_briefs')).briefs.some((b) => b.id === filed.finding.id));
+assert.match(await call('get_brief', { id: filed.finding.id }), /A coding agent \(Claude Code\) working in .* found this in Notes while doing something else/);
+assert.deepEqual((await call('my_findings')).findings.map((f) => f.status), ['accepted']);
+
 step('the reporter reads the fix note in the app');
 const mine = await (await fetch(`${BASE}/v1/reports/mine`, { method: 'POST', headers: { 'content-type': 'text/plain', origin: 'http://localhost:3000' },
   body: JSON.stringify({ key: app.key, device_id: device }) })).json();
@@ -202,7 +219,10 @@ assert.deepEqual(JSON.parse(await heresayCli('updates')).updates, [], 'skipped f
 step('the same actions work without MCP, through the CLI');
 const cli = (...a) => execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs'), ...a], { cwd: dir, env }).toString();
 assert.match(cli('guide', 'write-note'), /The fix note/);
-assert.equal(JSON.parse(cli('briefs')).briefs.length, 0);
+const viaCli = JSON.parse(cli('file', 'idea', 'Search could also match note titles.', '--file', 'src/search.ts:12'));
+assert.equal(viaCli.finding.status, 'open');
+assert.match(cli('guide', 'fix-brief'), /Noticed something else\?/);
+assert.deepEqual(JSON.parse(cli('briefs')).briefs.map((b) => b.id), [filed.finding.id], 'the accepted finding, and nothing filed but not accepted');
 
 step('disconnect takes the agent files back out, and leaves the app code alone');
 const bye = execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs'), 'disconnect', '--yes'], { cwd: dir, env }).toString();

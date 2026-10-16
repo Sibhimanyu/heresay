@@ -34,8 +34,8 @@ const INSTRUCTIONS = [
   'Sending takes two steps. draft_request prepares one and returns a preview (the app, the type, the text, and the other',
   'apps); nothing is sent. send_draft sends a draft, to the app in the preview or to another one. `text` is the request as',
   'a teammate would read it; `details` is what the conversation worked out (why it matters, what was considered or ruled',
-  'out, examples, constraints, open questions); both may be Markdown. `document` attaches a longer Markdown write-up (a spec,',
-  'a summary of the whole conversation), up to 100,000 characters. A sent request stays open until someone on the team accepts it; sending',
+  'out, examples, constraints, open questions); both may be Markdown. `document` attaches a Markdown (.md) file, its full',
+  'contents as text (a spec, a research handoff, a summary of the whole conversation), up to 100,000 characters. A sent request stays open until someone on the team accepts it; sending',
   'does not start any work. my_requests says what happened to the ones this member sent.',
 ].join(' ');
 
@@ -54,7 +54,8 @@ const TOOLS = [
     name: 'draft_request',
     title: 'Draft a Heresay request',
     description: 'Prepares a bug, a confusing part, an improvement or an idea for one app\'s Heresay inbox and returns a preview: '
-      + 'the app it would go to, its type and text, and the other apps. Nothing is sent. Without an app it returns the list of apps.',
+      + 'the app it would go to, its type and text, and the other apps. Nothing is sent. Without an app it returns the list of apps. '
+      + 'A Markdown (.md) file can be attached with `document` (its full contents).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -62,8 +63,8 @@ const TOOLS = [
         type: { type: 'string', enum: [...REPORT_TYPES], description: 'broken: doesn\'t work. confusing: works, but people can\'t tell how. improvement: works, could be better. idea: doesn\'t exist yet.' },
         text: { type: 'string', maxLength: LIMITS.textMax, description: 'The request in a few plain sentences, as a teammate would read it.' },
         details: { type: 'string', maxLength: LIMITS.detailsMax, description: 'Context from the conversation: why, what was considered or ruled out, examples, constraints, open questions. Markdown.' },
-        document: { type: 'string', maxLength: LIMITS.documentMax, description: 'A longer Markdown document attached to the request: a spec, a write-up of the conversation, notes. Optional.' },
-        document_title: { type: 'string', maxLength: LIMITS.documentTitleMax, description: 'The attached document\'s title.' },
+        document: { type: 'string', maxLength: LIMITS.documentMax, description: 'Attach a Markdown (.md) file to the request: the file\'s full contents as text, up to 100,000 characters (about 15,000 words). For a spec, a research handoff, or a write-up of the whole conversation. Optional.' },
+        document_title: { type: 'string', maxLength: LIMITS.documentTitleMax, description: 'The attached file\'s name or title, e.g. "RasanAI_Creative_Research_Handoff.md".' },
       },
       required: ['type', 'text'],
       additionalProperties: false,

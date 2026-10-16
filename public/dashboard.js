@@ -1569,18 +1569,27 @@
         el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
         showPlatform ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
         r.source === 'chat' ? el('span', { class: 'pill chat-pill', text: 'From ' + (r.via || 'a chat app') }) : null,
+        r.source === 'agent' ? el('span', { class: 'pill agent-pill', text: 'From an agent' }) : null,
         el('time', { datetime: r.created_at, text: new Date(r.created_at).toLocaleString() }),
         status,
       ]),
-      r.source === 'chat' ? markdown(r.text) : el('p', { class: 'text', text: r.text }),
+      // The team's chat apps and connected agents write Markdown; reports from the public stay plain text.
+      r.source === 'chat' || r.source === 'agent' ? markdown(r.text) : el('p', { class: 'text', text: r.text }),
+      r.source === 'agent' ? el('div', { class: 'ctx', text: 'Found by ' + (r.via || 'an agent') + ' in ' + (r.from_repo || 'a connected repo') + ', while working on something else' }) : null,
+      r.source === 'agent' && r.files && r.files.length ? el('ul', { class: 'files' }, r.files.map(function (f) {
+        var label = f.path + (f.line ? ':' + f.line : '');
+        // github.com repos get a link to the file; anything else is shown as text.
+        var gh = /^github\.com\/[\w.-]+\/[\w.-]+$/.test(r.from_repo || '') ? 'https://' + r.from_repo + '/blob/HEAD/' + f.path.split('/').map(encodeURIComponent).join('/') + (f.line ? '#L' + f.line : '') : null;
+        return el('li', {}, [gh ? el('a', { href: gh, target: '_blank', rel: 'noopener noreferrer', text: label }) : el('code', { text: label })]);
+      })) : null,
       r.source === 'chat' ? el('div', { class: 'ctx', text: 'From the team: ' + (r.from_member || 'a team member') + ', in a conversation in ' + (r.via || 'a chat app') }) : null,
       r.details ? el('details', { class: 'chat-details', open: true }, [el('summary', { text: 'From the conversation' }), markdown(r.details)]) : null,
       r.document ? el('details', { class: 'chat-details chat-doc' }, [
         el('summary', { text: 'Attached document' + (r.document.title ? ': ' + r.document.title : '') + ' · ' + (r.document.markdown.length < 1000 ? r.document.markdown.length + ' characters' : Math.round(r.document.markdown.length / 1000) + 'k characters') }),
         markdown(r.document.markdown),
       ]) : null,
-      r.source === 'chat' ? null : el('div', { class: 'ctx', text: ctxLine(r.context) }),
-      r.source !== 'chat' && deviceLine(r.context) ? el('div', { class: 'ctx', text: deviceLine(r.context) }) : null,
+      r.source === 'chat' || r.source === 'agent' ? null : el('div', { class: 'ctx', text: ctxLine(r.context) }),
+      r.source !== 'chat' && r.source !== 'agent' && deviceLine(r.context) ? el('div', { class: 'ctx', text: deviceLine(r.context) }) : null,
       r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
       reporterLine(r.context, r.reporter),
       trailView(r.trail),

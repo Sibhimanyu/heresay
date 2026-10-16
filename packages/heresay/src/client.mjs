@@ -102,12 +102,14 @@ export function client(conn) {
     note: (id, note) => call('POST', `/briefs/${enc(id)}/notes`, { note }),
     handoff: (id, repo, note) => call('POST', `/briefs/${enc(id)}/handoff`, { repo, note }),
     fixed: (id, note) => call('POST', `/briefs/${enc(id)}/fixed`, { note }),
+    file: (f) => call('POST', '/findings', f),
+    findings: () => call('GET', '/findings'),
   };
 }
 
 // ---- guides, fetched from the Heresay itself ----------------------------------------------
 
-export const SKILL_VERSION = 6;
+export const SKILL_VERSION = 7;
 
 /** The bootstrap skill version installed in this repo, or null. */
 export function repoSkillVersion(root) {
