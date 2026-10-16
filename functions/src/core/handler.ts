@@ -178,6 +178,7 @@ export function agentPrompt(project: Project, t: Task): string {
     fence,
     t.text.replaceAll(fence, "''"),
     ...(t.details ? ['', 'Context from the conversation:', t.details.replaceAll(fence, "''")] : []),
+    ...(t.document ? ['', `Attached document${t.document.title ? ` "${t.document.title.replaceAll(fence, "''")}"` : ''} (Markdown):`, t.document.markdown.replaceAll(fence, "''")] : []),
     ...(t.reporter_note ? ['', `About their setup: ${t.reporter_note.replaceAll(fence, "''")}`] : []),
     ...(worst ? ['', `Last thing that went wrong, ${duration(worst.ago)} before ${worst.run === 'last' ? 'the previous run ended' : 'they sent it'}: ${worst.text.replaceAll(fence, "''")}`] : []),
     ...(t.trail?.length ? ['', 'What happened in the app before they sent it, recorded by the SDK on their device (oldest first):',
@@ -594,7 +595,7 @@ async function triage(
       id: report.id, project_id: project.id, report_id: report.id, type: report.type,
       text: report.text, context: report.context, reporter_note: report.reporter?.note ?? null,
       trail: report.trail ?? null,
-      ...(report.source === 'chat' ? { source: 'chat' as const, from_member: report.from_member ?? null, via: report.via ?? null, details: report.details ?? null } : {}),
+      ...(report.source === 'chat' ? { source: 'chat' as const, from_member: report.from_member ?? null, via: report.via ?? null, details: report.details ?? null, document: report.document ?? null } : {}),
       note: str(body.note, LIMITS.reasonMax),
       accepted_by: uid, accepted_at: at, repo: asked ?? repos[0] ?? null, claim: null, notes: [],
     };

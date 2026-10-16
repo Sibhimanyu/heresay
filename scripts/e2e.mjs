@@ -758,6 +758,30 @@ try {
     body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name, arguments: args } }) })).json()).result;
   const tokenDraft = await viaTokenCall('draft_request', { app: 'Acme Notes', type: 'improvement', text: 'Sent through a bridge with a chat token.' });
   assert.equal((await viaTokenCall('send_draft', { draft_id: tokenDraft.structuredContent.draft_id })).structuredContent.status, 'open');
+
+  // Markdown from a chat app is shown formatted, and stays inert: no HTML, no script links.
+  const mdDraft = await viaTokenCall('draft_request', { app: 'Acme Notes', type: 'idea',
+    text: 'Pin notes with a **keyboard shortcut**, see [the spec](https://example.com/spec).',
+    details: '## Why\n\n- reaching for the mouse breaks flow\n- `Cmd+K` was the favourite\n\n> keep it discoverable\n\n<img src=x onerror="window.__pwned=1">\n\n[click me](javascript:window.__pwned=2)',
+    document: '# Pinning spec\n\n| Key | Action |\n| --- | --- |\n| Cmd+K | Pin |\n\n```js\nconst pinned = true;\n```\n\n1. First\n2. Second\n   - nested',
+    document_title: 'Pinning spec' });
+  await viaTokenCall('send_draft', { draft_id: mdDraft.structuredContent.draft_id });
+  await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  const mdCard = dash.locator('article.report', { hasText: 'Pin notes with a' });
+  await mdCard.locator('.md strong', { hasText: 'keyboard shortcut' }).waitFor();
+  assert.equal(await mdCard.locator('.md a[href="https://example.com/spec"]').count(), 1);
+  assert.equal(await mdCard.locator('.chat-details:not(.chat-doc) .md h4', { hasText: 'Why' }).count(), 1, '## becomes a small heading');
+  assert.equal(await mdCard.locator('.chat-details:not(.chat-doc) .md li').count(), 2);
+  assert.equal(await mdCard.locator('.chat-details:not(.chat-doc) .md code', { hasText: 'Cmd+K' }).count(), 1);
+  assert.equal(await mdCard.locator('img').count(), 0, 'HTML stays text');
+  assert.equal(await mdCard.locator('a[href^="javascript"]').count(), 0, 'no script links');
+  assert.equal(await dash.evaluate(() => window.__pwned), undefined);
+  await mdCard.locator('summary', { hasText: 'Attached document: Pinning spec' }).click();
+  await mdCard.locator('.chat-doc table td', { hasText: 'Cmd+K' }).waitFor();
+  assert.equal(await mdCard.locator('.chat-doc pre.md-code', { hasText: 'const pinned = true;' }).count(), 1);
+  assert.equal(await mdCard.locator('.chat-doc ol > li > ul > li', { hasText: 'nested' }).count(), 1);
+  await mdCard.screenshot({ path: `${SHOTS}e2e-10e-chat-markdown.png` });
+  await dash.goto(`${BASE}/app/#/chat`);
   await dash.reload();
   await dash.locator('.members li', { hasText: 'Chat token' }).getByRole('button', { name: 'Disconnect' }).click();
   await dash.getByText('None yet.').waitFor();

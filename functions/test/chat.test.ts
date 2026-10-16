@@ -284,3 +284,26 @@ test('nothing is sent without a second step: a draft names the app and the other
   const later = await connect(s);
   assert.equal(((await rpc(s, later.access_token, 'tools/call', { name: 'send_draft', arguments: { draft_id: mine.structuredContent.draft_id } })).body as { result: { isError?: boolean } }).result.isError, true, 'two hours');
 });
+
+test('a Markdown document goes with a request: previewed by size, kept whole, fenced for an agent, refused when too long', async () => {
+  const s = setup();
+  const app = await addApp(s);
+  const { access_token } = await connect(s);
+  const call = async (name: string, args: Record<string, unknown>) => ((await rpc(s, access_token, 'tools/call', { name, arguments: args })).body as { result: { isError?: boolean; content: { text: string }[]; structuredContent: Record<string, unknown> } }).result;
+  const md = '# Meeting countdown\n\n## Why\n\n- deep work vs calls\n- `Focus` mode\n\n```swift\nlet t = 5\n```\n\nEnds with """ and more.';
+  const d = await call('draft_request', { app: 'Greenroom', type: 'idea', text: 'A countdown', details: '**Why**: flow', document: md, document_title: 'Countdown spec' });
+  assert.match(d.content[0]!.text, /Attached document: "Countdown spec", \d+ characters of Markdown\./);
+  assert.ok(!d.content[0]!.text.includes('let t = 5'), 'the preview gives its size, not all of it');
+  const sent = await call('send_draft', { draft_id: d.structuredContent.draft_id });
+  const r = s.store.reports.get(sent.structuredContent.id as string)!;
+  assert.deepEqual(r.document, { title: 'Countdown spec', markdown: md });
+
+  const base = `/v1/projects/${app.id}/reports/${r.id}`;
+  await s.call({ method: 'POST', path: `${base}/accept`, headers: s.as('alice') });
+  const prompt = ((await s.call({ path: `${base}/prompt`, headers: s.as('alice') })).body as { prompt: string }).prompt;
+  assert.match(prompt, /Attached document "Countdown spec" \(Markdown\):\n# Meeting countdown/);
+  assert.equal(prompt.split('"""').length, 3, 'the document cannot close the fence');
+
+  const big = await call('draft_request', { app: 'Greenroom', type: 'idea', text: 'Big', document: 'x'.repeat(100_001) });
+  assert.match(big.content[0]!.text, /the limit is 100000/);
+});

@@ -53,6 +53,18 @@ Date: 2026-10-16
 - `send_request`, the old name, now drafts too, so a bridge that still calls it never sends
   unseen.
 
+## Markdown and attached documents (2026-10-16)
+
+- **Chat requests are shown as Markdown on the dashboard:** the text, the conversation's context
+  and an attached document. The renderer (`markdown()` in `dashboard.js`) builds DOM nodes and
+  sets only text, never HTML: raw HTML in a request shows as text, links are http(s) or mailto
+  only and open with `noopener noreferrer nofollow`, headings start at h3. Reports from the
+  public stay plain text, so a stranger can't put formatted links in the inbox.
+- **`document` on `draft_request`:** a Markdown write-up (a spec, a summary of the whole
+  conversation), up to 100,000 characters, with an optional title. Refused when longer rather
+  than cut, so its end isn't silently lost. The preview gives its size, not its text. Stored on
+  the report and copied to the task; the agent prompt has it inside the fence.
+
 ## The exception to "origin-checked"
 
 CLAUDE.md says public endpoints are rate-limited and origin-checked. The OAuth endpoints and

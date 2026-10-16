@@ -1572,9 +1572,13 @@
         el('time', { datetime: r.created_at, text: new Date(r.created_at).toLocaleString() }),
         status,
       ]),
-      el('p', { class: 'text', text: r.text }),
+      r.source === 'chat' ? markdown(r.text) : el('p', { class: 'text', text: r.text }),
       r.source === 'chat' ? el('div', { class: 'ctx', text: 'From the team: ' + (r.from_member || 'a team member') + ', in a conversation in ' + (r.via || 'a chat app') }) : null,
-      r.details ? el('details', { class: 'chat-details', open: true }, [el('summary', { text: 'From the conversation' }), el('p', { text: r.details })]) : null,
+      r.details ? el('details', { class: 'chat-details', open: true }, [el('summary', { text: 'From the conversation' }), markdown(r.details)]) : null,
+      r.document ? el('details', { class: 'chat-details chat-doc' }, [
+        el('summary', { text: 'Attached document' + (r.document.title ? ': ' + r.document.title : '') + ' · ' + (r.document.markdown.length < 1000 ? r.document.markdown.length + ' characters' : Math.round(r.document.markdown.length / 1000) + 'k characters') }),
+        markdown(r.document.markdown),
+      ]) : null,
       r.source === 'chat' ? null : el('div', { class: 'ctx', text: ctxLine(r.context) }),
       r.source !== 'chat' && deviceLine(r.context) ? el('div', { class: 'ctx', text: deviceLine(r.context) }) : null,
       r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
@@ -1983,6 +1987,127 @@
       el('div', { class: 'test-head' }, [el('span', { class: 'stepnum', text: String(n) }), el('b', { text: title })]),
       el('div', { class: 'setup-body' }, kids),
     ]);
+  }
+
+  // ---- Markdown, for what team members send from chat apps -------------------------------
+
+  /**
+   * A small Markdown renderer: headings, paragraphs, lists (nested by indent), quotes, code
+   * blocks, tables, rules, and inline code, bold, italic, strikethrough and links. It builds
+   * DOM nodes and sets only text, never HTML, so nothing in a request can run or restyle the
+   * page. Links are http(s) or mailto only, and open in a new tab. Used for chat requests from
+   * the team; reports from the public stay plain text.
+   */
+  function markdown(src) {
+    var root = el('div', { class: 'md' });
+    var lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
+    var i = 0;
+    var isBlank = function (l) { return !l.trim(); };
+    var startsBlock = function (l) {
+      return /^\s{0,3}(#{1,6}\s|```|~~~|>|[-*+]\s|\d+[.)]\s|(-{3,}|\*{3,}|_{3,})\s*$|\|)/.test(l);
+    };
+    while (i < lines.length) {
+      var line = lines[i];
+      if (isBlank(line)) { i++; continue; }
+      var m;
+      if ((m = /^\s{0,3}(```|~~~)\s*([\w+-]*)\s*$/.exec(line))) {
+        var fence = m[1], code = [];
+        i++;
+        while (i < lines.length && !new RegExp('^\\s{0,3}' + fence + '\\s*$').test(lines[i])) code.push(lines[i++]);
+        i++;
+        root.appendChild(el('pre', { class: 'md-code' }, [el('code', { text: code.join('\n'), 'data-lang': m[2] || null })]));
+        continue;
+      }
+      if ((m = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line))) {
+        // Shifted down two levels, so a request's "#" never outranks the dashboard's own headings.
+        root.appendChild(inline(el('h' + Math.min(6, m[1].length + 2), {}), m[2]));
+        i++;
+        continue;
+      }
+      if (/^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { root.appendChild(el('hr')); i++; continue; }
+      if (/^\s{0,3}>/.test(line)) {
+        var quote = [];
+        while (i < lines.length && /^\s{0,3}>/.test(lines[i])) quote.push(lines[i++].replace(/^\s{0,3}>\s?/, ''));
+        root.appendChild(el('blockquote', {}, [markdown(quote.join('\n'))]));
+        continue;
+      }
+      if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
+        var cells = function (l) { return l.trim().replace(/^\||\|$/g, '').split('|').map(function (c) { return c.trim(); }); };
+        var head = cells(line), body = [];
+        i += 2;
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) body.push(cells(lines[i++]));
+        root.appendChild(el('div', { class: 'md-table' }, [el('table', {}, [
+          el('thead', {}, [el('tr', {}, head.map(function (c) { return inline(el('th'), c); }))]),
+          el('tbody', {}, body.map(function (r) { return el('tr', {}, r.map(function (c) { return inline(el('td'), c); })); })),
+        ])]));
+        continue;
+      }
+      if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) {
+        var block = [];
+        while (i < lines.length && (/^\s*([-*+]|\d+[.)])\s+/.test(lines[i]) || (/^\s{2,}\S/.test(lines[i]) && block.length))) block.push(lines[i++]);
+        root.appendChild(list(block));
+        continue;
+      }
+      var para = [line];
+      i++;
+      while (i < lines.length && !isBlank(lines[i]) && !startsBlock(lines[i])) para.push(lines[i++]);
+      var p = el('p');
+      para.forEach(function (l, k) {
+        if (k) p.appendChild(el('br'));
+        inline(p, l.trim());
+      });
+      root.appendChild(p);
+    }
+    return root;
+  }
+
+  /** List lines into nested <ul>/<ol>, by indent. Task items ("- [x]") get a checkbox mark. */
+  function list(block) {
+    var indent = function (l) { return /^\s*/.exec(l)[0].replace(/\t/g, '    ').length; };
+    var base = indent(block[0]);
+    var ordered = /^\s*\d+[.)]\s/.test(block[0]);
+    var out = el(ordered ? 'ol' : 'ul');
+    var j = 0;
+    while (j < block.length) {
+      var item = block[j].replace(/^\s*([-*+]|\d+[.)])\s+/, '');
+      var li = el('li');
+      var task = /^\[([ xX])\]\s+/.exec(item);
+      if (task) { li.className = 'task'; li.appendChild(el('span', { class: 'check', text: task[1] === ' ' ? '☐' : '☑', 'aria-hidden': 'true' })); item = item.slice(task[0].length); }
+      inline(li, item);
+      j++;
+      var sub = [];
+      while (j < block.length && indent(block[j]) > base) sub.push(block[j++]);
+      if (sub.length) li.appendChild(/^\s*([-*+]|\d+[.)])\s/.test(sub[0]) ? list(sub) : inline(el('div'), sub.join(' ').trim()));
+      out.appendChild(li);
+    }
+    return out;
+  }
+
+  /** Inline Markdown into `node`, as text nodes and elements. Returns `node`. */
+  function inline(node, s) {
+    var re = /(`+)([\s\S]*?)\1|\*\*([^*]+?)\*\*|__([^_]+?)__|~~([^~]+?)~~|\*([^*\s][^*]*?)\*|(^|[^\w])_([^_\s][^_]*?)_(?=[^\w]|$)|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
+    var at = 0, m;
+    while ((m = re.exec(s))) {
+      var start = m.index + (m[7] !== undefined ? m[7].length : 0);
+      if (start > at) node.appendChild(document.createTextNode(s.slice(at, start)));
+      if (m[1]) node.appendChild(el('code', { text: m[2] }));
+      else if (m[3] || m[4]) node.appendChild(inline(el('strong'), m[3] || m[4]));
+      else if (m[5]) node.appendChild(inline(el('del'), m[5]));
+      else if (m[6]) node.appendChild(inline(el('em'), m[6]));
+      else if (m[8]) node.appendChild(inline(el('em'), m[8]));
+      else if (m[9]) node.appendChild(link(m[10], m[9]));
+      else if (m[11]) node.appendChild(link(m[11], m[11]));
+      at = re.lastIndex;
+    }
+    if (at < s.length) node.appendChild(document.createTextNode(s.slice(at)));
+    return node;
+  }
+
+  /** A link only to the web or an email address; anything else (javascript:, data:) stays text. */
+  function link(href, label) {
+    var ok = /^(https?:\/\/|mailto:)/i.test(href);
+    if (!ok) return document.createTextNode(label === href ? href : label + ' (' + href + ')');
+    return inline(el('a', { href: href, target: '_blank', rel: 'noopener noreferrer nofollow' }), label);
   }
 
   // ---- chat apps -------------------------------------------------------------------------

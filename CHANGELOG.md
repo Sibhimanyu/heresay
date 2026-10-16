@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.27] - 2026-10-16
+
+### Added
+
+- **Markdown from chat apps, shown formatted.** Requests from ChatGPT and other chat apps show headings, lists, bold, links, code, quotes and tables on the dashboard. It's built safely: raw HTML stays text, and only web and email links work. Reports from the public stay plain text.
+- **Attached documents.** A chat request can carry a Markdown document of up to 100,000 characters (a spec, or a write-up of the whole conversation), shown on the report and given to the coding agent with it.
+
 ## [0.2.26] - 2026-10-16
 
 ### Changed
