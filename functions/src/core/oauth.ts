@@ -277,11 +277,21 @@ const onTeam = (i: Instance | null, email: string) =>
  * every call, so a revoked connection or a removed member stops at once, not in an hour.
  */
 export async function chatCaller(req: Req, deps: Deps): Promise<{ member: Member; grant: AuthRecord } | null> {
-  const m = /^Bearer hat_([a-f0-9]{24})_([A-Za-z0-9_-]{20,80})$/.exec(req.headers['authorization'] ?? '');
-  if (!m) return null;
-  const a = await deps.store.getAuth('access', m[1]!);
-  if (!a || !same(sha(m[2]!), String(a.data.hash)) || Date.parse(a.expires_at ?? '') < deps.now()) return null;
-  const grant = await deps.store.getAuth('grant', String(a.data.grant_id));
+  const auth = req.headers['authorization'] ?? '';
+  let grant: AuthRecord | null = null;
+  const m = /^Bearer hat_([a-f0-9]{24})_([A-Za-z0-9_-]{20,80})$/.exec(auth);
+  // A chat token (hct_), for chat apps that can't sign in with OAuth: the grant itself checks it.
+  const t = /^Bearer hct_([a-f0-9]{24})_([A-Za-z0-9_-]{20,80})$/.exec(auth);
+  if (m) {
+    const a = await deps.store.getAuth('access', m[1]!);
+    if (!a || !same(sha(m[2]!), String(a.data.hash)) || Date.parse(a.expires_at ?? '') < deps.now()) return null;
+    grant = await deps.store.getAuth('grant', String(a.data.grant_id));
+  } else if (t) {
+    grant = await deps.store.getAuth('grant', t[1]!);
+    if (!grant || !grant.data.token_hash || !same(sha(t[2]!), String(grant.data.token_hash))) return null;
+  } else {
+    return null;
+  }
   if (!grant || grant.data.revoked_at) return null;
   const instance = await deps.store.getInstance();
   const member = instance?.members.find((x) => x.email.toLowerCase() === String(grant.data.email).toLowerCase());
@@ -304,15 +314,35 @@ export const signInFirst = (req: Req, deps: Deps) => json(401, {
 
 // ---- connections, from the dashboard -------------------------------------------------------
 
-/** GET /v1/chat-connections, DELETE /v1/chat-connections/:id. Yours, or anyone's for an owner. */
+/**
+ * GET /v1/chat-connections, DELETE /v1/chat-connections/:id: yours, or anyone's for an owner.
+ * POST /v1/chat-connections { name }: a chat token, for a chat app that can't sign in with
+ * OAuth (a ChatGPT Sites bridge, a script). Same three tools, as you; shown once, stored hashed,
+ * revoked like any connection.
+ */
 export async function connections(p: string[], member: Member, req: Req, deps: Deps): Promise<Res> {
   const mine = (g: AuthRecord) => String(g.data.email).toLowerCase() === member.email.toLowerCase();
+  if (p.length === 1 && req.method === 'POST') {
+    const name = str(fields(req.body).name, 80) ?? 'A chat app';
+    const mineNow = (await deps.store.listAuth('grant')).filter((g) => !g.data.revoked_at && mine(g) && g.data.token_hash);
+    if (mineNow.length >= 10) return json(400, { error: 'You have 10 chat tokens. Disconnect one first.' });
+    const id = hexId(), tokenSecret = secret();
+    await deps.store.putAuth({
+      kind: 'grant', id, expires_at: null,
+      data: {
+        email: member.email, client_id: null, client_name: name, kind: 'token', token_hash: sha(tokenSecret),
+        created_at: new Date(deps.now()).toISOString(), last_used_at: null, revoked_at: null,
+      },
+    });
+    deps.log('oauth.token_created', { grant_id: id, by: member.email, name });
+    return json(201, { id, token: `hct_${id}_${tokenSecret}`, name, mcp_url: resourceUrl(baseUrl(req, deps)) });
+  }
   if (p.length === 1 && req.method === 'GET') {
     const all = (await deps.store.listAuth('grant')).filter((g) => !g.data.revoked_at && (member.role === 'owner' || mine(g)));
     all.sort((a, b) => String(a.data.created_at).localeCompare(String(b.data.created_at)));
     return json(200, {
       connections: all.map((g) => ({
-        id: g.id, email: g.data.email, client_name: g.data.client_name,
+        id: g.id, email: g.data.email, client_name: g.data.client_name, kind: g.data.token_hash ? 'token' : 'oauth',
         created_at: g.data.created_at, last_used_at: g.data.last_used_at ?? null,
       })),
     });

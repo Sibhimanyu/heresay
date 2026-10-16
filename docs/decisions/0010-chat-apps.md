@@ -31,6 +31,17 @@ Date: 2026-10-16
 - **Limits:** per member, 60 requests an hour and 300 a day. The OAuth endpoints have no sign-in,
   so they're limited per network: register 20, authorize 120, token 240 an hour.
 
+## Chat tokens, for workspaces that block MCP plugins (2026-10-16)
+
+- **Some ChatGPT workspaces don't allow plugins with MCPs** ("403: You do not have permission to
+  use plugins with MCPs"); ChatGPT Sites apps are still allowed. So a member can make a **chat
+  token** on the Chat apps page (`hct_<id>_<secret>`, shown once, stored hashed, up to 10 each),
+  and a Sites app relays ChatGPT's tool calls to `/v1/mcp` with it. Same three tools, as the
+  member, the same per-member limits, revoked like any connection, and it ends when the member
+  leaves the team. No refresh, no expiry: it's a connection the member manages by hand.
+- **The bridge holds only that token.** Not an agent token (which can claim and mark briefs
+  fixed), and no allowed-sites entry: it never uses the public report endpoint.
+
 ## The exception to "origin-checked"
 
 CLAUDE.md says public endpoints are rate-limited and origin-checked. The OAuth endpoints and

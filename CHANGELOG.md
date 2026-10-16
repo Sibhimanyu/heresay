@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.24] - 2026-10-16
+
+### Added
+
+- **Chat tokens, for ChatGPT workspaces that block MCP plugins.** The Chat apps page makes one, shown once. A ChatGPT Sites app can relay ChatGPT's requests to your Heresay with it, so ideas from Chat reach the inbox on every device, as you, with the conversation's context. Revoke it under Connected chat apps.
+
 ## [0.2.23] - 2026-10-16
 
 ### Added
