@@ -72,6 +72,14 @@ export class FirestoreStore implements Store {
     return q.docs.map((d) => d.data() as Report);
   }
 
+  async updateReport(project_id: string, id: string, patch: Partial<Report>) {
+    const { id: _i, project_id: _p, status: _s, ...rest } = patch;
+    const ref = this.reports(project_id).doc(id);
+    await this.db.runTransaction(async (tx) => {
+      if ((await tx.get(ref)).exists) tx.update(ref, rest);
+    });
+  }
+
   async accept(project_id: string, report_id: string, task: Task, at: string): Promise<Transition> {
     const ref = this.reports(project_id).doc(report_id);
     return this.db.runTransaction(async (tx) => {

@@ -105,6 +105,8 @@ function summary(t: Task, p: Project, now: number) {
     accepted_at: t.accepted_at, repo: t.repo ?? null,
     claimed_by: claimLive(t, now) ? t.claim!.repo : null,
     notes: (t.notes ?? []).length,
+    // How many people this is for: the report and any merged into it.
+    reporters: 1 + (t.also_reported?.length ?? 0),
   };
 }
 

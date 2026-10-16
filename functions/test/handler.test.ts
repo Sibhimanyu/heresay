@@ -435,3 +435,57 @@ test('trail: events from the run that crashed are kept apart, and timed from whe
   assert.match(prompt, /Last thing that went wrong, 0 s before the previous run ended: The app closed unexpectedly/);
   assert.equal(prompt.split('"""').length, 3);
 });
+
+test('duplicates: merge, one brief with everyone\'s words, and every reporter hears the outcome', async () => {
+  const { call, asOwner, project, submit, store } = await withProject();
+  const send = async (text: string, device: string) => ((await submit({ type: 'broken', text, device_id: device })).body as { report: { id: string } }).report.id;
+  const a = await send('Export does nothing', 'dev_aaaaaaaaaaaaaaaaaaaa');
+  const b = await send('Clicking export, nothing downloads', 'dev_bbbbbbbbbbbbbbbbbbbb');
+  const c = await send('CSV export broken on Safari', 'dev_cccccccccccccccccccc');
+  const base = `/v1/projects/${project.id}/reports`;
+  const mergeInto = (id: string, into: string) => call({ method: 'POST', path: `${base}/${id}/merge`, headers: asOwner(), body: { into } });
+
+  assert.equal((await mergeInto(b, a)).status, 200);
+  assert.equal((await mergeInto(a, a)).status, 400, 'not into itself');
+  assert.equal((await call({ method: 'POST', path: `${base}/${b}/accept`, headers: asOwner() })).status, 409, 'accept the one it was merged into');
+
+  // Unmerge while open, then merge again.
+  assert.equal((await call({ method: 'POST', path: `${base}/${b}/unmerge`, headers: asOwner() })).status, 200);
+  assert.equal(store.reports.get(b)!.duplicate_of, null);
+  await mergeInto(b, a);
+
+  await call({ method: 'POST', path: `${base}/${a}/accept`, headers: asOwner() });
+  assert.equal(store.reports.get(b)!.status, 'accepted', 'followed');
+  // Merged after accepting: accepted at once, and in the brief.
+  assert.equal((await mergeInto(c, a)).status, 200);
+  assert.equal(store.reports.get(c)!.status, 'accepted');
+  const prompt = ((await call({ path: `${base}/${a}/prompt`, headers: asOwner() })).body as { prompt: string }).prompt;
+  assert.match(prompt, /2 more people reported the same thing, in their words:\n- \(broken\) Clicking export, nothing downloads\n- \(broken\) CSV export broken on Safari/);
+  assert.equal(prompt.split('"""').length, 3);
+
+  await call({ method: 'POST', path: `${base}/${a}/fixed`, headers: asOwner(), body: { note: 'Export downloads a CSV again, Safari too.' } });
+  for (const id of [b, c]) {
+    assert.equal(store.reports.get(id)!.status, 'fixed');
+    assert.equal(store.reports.get(id)!.fix_note, 'Export downloads a CSV again, Safari too.', 'their reporter reads the same note');
+  }
+  assert.equal((await call({ method: 'POST', path: `${base}/${b}/unmerge`, headers: asOwner() })).status, 409, 'too late to separate');
+});
+
+test('duplicates: a decline reaches everyone; merging chains to the top, stays in one product, needs an open report', async () => {
+  const { call, asOwner, project, submit, store } = await withProject();
+  const send = async (text: string, device: string) => ((await submit({ type: 'idea', text, device_id: device })).body as { report: { id: string } }).report.id;
+  const a = await send('Dark mode', 'dev_aaaaaaaaaaaaaaaaaaaa');
+  const b = await send('A dark theme please', 'dev_bbbbbbbbbbbbbbbbbbbb');
+  const c = await send('Night mode', 'dev_cccccccccccccccccccc');
+  const base = `/v1/projects/${project.id}/reports`;
+  await call({ method: 'POST', path: `${base}/${b}/merge`, headers: asOwner(), body: { into: a } });
+  // Into b, which is a duplicate of a: lands on a.
+  const r = (await call({ method: 'POST', path: `${base}/${c}/merge`, headers: asOwner(), body: { into: b } })).body as { into: { report_id: string } };
+  assert.equal(r.into.report_id, a);
+  await call({ method: 'POST', path: `${base}/${a}/decline`, headers: asOwner(), body: { reason: 'Not this year; the design system has no dark tokens yet.' } });
+  for (const id of [b, c]) assert.equal(store.reports.get(id)!.decline_reason, 'Not this year; the design system has no dark tokens yet.');
+  const d = await send('Another', 'dev_dddddddddddddddddddd');
+  assert.equal((await call({ method: 'POST', path: `${base}/${d}/merge`, headers: asOwner(), body: { into: a } })).status, 409, 'not into a declined one');
+  const other = ((await call({ method: 'POST', path: '/v1/projects', headers: asOwner(), body: { name: 'Elsewhere' } })).body as { project: { id: string } }).project;
+  assert.equal((await call({ method: 'POST', path: `/v1/projects/${other.id}/reports/${d}/merge`, headers: asOwner(), body: { into: a } })).status, 404, 'other apps can\'t reach it');
+});

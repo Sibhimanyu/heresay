@@ -1222,12 +1222,39 @@
 
   /** Most urgent first, oldest first within a type, as the server sorts one app's reports. */
   var TYPE_ORDER = { broken: 0, confusing: 1, improvement: 2, idea: 3 };
-  function triageSort(rs) {
+  /** Open first, then by type, then by how many people reported it (merged in), then oldest. */
+  /** The loaded context of another app in the same product, from any card's context. */
+  function ctxs_of(ctx, project_id) { return ctx && ctx.siblings ? ctx.siblings[project_id] : null; }
+
+  function triageSort(rs, counts) {
+    counts = counts || {};
     return rs.slice().sort(function (a, b) {
       return ((a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1))
         || (TYPE_ORDER[a.type] - TYPE_ORDER[b.type])
+        || ((counts[b.id] || 0) - (counts[a.id] || 0))
         || a.created_at.localeCompare(b.created_at);
     });
+  }
+
+  // ---- duplicates --------------------------------------------------------------------------
+
+  var STOP = {};
+  ('the a an and or but to of in on for with at by from it its is are was were be been this that these those i we you they my our your ' +
+    'me us when then than there here not no do does did can cant cannot could would should will just so if as up out into about please ' +
+    'app page button get got have has had one some any all also very still again what how why which who').split(' ').forEach(function (w) { STOP[w] = true; });
+  function words(t) {
+    var out = {};
+    String(t || '').toLowerCase().replace(/[^a-z0-9\u00c0-\uffff\s]/g, ' ').split(/\s+/).forEach(function (w) {
+      if (w.length > 2 && !STOP[w]) out[w.replace(/(ing|ed|es|s)$/, '')] = true;
+    });
+    return out;
+  }
+  /** How alike two reports read: shared words over all words. A hint for a person, nothing more. */
+  function alike(a, b) {
+    var x = words(a), y = words(b), both = 0, all = 0, k;
+    for (k in x) { all++; if (y[k]) both++; }
+    for (k in y) if (!x[k]) all++;
+    return all ? both / all : 0;
   }
 
   /**
@@ -1299,7 +1326,14 @@
             .then(function (r) { ctxs[x.id] = { briefs: r[0].briefs || {}, repos: r[1].repos, project: x, reports: r[0].reports }; });
         }));
       }).then(function () {
-        reports = triageSort([].concat.apply([], sibs.map(function (x) { return ctxs[x.id].reports; })));
+        var everything = [].concat.apply([], sibs.map(function (x) { return ctxs[x.id].reports; }));
+        // Merged reports leave the list and show under the one they were merged into.
+        var dups = {};
+        everything.forEach(function (r) { if (r.duplicate_of) (dups[r.duplicate_of.report_id] = dups[r.duplicate_of.report_id] || []).push(r); });
+        var counts = {};
+        Object.keys(dups).forEach(function (k) { counts[k] = dups[k].length; });
+        sibs.forEach(function (x) { ctxs[x.id].dups = dups; ctxs[x.id].all = everything; ctxs[x.id].reload = load; ctxs[x.id].siblings = ctxs; });
+        reports = triageSort(everything.filter(function (r) { return !r.duplicate_of; }), counts);
         drawPlatforms();
         render();
       }).catch(function (x) {
@@ -1509,6 +1543,7 @@
         } }));
         if (pick) actions.appendChild(pick);
         actions.appendChild(el('button', { class: 'btn', type: 'button', text: 'Decline…', onclick: declineForm }));
+        actions.appendChild(el('button', { class: 'btn ghost', type: 'button', text: 'Merge into…', onclick: mergeForm }));
       }
       if (r.status === 'accepted') {
         actions.appendChild(el('button', {
@@ -1563,6 +1598,61 @@
     }
     buttons();
 
+    var mine = (ctx.dups || {})[r.id] || [];
+    var dupBox = mine.length ? el('details', { class: 'dups' }, [
+      el('summary', {}, [el('b', { text: (mine.length + 1) + ' people reported this' }), document.createTextNode(' · ' + mine.length + ' merged in')]),
+      el('ul', {}, mine.map(function (d) {
+        var dp = (ctxs_of(ctx, d.project_id) || {}).project || p;
+        return el('li', {}, [
+          el('span', { text: d.text }),
+          el('span', { class: 'mute', text: ' · ' + TYPE_LABEL[d.type] + (showPlatform ? ' · ' + platformOf(dp.platform).label : '') + ' · ' + new Date(d.created_at).toLocaleDateString() }),
+          d.status === 'open' ? el('button', { class: 'link', type: 'button', text: 'Unmerge', onclick: function () {
+            api('POST', '/projects/' + d.project_id + '/reports/' + d.id + '/unmerge').then(function () { toast('Unmerged.'); ctx.reload(); })
+              .catch(function (x) { toast(x.message); });
+          } }) : null,
+        ]);
+      })),
+    ]) : null;
+    // An open report that reads like another one: offered, never done for them.
+    var twin = null;
+    if (r.status === 'open' && ctx.all) {
+      var best = 0;
+      ctx.all.forEach(function (o) {
+        if (o.id === r.id || o.duplicate_of || (o.status !== 'open' && o.status !== 'accepted')) return;
+        if (o.status === 'open' && o.created_at > r.created_at) return; // offer the older one as the one to keep
+        var s = alike(r.text, o.text);
+        if (s > best) { best = s; twin = o; }
+      });
+      if (best < 0.45) twin = null;
+    }
+    var suggest = twin ? el('div', { class: 'suggest' }, [
+      document.createTextNode('Looks like the same as “' + (twin.text.length > 90 ? twin.text.slice(0, 89) + '…' : twin.text) + '” (' + STATUS_LABEL[twin.status].toLowerCase() + ') '),
+      el('button', { class: 'link', type: 'button', text: 'Merge into it', onclick: function () { mergeInto(twin); } }),
+    ]) : null;
+    function mergeInto(o) {
+      api('POST', '/projects/' + r.project_id + '/reports/' + r.id + '/merge', { into: o.id, into_app: o.project_id })
+        .then(function () { toast('Merged. They’ll hear the same outcome.'); ctx.reload(); })
+        .catch(function (x) { err.textContent = x.message; });
+    }
+    function mergeForm() {
+      actions.textContent = '';
+      var others = (ctx.all || []).filter(function (o) { return o.id !== r.id && !o.duplicate_of && (o.status === 'open' || o.status === 'accepted'); })
+        .map(function (o) { return { o: o, s: alike(r.text, o.text) }; })
+        .sort(function (a, b) { return b.s - a.s; });
+      if (!others.length) { actions.appendChild(el('p', { class: 'hint', text: 'No other open or accepted report to merge into.' })); }
+      var pick = el('select', { 'aria-label': 'Merge into' }, others.map(function (x) {
+        var t = x.o.text.length > 80 ? x.o.text.slice(0, 79) + '…' : x.o.text;
+        return el('option', { value: x.o.project_id + '/' + x.o.id, text: (x.s >= 0.45 ? '★ ' : '') + t + ' · ' + STATUS_LABEL[x.o.status] });
+      }));
+      if (others.length) actions.appendChild(pick);
+      if (others.length) actions.appendChild(el('button', { class: 'btn primary', type: 'button', text: 'Merge', onclick: function () {
+        var bits = pick.value.split('/');
+        mergeInto({ project_id: bits[0], id: bits[1] });
+      } }));
+      actions.appendChild(el('button', { class: 'btn ghost', type: 'button', text: 'Cancel', onclick: buttons }));
+      actions.appendChild(err);
+    }
+
     var status = el('span', { class: 'status s-' + r.status, text: STATUS_LABEL[r.status] });
     card = el('article', { class: 'report t-' + r.type }, [
       el('div', { class: 'meta' }, [
@@ -1592,6 +1682,8 @@
       r.source !== 'chat' && r.source !== 'agent' && deviceLine(r.context) ? el('div', { class: 'ctx', text: deviceLine(r.context) }) : null,
       r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
       reporterLine(r.context, r.reporter),
+      dupBox,
+      suggest,
       trailView(r.trail),
       r.decline_reason ? el('div', { class: 'reason', text: 'Declined: ' + r.decline_reason }) : null,
       r.fix_note ? el('div', { class: 'reason', text: 'Told them: ' + r.fix_note }) : null,

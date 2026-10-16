@@ -179,4 +179,18 @@ export function storeContract(name: string, make: () => Store | Promise<Store>) 
     await s.deleteAuth('client', id);
     assert.equal(await s.getAuth('client', id), null);
   });
+
+  test(`${name}: a report's fields change without touching its status; a missing one is a no-op`, async () => {
+    const s = await make(); const p = project(uid('u_')); await s.createProject(p);
+    const r = report(p); await s.createReport(r);
+    const dup = { project_id: p.id, report_id: 'r_other', by: 'alice@example.com', at: AT };
+    await s.updateReport(p.id, r.id, { duplicate_of: dup, status: 'fixed' } as never);
+    const got = await s.getReport(p.id, r.id);
+    assert.deepEqual(got?.duplicate_of, dup);
+    assert.equal(got?.status, 'open', 'status only moves through accept/move');
+    await s.updateReport(p.id, r.id, { duplicate_of: null });
+    assert.equal((await s.getReport(p.id, r.id))?.duplicate_of, null);
+    await s.updateReport(p.id, 'r_missing', { duplicate_of: dup });
+    assert.equal(await s.getReport(p.id, 'r_missing'), null);
+  });
 }
