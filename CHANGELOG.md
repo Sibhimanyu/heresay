@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.29] - 2026-10-16
+
+### Added
+
+- **Claude, Perplexity and Gemini, as well as ChatGPT.** The Chat apps page has setup steps for each (and for Cursor, Claude Code and others); they all use the same `/v1/mcp` address and sign in as you. Perplexity can also use a chat token as its API key.
+
+### Fixed
+
+- Chat apps that register as if they had a client secret (some default to it) can now connect; they're treated as public clients with PKCE, and their id may come in Basic auth.
+
 ## [0.2.28] - 2026-10-16
 
 ### Added

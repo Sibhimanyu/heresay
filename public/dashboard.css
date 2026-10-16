@@ -472,3 +472,7 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .pill.agent-pill { background:#fef3c7; color:#92400e; }
 .report .files { margin:4px 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:6px; font-size:12.5px; }
 .report .files a, .report .files code { font:12.5px var(--mono, ui-monospace, monospace); padding:2px 6px; border-radius:6px; background:rgba(127,127,127,.12); color:inherit; }
+
+.seg { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 14px; }
+.seg-btn { border:1px solid var(--line); background:none; border-radius:999px; padding:5px 12px; font:inherit; font-size:13px; cursor:pointer; color:var(--mute); }
+.seg-btn[aria-selected=true] { border-color:var(--acc); color:var(--fg); background:var(--mist, rgba(15,118,110,.08)); font-weight:600; }
