@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.25] - 2026-10-16
+
+### Changed
+
+- The chat apps' tool descriptions are descriptive only. ChatGPT flagged the old wording ("ask the person first", "never put secrets in it") as a suspicious instruction and asked before every call.
+
 ## [0.2.24] - 2026-10-16
 
 ### Added
