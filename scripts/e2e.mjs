@@ -710,12 +710,16 @@ try {
   const { StreamableHTTPClientTransport } = await import(`${PKG}node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js`);
   const chat = new Client({ name: 'chatgpt-e2e', version: '1' });
   await chat.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/v1/mcp`), { requestInit: { headers: { authorization: `Bearer ${tokens.access_token}` } } }));
-  assert.deepEqual((await chat.listTools()).tools.map((t) => t.name), ['list_apps', 'send_request', 'my_requests']);
+  assert.deepEqual((await chat.listTools()).tools.map((t) => t.name), ['list_apps', 'draft_request', 'send_draft', 'my_requests']);
   const chatApps = (await chat.callTool({ name: 'list_apps', arguments: {} })).structuredContent.apps;
   assert.ok(chatApps.some((a) => a.name === 'Acme Notes'));
-  const sent = await chat.callTool({ name: 'send_request', arguments: { app: 'Acme Notes', type: 'idea',
+  // Nothing is sent until a second step: the person sees which app it's for first.
+  const draft = await chat.callTool({ name: 'draft_request', arguments: { app: 'Acme Notes', type: 'idea',
     text: 'Let people pin a note to the top of the list.',
     details: 'Came up while planning the Q4 roadmap. They keep a few notes open all week. Considered favourites: ruled out, it hides the order.' } });
+  assert.equal(draft.structuredContent.sent, false);
+  assert.match(draft.content[0].text, /^Draft, not sent yet\. App: Acme Notes/);
+  const sent = await chat.callTool({ name: 'send_draft', arguments: { draft_id: draft.structuredContent.draft_id } });
   assert.equal(sent.structuredContent.status, 'open');
   const mineNow = (await chat.callTool({ name: 'my_requests', arguments: {} })).structuredContent.requests;
   assert.deepEqual(mineNow.map((r) => r.status), ['open']);
@@ -750,9 +754,10 @@ try {
   const chatToken = await dash.locator('code.token-out').textContent();
   assert.match(chatToken, /^hct_/);
   await dash.screenshot({ path: `${SHOTS}e2e-10d-chat-token.png`, fullPage: true });
-  const viaToken = await (await fetch(`${BASE}/v1/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chatToken}` },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'send_request', arguments: { app: 'Acme Notes', type: 'improvement', text: 'Sent through a bridge with a chat token.' } } }) })).json();
-  assert.equal(viaToken.result.structuredContent.status, 'open');
+  const viaTokenCall = async (name, args) => (await (await fetch(`${BASE}/v1/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chatToken}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name, arguments: args } }) })).json()).result;
+  const tokenDraft = await viaTokenCall('draft_request', { app: 'Acme Notes', type: 'improvement', text: 'Sent through a bridge with a chat token.' });
+  assert.equal((await viaTokenCall('send_draft', { draft_id: tokenDraft.structuredContent.draft_id })).structuredContent.status, 'open');
   await dash.reload();
   await dash.locator('.members li', { hasText: 'Chat token' }).getByRole('button', { name: 'Disconnect' }).click();
   await dash.getByText('None yet.').waitFor();

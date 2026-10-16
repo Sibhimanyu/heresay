@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.26] - 2026-10-16
+
+### Changed
+
+- **Chat apps preview before they send.** `draft_request` returns which app a request would go to, its type and text, and the other apps, and sends nothing; with no app named it lists them and asks which. `send_draft` sends it, or sends it to another app. ChatGPT used to send at once and pick an app on its own. The old `send_request` drafts too.
+
 ## [0.2.25] - 2026-10-16
 
 ### Changed

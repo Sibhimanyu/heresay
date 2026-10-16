@@ -92,7 +92,8 @@ Heresay report"). They never see open reports and never accept or decline. Code:
 Ideas from a ChatGPT conversation reach an app's inbox with the conversation's context. Each
 Heresay is a remote MCP server at `/v1/mcp` (`functions/src/core/chat.ts`), with OAuth signed in
 as the team member (`functions/src/core/oauth.ts`; the "Allow?" page is the dashboard's
-`#/authorize`). Tools: `list_apps`, `send_request`, `my_requests`; requests wait for someone to
+`#/authorize`). Tools: `list_apps`, `draft_request`, `send_draft`, `my_requests`; nothing is sent without a
+preview first, and requests wait for someone to
 accept them like any report. Setup steps are on the dashboard's **Chat apps** page. See
 `docs/decisions/0010-chat-apps.md`.
 
