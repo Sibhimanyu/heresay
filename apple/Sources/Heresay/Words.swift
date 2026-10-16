@@ -14,10 +14,10 @@ enum W: String, CaseIterable {
     case none, why, statusOpen, statusAccepted, statusFixed, statusDeclined
     case you, signedInAs, yourAccount, seesReply, sees, name, email, optional, aboutYou
     case emailHint, emailBad, yourSetup, setupPrompt, setupLabel, setupFooter, clearAll
-    case attachTrail, trailHint, trailHintTouch, seeTrail, alsoSent
+    case attachTrail, trailHint, trailHintTouch, seeTrail, alsoSent, trailLastRun
     case trailPage, trailPages, trailClick, trailClicks, trailRequest, trailRequests
     case trailError, trailErrors, trailWarn, trailWarns, trailState, trailStates
-    case nudgeTitle, nudgeBody, nudgeCrashTitle, nudgeCrashBody, nudgeYes, nudgeNo
+    case nudgeTitle, nudgeBody, nudgeCrashTitle, nudgeCrashBody, nudgeStuckTitle, nudgeStuckBody, nudgeYes, nudgeNo
     case powered
 }
 
@@ -73,12 +73,13 @@ struct Words: Sendable {
         .attachTrail: "Attach what happened",
         .trailHint: "Recent screens, clicks and errors in this app. Never what you typed.",
         .trailHintTouch: "Recent screens and errors in this app. Never what you typed.",
-        .seeTrail: "See it", .alsoSent: "Also sent: ",
+        .seeTrail: "See it", .alsoSent: "Also sent: ", .trailLastRun: "Last time",
         .trailPage: "screen", .trailPages: "screens", .trailClick: "click", .trailClicks: "clicks",
         .trailRequest: "failed request", .trailRequests: "failed requests", .trailError: "error", .trailErrors: "errors",
         .trailWarn: "warning", .trailWarns: "warnings", .trailState: "device event", .trailStates: "device events",
         .nudgeTitle: "Something not working?", .nudgeBody: "Tell the team what happened. A real person reads it.",
         .nudgeCrashTitle: "The app closed unexpectedly", .nudgeCrashBody: "Tell the team what you were doing when it closed. A real person reads it.",
+        .nudgeStuckTitle: "Stuck on something?", .nudgeStuckBody: "If something here isn’t clear, tell the team. A real person reads it.",
         .nudgeYes: "Tell the team", .nudgeNo: "Not now",
         .clearAll: "Clear all", .powered: "Powered by Heresay",
     ]
@@ -117,12 +118,13 @@ struct Words: Sendable {
         .attachTrail: "Joindre ce qui s’est passé",
         .trailHint: "Écrans, clics et erreurs récents dans cette app. Jamais ce que vous avez saisi.",
         .trailHintTouch: "Écrans et erreurs récents dans cette app. Jamais ce que vous avez saisi.",
-        .seeTrail: "Voir", .alsoSent: "Aussi envoyé : ",
+        .seeTrail: "Voir", .alsoSent: "Aussi envoyé : ", .trailLastRun: "La dernière fois",
         .trailPage: "écran", .trailPages: "écrans", .trailClick: "clic", .trailClicks: "clics",
         .trailRequest: "requête échouée", .trailRequests: "requêtes échouées", .trailError: "erreur", .trailErrors: "erreurs",
         .trailWarn: "avertissement", .trailWarns: "avertissements", .trailState: "événement de l’appareil", .trailStates: "événements de l’appareil",
         .nudgeTitle: "Quelque chose ne marche pas ?", .nudgeBody: "Dites à l’équipe ce qui s’est passé. Une vraie personne le lit.",
         .nudgeCrashTitle: "L’app s’est fermée sans prévenir", .nudgeCrashBody: "Dites à l’équipe ce que vous faisiez à ce moment. Une vraie personne le lit.",
+        .nudgeStuckTitle: "Bloqué quelque part ?", .nudgeStuckBody: "Si quelque chose n’est pas clair ici, dites-le à l’équipe. Une vraie personne le lit.",
         .nudgeYes: "Signaler", .nudgeNo: "Pas maintenant",
         .clearAll: "Tout effacer", .powered: "Propulsé par Heresay",
     ]
@@ -163,12 +165,13 @@ struct Words: Sendable {
         .attachTrail: "என்ன நடந்தது என்பதையும் இணை",
         .trailHint: "இந்த ஆப்பில் சமீபத்திய திரைகள், கிளிக்குகள், பிழைகள். நீங்கள் தட்டச்சு செய்தது ஒருபோதும் இல்லை.",
         .trailHintTouch: "இந்த ஆப்பில் சமீபத்திய திரைகள், பிழைகள். நீங்கள் தட்டச்சு செய்தது ஒருபோதும் இல்லை.",
-        .seeTrail: "பார்", .alsoSent: "இவையும் அனுப்பப்படும்: ",
+        .seeTrail: "பார்", .alsoSent: "இவையும் அனுப்பப்படும்: ", .trailLastRun: "கடந்த முறை",
         .trailPage: "திரை", .trailPages: "திரைகள்", .trailClick: "கிளிக்", .trailClicks: "கிளிக்குகள்",
         .trailRequest: "தோல்வியடைந்த கோரிக்கை", .trailRequests: "தோல்வியடைந்த கோரிக்கைகள்", .trailError: "பிழை", .trailErrors: "பிழைகள்",
         .trailWarn: "எச்சரிக்கை", .trailWarns: "எச்சரிக்கைகள்", .trailState: "சாதன நிகழ்வு", .trailStates: "சாதன நிகழ்வுகள்",
         .nudgeTitle: "ஏதாவது வேலை செய்யவில்லையா?", .nudgeBody: "என்ன நடந்தது என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.",
         .nudgeCrashTitle: "ஆப் எதிர்பாராமல் மூடப்பட்டது", .nudgeCrashBody: "அப்போது நீங்கள் என்ன செய்துகொண்டிருந்தீர்கள் என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.",
+        .nudgeStuckTitle: "எங்காவது சிக்கிக்கொண்டீர்களா?", .nudgeStuckBody: "இங்கே ஏதாவது புரியவில்லை என்றால், குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.",
         .nudgeYes: "குழுவிடம் சொல்", .nudgeNo: "இப்போது வேண்டாம்",
         .clearAll: "அனைத்தையும் அழி", .powered: "Heresay மூலம் இயங்குகிறது",
     ]
@@ -207,12 +210,13 @@ struct Words: Sendable {
         .attachTrail: "क्या हुआ, वह भी भेजें",
         .trailHint: "इस ऐप में हाल की स्क्रीन, क्लिक और त्रुटियाँ। आपने जो टाइप किया, वह कभी नहीं।",
         .trailHintTouch: "इस ऐप में हाल की स्क्रीन और त्रुटियाँ। आपने जो टाइप किया, वह कभी नहीं।",
-        .seeTrail: "देखें", .alsoSent: "यह भी भेजा जाता है: ",
+        .seeTrail: "देखें", .alsoSent: "यह भी भेजा जाता है: ", .trailLastRun: "पिछली बार",
         .trailPage: "स्क्रीन", .trailPages: "स्क्रीन", .trailClick: "क्लिक", .trailClicks: "क्लिक",
         .trailRequest: "विफल अनुरोध", .trailRequests: "विफल अनुरोध", .trailError: "त्रुटि", .trailErrors: "त्रुटियाँ",
         .trailWarn: "चेतावनी", .trailWarns: "चेतावनियाँ", .trailState: "डिवाइस घटना", .trailStates: "डिवाइस घटनाएँ",
         .nudgeTitle: "कुछ काम नहीं कर रहा?", .nudgeBody: "टीम को बताइए क्या हुआ। इसे कोई इंसान पढ़ता है।",
         .nudgeCrashTitle: "ऐप अचानक बंद हो गया", .nudgeCrashBody: "टीम को बताइए कि उस समय आप क्या कर रहे थे। इसे कोई इंसान पढ़ता है।",
+        .nudgeStuckTitle: "कहीं अटक गए?", .nudgeStuckBody: "अगर यहाँ कुछ साफ़ नहीं है, तो टीम को बताइए। इसे कोई इंसान पढ़ता है।",
         .nudgeYes: "टीम को बताएँ", .nudgeNo: "अभी नहीं",
         .clearAll: "सब हटाएँ", .powered: "Heresay द्वारा संचालित",
     ]

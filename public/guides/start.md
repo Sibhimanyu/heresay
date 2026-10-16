@@ -22,11 +22,12 @@ sees the outcome in the app, including the note you write when you mark it fixed
    where nobody looks unprompted. `check_install` lists anything still owed in `todo`; the
    install isn't done until that list is empty.
 
-## Before any task: what's new
+## Before any task: updates
 
-Call `whats_new`. If it lists Heresay features this app doesn't use yet, tell the person what
-each does in a sentence and **ask before adding any**. See `whats-new`. Never add one without a
-yes; on a no, `skip_update` so nobody asks again.
+Call `whats_new`. If it lists updates (a newer Heresay, Swift package or agent files, or
+features this app doesn't use yet), tell the person what each does in a sentence and **ask
+before applying any**. See `whats-new`. Never apply one without a yes; on a no, `skip_update`
+so nobody asks again.
 
 ## Which topic next
 
@@ -36,7 +37,7 @@ yes; on a no, `skip_update` so nobody asks again.
   change them only when asked.
 - Fixing reports: `fix-brief`, then `write-note`.
 - Removing Heresay from an app: `uninstall`.
-- New features for an app that already has Heresay: `whats-new`.
+- Updating Heresay, or new features for an app that already has it: `whats-new`.
 
 ## Tools
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.2.23] - 2026-10-16
+
+### Added
+
+- **Ideas from ChatGPT, with the conversation's context.** Each Heresay is now an MCP server at `/v1/mcp`. A team member adds it to ChatGPT (Settings › Apps & Connectors › Developer mode › Create; the address is on the new **Chat apps** page), says yes on their dashboard, and can then say "send this to Heresay as an idea for Greenroom". It arrives in that app's inbox as from them ("From ChatGPT · From the team"), with what the conversation worked out, and waits for someone to accept it like any report. `my_requests` says what happened to the ones they sent. Claude, Cursor and other remote MCP clients use the same address.
+- OAuth 2.1 for chat apps, signed in as the member: dynamic registration, PKCE, one-time codes, rotating refresh tokens. **Chat apps** in the dashboard lists connections and disconnects them; removing someone from the team ends theirs.
+
+- **Updates come up by themselves in a connected repo.** When a chat starts, the agent hears what's behind and asks the person before applying anything: a newer Heresay (`npx create-heresay update`, by whoever set it up; web apps then get the new Report button with no code change), a newer Swift package than the one pinned in `Package.resolved`, older agent files (`npx heresay connect --update`), and features the app doesn't use yet. A no is kept in `.claude/skills/heresay/decisions.json`; a skipped version is asked about again when a newer one ships.
+- Claude Code: `heresay connect` adds a session-start hook to `.claude/settings.json` (`npx -y heresay@latest updates --hook`). It speaks at most once a day per repo, or straight away when something new appears, stays quiet otherwise, and never fails a chat. Other agents are asked to check by `AGENTS.md`, and the MCP server asks for `whats_new` early in every conversation.
+- `npx heresay updates` lists the same; `--skip <id>` records a no. `whats-new` still works.
+
+- **"Stuck on something?"** A second note for someone who seems unsure rather than blocked; it opens the form as Confusing. Web `data-nudge` signals `stalled` (typed, then 45 s with nothing more or sent, while still on the page), `circles` (the same few pages over and over in a minute) and `refused` (the same field refused 3 times); Swift `.circles` and `.stalled`. All included in `on` and `.all`. `nudge({ stuck: true })` and `Heresay.nudge(stuck: true)` from the app's code.
+
+- **What happened before a crash goes with the next report (iOS and macOS).** The trail is written to disk as it happens. After the app closes unexpectedly (a crash, a hang or out-of-memory kill, a force quit), the next report carries the last run's final five minutes under "Last run, before the app closed", timed back from when it ended, and a line such as "The app closed unexpectedly 4 s after launch, on the first launch after updating from 1.3 to 1.4". It doesn't wait for MetricKit, and catches what MetricKit doesn't call a crash. The dashboard and the agent prompt show it apart from the current run.
+- **The app's own logged errors before a crash** are part of it: Heresay reads the app's log once a minute while the app is in front (every five minutes where a look is slow), and keeps them on the device. Nothing is sent without a report.
+- **Web: the trail survives a reload or a new page in the same tab** (kept in that tab's `sessionStorage`), with "The page was reloaded" and, with `data-version`, "First visit since the app updated from 1.3 to 1.4".
+- `nudge: .crash` also offers help after an unexpected close MetricKit doesn't report.
+
+### Changed
+
+- The `whats_new` tool also reports versions (`instance@`, `swift@`, `agent-files@`), and works before a teammate has connected (versions only).
+- Repos connected before this get the hook the first time an agent offers the `agent-files@6` update and the person says yes.
+- `data-nudge="on"` and `nudge: .all` now include the hesitation signals.
+
+### Fixed
+
+- A relative `data-api` (`/v1`) no longer makes the widget's own requests look like the app's.
+
 ## [0.2.22] - 2026-10-16
 
 ### Added

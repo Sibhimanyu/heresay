@@ -6,6 +6,12 @@
       "fieldPath": "expire_at",
       "ttl": true,
       "indexes": []
+    },
+    {
+      "collectionGroup": "auth",
+      "fieldPath": "expire_at",
+      "ttl": true,
+      "indexes": []
     }
   ]
 }

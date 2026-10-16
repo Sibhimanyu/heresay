@@ -5,7 +5,8 @@
 //
 // Run with `npm run e2e:agent` (it starts and stops the emulators).
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -64,7 +65,11 @@ assert.match(readFileSync(join(dir, 'AGENTS.md'), 'utf8'), /heresay:start/);
 // Claude Code reads CLAUDE.md, not AGENTS.md, and may list the skill without its description.
 assert.match(readFileSync(join(dir, 'CLAUDE.md'), 'utf8'), /heresay:start[\s\S]*introduce\(\)/);
 assert.match(readFileSync(join(dir, '.claude/skills/heresay/SKILL.md'), 'utf8'), /^description: "Heresay/m);
-for (const f of ['.mcp.json', 'AGENTS.md', 'CLAUDE.md', '.claude/skills/heresay/SKILL.md']) {
+// Claude Code checks for Heresay updates when a chat starts.
+const hook = JSON.parse(readFileSync(join(dir, '.claude/settings.json'), 'utf8')).hooks.SessionStart;
+assert.equal(hook.length, 1);
+assert.equal(hook[0].hooks[0].command, 'npx -y heresay@latest updates --hook');
+for (const f of ['.mcp.json', 'AGENTS.md', 'CLAUDE.md', '.claude/skills/heresay/SKILL.md', '.claude/settings.json']) {
   assert.ok(!readFileSync(join(dir, f), 'utf8').includes(token), `${f} must not contain the token`);
 }
 assert.ok(readFileSync(join(home, 'connections.json'), 'utf8').includes(token));
@@ -72,6 +77,7 @@ assert.ok(readFileSync(join(home, 'connections.json'), 'utf8').includes(token));
 execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs'), 'connect', '--update'], { cwd: dir, env });
 assert.equal(readFileSync(join(dir, 'AGENTS.md'), 'utf8').split('heresay:start').length, 2);
 assert.equal(readFileSync(join(dir, 'CLAUDE.md'), 'utf8').split('heresay:start').length, 2);
+assert.equal(JSON.parse(readFileSync(join(dir, '.claude/settings.json'), 'utf8')).hooks.SessionStart.length, 1, 'the hook once');
 
 step('the MCP server, started the way .mcp.json starts it, lists its tools');
 const mcp = new Client({ name: 'e2e', version: '1' });
@@ -113,9 +119,11 @@ assert.ok(!(await call('check_install', { app: app.id })).todo.some((t) => /Comm
 // An app installed before a feature existed: whats_new offers it, and a no is remembered.
 assert.ok(tools.includes('whats_new') && tools.includes('skip_update'));
 const news = await call('whats_new', {});
-assert.deepEqual(news.updates.map((u) => u.id), ['design-web', 'introduce'], 'offers what this app lacks, nothing it has');
+assert.deepEqual(news.updates.map((u) => u.id), ['nudge', 'design-web', 'introduce'], 'offers what this app lacks, nothing it has');
+assert.ok(news.updates.every((u) => u.kind === 'feature'), 'and nothing is behind');
+await call('skip_update', { id: 'nudge' });
 assert.match(news.ask_first, /ask/i);
-assert.match(await call('heresay_guide', { topic: 'whats-new' }), /Never add a feature without a yes/);
+assert.match(await call('heresay_guide', { topic: 'whats-new' }), /Never apply an update without a yes/);
 await call('skip_update', { id: 'introduce' });
 assert.deepEqual((await call('whats_new', {})).updates.map((u) => u.id), ['design-web'], 'not offered again after a no');
 assert.match(await call('heresay_guide', { topic: 'customize-web' }), /The defaults are the\s+recommended setup/);
@@ -123,7 +131,7 @@ await call('skip_update', { id: 'design-web' });
 assert.deepEqual((await call('whats_new', {})).updates, []);
 rmSync(join(dir, '.claude/skills/heresay/decisions.json'));
 // Telling people it exists clears it.
-writeFileSync(join(dir, 'index.html'), `<!doctype html><body><h1>Notes</h1>\n<script src="${BASE}/sdk/v1.js" data-key="${app.key}" data-intro="auto" data-accent="#7c3aed" defer></script></body>`);
+writeFileSync(join(dir, 'index.html'), `<!doctype html><body><h1>Notes</h1>\n<script src="${BASE}/sdk/v1.js" data-key="${app.key}" data-intro="auto" data-accent="#7c3aed" data-nudge="on" defer></script></body>`);
 assert.deepEqual((await call('check_install', { app: app.id })).todo, [], 'nothing owed once people are told');
 assert.deepEqual((await call('whats_new', {})).updates, [], 'and nothing new to offer once it has both');
 const seenByTeam = await person('GET', `/projects/${app.id}`);
@@ -174,8 +182,22 @@ let listed = {};
 for (let i = 0; i < 20 && !listed.heresay_update; i++) { listed = JSON.parse(await call2('list_apps')); if (!listed.heresay_update) await new Promise((r) => setTimeout(r, 200)); }
 assert.match(listed.heresay_update, /Heresay 9\.9\.9 is out/);
 assert.ok(Array.isArray(listed.apps), 'the JSON still parses, with the notice as a field');
-assert.match(await call2('heresay_guide', { topic: 'start' }), /^\(Heresay 9\.9\.9 is out/);
+  assert.match(await call2('heresay_guide', { topic: 'start' }), /^\(Heresay 9\.9\.9 is out/);
+// The stand-in registry says 9.9.9 for create-heresay too: the Heresay itself is now behind.
+assert.deepEqual(JSON.parse(await call2('whats_new')).updates.map((u) => u.id), ['instance@9.9.9']);
 await mcp2.close();
+
+step('when a chat starts, the hook tells the agent about updates once, then stays quiet');
+// Not execFileSync: the stand-in registry runs in this process and must be free to answer.
+const heresayCli = async (...a) => (await promisify(execFile)(process.execPath, [join(PKG, 'bin/heresay.mjs'), ...a], { cwd: dir, env })).stdout.trim();
+const hookSays = () => heresayCli('updates', '--hook');
+const said = JSON.parse(await hookSays());
+assert.equal(said.hookSpecificOutput.hookEventName, 'SessionStart');
+assert.match(said.hookSpecificOutput.additionalContext, /\[instance@9\.9\.9\] Update this team's Heresay[\s\S]*npx create-heresay update[\s\S]*Apply nothing without a yes/);
+assert.equal(await hookSays(), '', 'the next chat: nothing');
+const cliSkip = JSON.parse(await heresayCli('updates', '--skip', 'instance@9.9.9'));
+assert.equal(cliSkip.skipped, 'instance@9.9.9');
+assert.deepEqual(JSON.parse(await heresayCli('updates')).updates, [], 'skipped from the CLI too');
 
 step('the same actions work without MCP, through the CLI');
 const cli = (...a) => execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs'), ...a], { cwd: dir, env }).toString();
@@ -189,6 +211,7 @@ assert.ok(!existsSync(join(dir, '.mcp.json')), '.mcp.json only had Heresay, so i
 assert.ok(!existsSync(join(dir, '.claude/skills/heresay')));
 assert.ok(!existsSync(join(dir, 'AGENTS.md')));
 assert.ok(!existsSync(join(dir, 'CLAUDE.md')), 'CLAUDE.md only had Heresay, so it is gone');
+assert.ok(!existsSync(join(dir, '.claude/settings.json')), 'settings.json only had the hook, so it is gone');
 assert.ok(existsSync(join(dir, 'index.html')), 'app code is removed separately (guide uninstall)');
 assert.ok(!readFileSync(join(home, 'connections.json'), 'utf8').includes(token));
 const guideUrl = await fetch(`${BASE}/guides/uninstall.md`);

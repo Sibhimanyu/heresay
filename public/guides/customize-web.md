@@ -80,7 +80,9 @@ a second or more, and leaving the tab and coming back. Each report also carries 
 around the app: phone or desktop, touch or mouse, screen, light or dark, language, time zone,
 connection, and settings such as reduced motion. The reporter sees all of it in the form and can
 switch the trail off or leave parts out. Never what anyone typed, request bodies, headers or
-query strings. On by default; change it only when asked.
+query strings. It survives a reload or a new page in the same tab (kept in that tab's
+`sessionStorage`), says "The page was reloaded", and, with `data-version`, "First visit since the
+app updated from 1.3 to 1.4". On by default; change it only when asked.
 
 | Attribute | Values |
 | --- | --- |
@@ -96,12 +98,12 @@ asked.
 
 | Attribute | Values |
 | --- | --- |
-| `data-nudge` | off (default) · `on` · the signals to watch, e.g. `clicks errors` (from `clicks`: the same button or link pressed 3 times in 10 s with no change to the page; `errors`: an uncaught error within 5 s of a click; `requests`: 2 requests failing with 5xx or no answer within 30 s) |
+| `data-nudge` | off (default) · `on` (all of these) · the signals to watch, e.g. `clicks errors`. When something failed ("Something not working?", opens as Broken): `clicks`: the same button or link pressed 3 times in 10 s with no change to the page; `errors`: an uncaught error within 5 s of a click; `requests`: 2 requests failing with 5xx or no answer within 30 s. When someone seems unsure ("Stuck on something?", opens as Confusing): `stalled`: typed in a field, then 45 s with no more typing and nothing sent, while still moving or scrolling (search boxes don't count); `circles`: 6 page changes in a minute among at most 3 pages; `refused`: the same field refused 3 times in 2 minutes |
 
 **Calls**
 
 - `window.Heresay?.open({ type, text })`: opens the form, filled in. The person still reviews and sends it.
-- `window.Heresay?.nudge()`: the app saw trouble itself (an error screen, a retry that failed): offer to report it. Works without `data-nudge`; the same limits apply.
+- `window.Heresay?.nudge()`: the app saw trouble itself (an error screen, a retry that failed): offer to report it. `nudge({ stuck: true })` for someone who seems unsure. Works without `data-nudge`; the same limits apply.
 - `window.Heresay?.on('sent', ({ id, type }) => ...)`: after each report is sent, for example to thank them or count it in the app's analytics. It returns a function that stops listening. It never gets the report text.
 
 ## Can't be changed

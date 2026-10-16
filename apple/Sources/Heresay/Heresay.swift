@@ -24,7 +24,7 @@ import AppKit
 @MainActor
 public final class Heresay: ObservableObject {
     /// The one instance the views read from.
-    public static let shared = Heresay()
+    public static let shared = Heresay(boxDir: BlackBox.defaultDir())
 
     @Published public private(set) var reports: [SentReport] = []
     @Published public var isPresented = false
@@ -48,6 +48,8 @@ public final class Heresay: ObservableObject {
     #if os(macOS)
     private lazy var nudgeWatcher = NudgeWatcher()
     #endif
+    private lazy var stallWatcher = StallWatcher()
+    private var circles = CircleWatch()
     /// What `present(type:text:)` filled in, for the sheet to start with.
     var draft: (type: ReportType?, text: String) = (nil, "")
     /// How it looks. The defaults are the recommended setup.
@@ -74,9 +76,13 @@ public final class Heresay: ObservableObject {
     /// What happened before a report (`Trail.swift`). In memory; leaves only with a report.
     let trail = Trail()
     private lazy var collectors = TrailCollectors(trail: trail, defaults: defaults)
+    /// The trail on disk, so it outlives a crash. None in tests unless they give a folder.
+    let blackBox: BlackBox?
+    private var logTimer: Timer?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, boxDir: URL? = nil) {
         self.defaults = defaults
+        blackBox = boxDir.map(BlackBox.init(dir:))
         if let data = defaults.data(forKey: Keys.prefs),
            let saved = try? JSONDecoder().decode(ReporterPrefs.self, from: data) { prefs = saved }
     }
@@ -111,14 +117,17 @@ public final class Heresay: ObservableObject {
         if let accent { self.accent = accent; customAccent = true }
         setStyle(style)
         collectors.start(parts) { [weak self] in Task { @MainActor in self?.crashArrived() } }
+        startBlackBox(parts)
         if let screen { trail.note(.page, screen) }
         nudges = nudge
         #if os(macOS)
         if nudge.contains(.clicks) { nudgeWatcher.start(self) } else { nudgeWatcher.stop() }
         #endif
+        if nudge.contains(.stalled) { stallWatcher.start(self) } else { stallWatcher.stop() }
+        circles.reset()
         // A crash MetricKit handed over on an earlier launch, not yet offered. After a moment, so
         // the app's window is up.
-        if nudge.contains(.crash), Trail.lastCrash(defaults) != nil {
+        if nudge.contains(.crash), Trail.lastCrash(defaults) != nil || blackBox?.lastRun() != nil {
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(1.5))
                 self?.crashArrived()
@@ -164,8 +173,11 @@ public final class Heresay: ObservableObject {
     /// Name the screen people are on, so reports say where they came from.
     public static func setScreen(_ name: String?) { shared.setScreen(name) }
 
-    func setScreen(_ name: String?) {
-        if let name, name != screen { trail.note(.page, name) }
+    func setScreen(_ name: String?, now: Date = Date()) {
+        if let name, name != screen {
+            trail.note(.page, name)
+            if nudges.contains(.circles), circles.visit(name, at: now) { offerHelp(.stuck, now: now) }
+        }
         screen = name
     }
 
@@ -210,8 +222,10 @@ public final class Heresay: ObservableObject {
     /// The app saw trouble itself (an error screen, a retry that failed): offer to report it, with
     /// a small note by the button. Works without `nudge:` in `configure`; the same limits apply
     /// (once per launch, not for 7 days after "Not now"). Returns whether it showed.
+    /// `stuck: true` for someone who seems unsure rather than blocked: "Stuck on something?", and the
+    /// sheet opens as Confusing.
     @discardableResult
-    public static func nudge() -> Bool { shared.offerHelp(.trouble) }
+    public static func nudge(stuck: Bool = false) -> Bool { shared.offerHelp(stuck ? .stuck : .trouble) }
 
     @discardableResult
     func offerHelp(_ why: HelpOffer, now: Date = Date()) -> Bool {
@@ -222,17 +236,20 @@ public final class Heresay: ObservableObject {
         if let no = defaults.object(forKey: Keys.nudgeDeclined) as? Date, now.timeIntervalSince(no) < Self.nudgeRest { return false }
         offeredThisLaunch = true
         offer = why
-        NudgeCard.announce(words[why == .crash ? .nudgeCrashTitle : .nudgeTitle])
+        NudgeCard.announce(words[why == .crash ? .nudgeCrashTitle : why == .stuck ? .nudgeStuckTitle : .nudgeTitle])
         return true
     }
 
     static let nudgeRest: TimeInterval = 7 * 86_400
 
-    /// "Tell the team" opens the sheet as Broken, with the trail; "Not now" quiets it for 7 days.
+    /// "Tell the team" opens the sheet as Broken (Confusing when they seemed unsure), with the trail;
+    /// "Not now" quiets it for 7 days.
     func answerOffer(_ yes: Bool, now: Date = Date()) {
+        let was = offer
         offer = nil
         if yes {
-            if draft.type == nil, style.types.contains(.broken) { draft.type = .broken }
+            let type: ReportType = was == .stuck ? .confusing : .broken
+            if draft.type == nil, style.types.contains(type) { draft.type = type }
             present(.report)
         } else {
             defaults.set(now, forKey: Keys.nudgeDeclined)
@@ -244,9 +261,53 @@ public final class Heresay: ObservableObject {
 
     /// MetricKit handed over a crash, now or on an earlier launch: offer once per crash.
     func crashArrived() {
-        guard nudges.contains(.crash), let crash = Trail.lastCrash(defaults),
-              (defaults.object(forKey: Keys.nudgedCrash) as? Date) != crash.at else { return }
-        if offerHelp(.crash) { defaults.set(crash.at, forKey: Keys.nudgedCrash) }
+        // MetricKit's crash, or a run that ended badly without one (a hang the system killed,
+        // running out of memory): the same ending, offered once.
+        guard nudges.contains(.crash), let at = Trail.lastCrash(defaults)?.at ?? blackBox?.lastRun()?.savedAt,
+              (defaults.object(forKey: Keys.nudgedCrash) as? Date) != at else { return }
+        if offerHelp(.crash) { defaults.set(at, forKey: Keys.nudgedCrash) }
+    }
+
+    // MARK: The black box
+
+    /// Keep the trail on disk from now on, so a crash doesn't take it with it, and the app's own
+    /// logged errors with it, read once a minute while the app is in front. The run before this
+    /// one, if it ended badly, is kept for the next report.
+    private func startBlackBox(_ parts: HeresayTrail) {
+        logTimer?.invalidate(); logTimer = nil
+        guard let box = blackBox else { return }
+        trail.onChange = nil
+        guard !parts.isEmpty else { return }
+        box.begin(version: version, defaults: defaults)
+        trail.onChange = { [box] entries in box.update(entries) }
+        if parts.contains(.errors) { scheduleLogRead(after: Self.logEvery) }
+    }
+
+    /// A look at the log costs about a second and a half of one core, however little it reads (the
+    /// system's log store, not Heresay), so: once a minute, only in front, at background priority,
+    /// and every five minutes where a look takes longer than two seconds.
+    private func scheduleLogRead(after: TimeInterval) {
+        logTimer = Timer.scheduledTimer(withTimeInterval: after, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let box = self.blackBox else { return }
+                guard Self.appInFront else { self.scheduleLogRead(after: Self.logEvery); return }
+                Task { [weak self] in
+                    let took = await box.readLog(every: Self.logEvery)
+                    self?.scheduleLogRead(after: took > 2 ? Self.logEverySlow : Self.logEvery)
+                }
+            }
+        }
+    }
+
+    nonisolated static let logEvery: TimeInterval = 60
+    nonisolated static let logEverySlow: TimeInterval = 300
+
+    static var appInFront: Bool {
+        #if os(macOS)
+        (NSApp as NSApplication?)?.isActive ?? false
+        #else
+        UIApplication.shared.applicationState == .active
+        #endif
     }
 
     /// Where to find it, in this app, and who it's from.
@@ -292,6 +353,7 @@ public final class Heresay: ObservableObject {
                                             reporter: prefs.reporter(signedIn: isSignedIn), trail: events)
             // A crash goes with one report, not every one after it.
             if events?.contains(where: { $0.detail?.hasPrefix(Trail.crashMark) == true }) == true { Trail.forgetCrash(defaults) }
+            if events?.contains(where: { $0.run == "last" }) == true { blackBox?.forgetLastRun() }
             reports.insert(r, at: 0)
             for h in sentHandlers { h(SentEvent(id: r.id, type: r.type)) }
             return r
@@ -352,6 +414,7 @@ public final class Heresay: ObservableObject {
             more += await Task.detached(priority: .userInitiated) { Trail.logErrors(since: since) }.value
             if let crash = Trail.lastCrash(defaults, now: now) { more.append(crash) }
         }
+        more += blackBox?.lastRunEntries(now: now) ?? []
         return trail.recent(now: now, adding: more)
     }
 
@@ -473,3 +536,4 @@ extension Color {
         #endif
     }
 }
+

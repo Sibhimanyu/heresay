@@ -28,8 +28,8 @@ jobs:
       # Trusted publishing needs npm 11.5.1 or later.
       - run: npm install -g npm@latest
       - run: npm --prefix functions ci
-      - run: npm test
       - run: npm --prefix packages/heresay ci
+      - run: npm test
       - run: npm --prefix packages/create-heresay ci
       - run: node scripts/build-release.mjs
 

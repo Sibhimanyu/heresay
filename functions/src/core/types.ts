@@ -83,12 +83,29 @@ export const isFramework = (v: unknown): v is (typeof FRAMEWORKS)[number] =>
 
 export type { TrailEvent, TrailKind } from './trail.js';
 
+/**
+ * Where a report came from. Absent or 'sdk': someone using the app, through the Report button.
+ * 'chat': a member of the team, from a conversation in ChatGPT or another chat app (chat.ts).
+ */
+export type ReportSource = 'sdk' | 'chat';
+
 export interface Report {
   id: string;
   project_id: string;
   device_id: string;
   type: ReportType;
   text: string;
+  /** Unset for reports from the app. */
+  source?: ReportSource;
+  /** source 'chat': the team member who sent it, and the chat app it came through. */
+  from_member?: string | null;
+  via?: string | null;
+  /**
+   * source 'chat': the conversation's context for it, as the chat app wrote it: why, what was
+   * considered, examples, constraints. Written by an assistant from a chat that may have read
+   * web pages, so untrusted like report text, and fenced for an agent the same way.
+   */
+  details?: string | null;
   context: ReportContext;
   /** null when the reporter set no preferences. */
   reporter?: ReporterPrefs | null;
@@ -177,6 +194,11 @@ export interface Task {
   reporter_note?: string | null;
   /** Copied from the report. Untrusted like the text, so fenced in the prompt the same way. */
   trail?: TrailEvent[] | null;
+  /** Copied from a chat report: where it came from, and the conversation's context, fenced. */
+  source?: ReportSource;
+  from_member?: string | null;
+  via?: string | null;
+  details?: string | null;
   note: string | null;    // what the accepter added
   accepted_by: string;
   accepted_at: string;
@@ -233,8 +255,21 @@ export const toReporterView = (r: Report): ReporterView => ({
   created_at: r.created_at, updated_at: r.updated_at,
 });
 
+/**
+ * OAuth for chat apps (oauth.ts): a registered client, a one-time code, a member's connection
+ * (grant), an access token. Secrets are stored hashed. `expires_at` lets a backend clean up.
+ */
+export type AuthKind = 'client' | 'code' | 'grant' | 'access';
+export interface AuthRecord {
+  kind: AuthKind;
+  id: string;
+  data: Record<string, unknown>;
+  expires_at: string | null;
+}
+
 export const LIMITS = {
   textMax: 2000,
+  detailsMax: 8000,
   contextFieldMax: 200,
   deviceIdMin: 16,
   deviceIdMax: 64,

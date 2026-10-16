@@ -14,7 +14,7 @@ Planned visually in `docs/plan/trail-plan.html`.
   chip per kind ("2 pages", "1 error"). One switch removes all of it, a chip removes one kind,
   and "See it" lists every line that would be sent. Off by default would mean almost nobody
   turned it on.
-- **Only when a person reports.** The trail lives in memory on the device (the newest 50 since 2026-10-16, for 5
+- **Only when a person reports.** The trail lives on the device (in memory; since 2026-10-16 also on disk on Apple and in the tab's sessionStorage on the web; the newest 50 since then, for 5
   minutes) and leaves only with a report. No background error collection, no reports without
   words. Heresay is what people say; the trail is evidence for it, not an error tracker.
 - **Never captured:** what anyone typed (fields are recorded by their label, never their value),
@@ -67,6 +67,26 @@ Planned visually in `docs/plan/trail-plan.html`.
   total size cap went from 8,000 to 12,000 characters.
 - **The prompt names the last thing that went wrong** (an error before a failed request or a
   warning), inside the fence: the device wrote it.
+
+## Outliving a crash (2026-10-16)
+
+- **iOS and macOS keep the trail on disk as it happens** (`BlackBox.swift`, Application Support):
+  written a second after each change, plus a ten-second heartbeat. A run that never said it
+  ended well (iOS: going to the background; macOS: quitting) ended badly: a crash, a hang or an
+  out-of-memory kill the system made, or a force quit. Its last five minutes are kept for a day
+  and go with the next report under "Last run, before the app closed", timed back from when it
+  ended, with one line on how: "The app closed unexpectedly 4 s after launch, on the first launch
+  after updating from 1.3 to 1.4". `run: "last"` marks those events for the server, dashboard
+  and prompt. This also catches what MetricKit doesn't call a crash, and doesn't wait for it.
+- **The app's own log, read once a minute while it is in front**, so its errors before a crash
+  are kept too. This changes the 2026-10-14 rule ("read only when someone reports"): a look at
+  the log costs about 1.5 s of one core however little it reads, so it is once a minute, at
+  background priority, only in front, and every five minutes where a look takes over 2 s.
+  Nothing leaves the device unless someone sends a report. A crash within the first minute has
+  no log lines; a crash on every launch can't be reported from the app at all (see 0008).
+- **The web trail outlives a reload or a new page in the same tab**: kept in `sessionStorage`,
+  which only that tab reads and the browser clears with it. "The page was reloaded" and "First
+  visit since the app updated from 1.3 to 1.4" (from `data-version`) go in it.
 
 ## Later
 

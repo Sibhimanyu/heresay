@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Store, Transition } from '../../core/store.js';
-import type { AgentToken, Instance, Project, Report, ReportStatus, Task } from '../../core/types.js';
+import type { AgentToken, AuthKind, AuthRecord, Instance, Project, Report, ReportStatus, Task } from '../../core/types.js';
 
 /**
  * meta/instance                              the team: members and roles
@@ -8,6 +8,8 @@ import type { AgentToken, Instance, Project, Report, ReportStatus, Task } from '
  * projects/{project_id}/reports/{report_id}
  * projects/{project_id}/tasks/{report_id}    written only by accept(), read only by the prompt
  * agent_tokens/{id}                          one per connected repo; secret stored hashed
+ * auth/{kind}:{id}                            chat-app OAuth: clients, codes, grants, access tokens;
+ *                                             expire_at for a TTL policy
  * rate/{bucket}                               has expire_at for a Firestore TTL policy
  *
  * Clients never touch Firestore directly (firestore.rules denies everything); all of it goes
@@ -136,6 +138,32 @@ export class FirestoreStore implements Store {
   async updateAgentToken(id: string, patch: Partial<AgentToken>) {
     const { id: _ignored, ...rest } = patch;
     await this.tokens().doc(id).update(rest);
+  }
+
+  private authRef(kind: AuthKind, id: string) { return this.db.collection('auth').doc(`${kind}:${id}`); }
+  private static withExpiry(r: AuthRecord) { return { ...r, expire_at: r.expires_at ? new Date(r.expires_at) : null }; }
+  private static plain(d: FirebaseFirestore.DocumentData): AuthRecord {
+    const { expire_at: _, ...r } = d;
+    return r as AuthRecord;
+  }
+  async putAuth(r: AuthRecord) { await this.authRef(r.kind, r.id).set(FirestoreStore.withExpiry(r)); }
+  async getAuth(kind: AuthKind, id: string) {
+    const s = await this.authRef(kind, id).get();
+    return s.exists ? FirestoreStore.plain(s.data()!) : null;
+  }
+  async takeAuth(kind: AuthKind, id: string) {
+    const ref = this.authRef(kind, id);
+    return this.db.runTransaction(async (tx) => {
+      const s = await tx.get(ref);
+      if (!s.exists) return null;
+      tx.delete(ref);
+      return FirestoreStore.plain(s.data()!);
+    });
+  }
+  async deleteAuth(kind: AuthKind, id: string) { await this.authRef(kind, id).delete(); }
+  async listAuth(kind: AuthKind) {
+    const q = await this.db.collection('auth').where('kind', '==', kind).get();
+    return q.docs.map((d) => FirestoreStore.plain(d.data()));
   }
 
   async hit(bucket: string, limit: number, expires_at: number) {

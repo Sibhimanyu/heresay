@@ -32,6 +32,24 @@ Chosen so a false alarm is rare; missing some trouble is the better mistake.
 | Requests | 2 failing with 5xx or no answer within 30 s, while online. A 4xx is usually the app answering. | none: no URLProtocol | none |
 | Last crash | none | MetricKit, once per crash | MetricKit, once per crash |
 
+## Unsure, not blocked (2026-10-16)
+
+- **A second wording for hesitation:** "Stuck on something?" / "If something here isn't clear,
+  tell the team", opening as Confusing. Someone who stalls hasn't hit a failure, and Broken would
+  be the wrong type for the team's priority.
+- **Three signals**, each opt-in, all in `on` / `.all`:
+  - `stalled`: typed in a field, then 45 s with no more typing and nothing sent, still on the
+    page. Web: and still present (moved or scrolled in the last 15 s), so someone who walked away
+    isn't asked. Apple: the field still being edited (the keyboard still up on iOS) and the app
+    in front. Search fields never count: typing and then reading results is normal.
+  - `circles`: 6 page or screen changes in a minute among at most 3, one of them seen 3 times.
+    List-and-detail browsing visits new pages, so it doesn't trigger.
+  - `refused` (web): the same field refused 3 times in 2 minutes, by the browser's own check or
+    the app setting `aria-invalid="true"`.
+- **Anything sent starts these over:** a form submit, or a request other than GET or HEAD that
+  worked.
+- Only that something was typed is noticed, never what.
+
 ## Not done
 
 - **Back and forth between two pages.** List and detail screens do that all day.

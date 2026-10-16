@@ -91,6 +91,12 @@ Each report carries the last five minutes in the app, the same as the web widget
 - **The app's own errors**: `Logger` lines at `.error` and `.fault` (Apple's frameworks left
   out), read from the app's log only when someone reports. Log a failure and it shows up here.
 - **The last crash**, from MetricKit at the next launch, sent with one report.
+- **What happened before the app closed unexpectedly.** The trail is written to disk as it
+  happens, so after a crash, a hang the system killed or running out of memory, the next report
+  carries the last run's final five minutes, timed back from when it ended, and a line such as
+  "The app closed unexpectedly 4 s after launch, on the first launch after updating from 1.3 to
+  1.4". The app's own `Logger` errors are read once a minute while it's in front, so they're in
+  it too (a look at the log costs about a second and a half of one core, hence not more often).
 - **Going offline and back**, leaving the app and coming back, the device running hot, and on
   iOS the system warning that memory is low.
 - **macOS: clicks and menu commands.** A click by its control's accessibility label
@@ -121,10 +127,18 @@ goes by itself after 15 seconds unless the pointer is on it.
   in 2 seconds. Text, sliders, steppers and scroll bars don't count. Leave it out for games and
   drawing apps.
 - `.crash`: the app crashed last time (MetricKit). Offered once, at the next launch.
+- `.circles`: 6 screen changes in a minute among at most 3 screens, one seen 3 times. Needs
+  screens named with `setScreen` or `.heresayScreen(_:)`.
+- `.stalled`: typed in a field, then 45 seconds with the field still being edited (on iOS, the
+  keyboard still up), the app in front and the same screen. Search fields don't count. Only that
+  something was typed is noticed, never what.
+
+`.circles` and `.stalled` say "Stuck on something?" and open the sheet as Confusing;
+`Heresay.nudge(stuck: true)` does the same from the app's code.
 
 Watched on the device; nothing is sent unless the person sends a report. At most once per launch,
 and not for 7 days after **Not now**. `Heresay.nudge()` offers it from the app's own code, with the
-same limits. iOS has no taps to watch, so there it is `.crash` and `nudge()`.
+same limits. iOS has no taps to watch, so there it is `.crash`, `.circles`, `.stalled` and `nudge()`.
 
 The key is public: it can only send reports. Each device gets a random id (kept in
 `UserDefaults`), which is how people see their own reports and nobody else's; no accounts.

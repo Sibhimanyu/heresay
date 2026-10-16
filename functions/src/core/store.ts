@@ -1,4 +1,4 @@
-import type { AgentToken, Instance, Project, Report, ReportStatus, Task } from './types.js';
+import type { AgentToken, AuthKind, AuthRecord, Instance, Project, Report, ReportStatus, Task } from './types.js';
 
 /** Result of a status change. A lost race is not an error: the caller is told what it is now. */
 export type Transition =
@@ -43,6 +43,14 @@ export interface Store {
   listAgentTokens(): Promise<AgentToken[]>;
   updateAgentToken(id: string, patch: Partial<AgentToken>): Promise<void>;
 
+  /** OAuth records for chat apps. `put` creates or replaces. */
+  putAuth(r: AuthRecord): Promise<void>;
+  getAuth(kind: AuthKind, id: string): Promise<AuthRecord | null>;
+  /** Atomic read-and-delete: a one-time code can be exchanged once, however many try at once. */
+  takeAuth(kind: AuthKind, id: string): Promise<AuthRecord | null>;
+  deleteAuth(kind: AuthKind, id: string): Promise<void>;
+  listAuth(kind: AuthKind): Promise<AuthRecord[]>;
+
   /**
    * Count one hit against `bucket`. Returns false, and counts nothing, if `limit` is reached.
    * `expires_at` is when the bucket can be deleted.
@@ -57,6 +65,7 @@ export class MemoryStore implements Store {
   reports = new Map<string, Report>();
   tasks = new Map<string, Task>();
   tokens = new Map<string, AgentToken>();
+  auth = new Map<string, AuthRecord>();
   buckets = new Map<string, number>();
 
   async getInstance() { return this.instance ? structuredClone(this.instance) : null; }
@@ -143,6 +152,16 @@ export class MemoryStore implements Store {
     const t = this.tokens.get(id);
     if (t) this.tokens.set(id, { ...t, ...patch, id });
   }
+
+  async putAuth(r: AuthRecord) { this.auth.set(`${r.kind}:${r.id}`, structuredClone(r)); }
+  async getAuth(kind: AuthKind, id: string) { const r = this.auth.get(`${kind}:${id}`); return r ? structuredClone(r) : null; }
+  async takeAuth(kind: AuthKind, id: string) {
+    const r = this.auth.get(`${kind}:${id}`);
+    this.auth.delete(`${kind}:${id}`);
+    return r ? structuredClone(r) : null;
+  }
+  async deleteAuth(kind: AuthKind, id: string) { this.auth.delete(`${kind}:${id}`); }
+  async listAuth(kind: AuthKind) { return [...this.auth.values()].filter((r) => r.kind === kind).map((r) => structuredClone(r)); }
 
   async hit(bucket: string, limit: number) {
     const n = this.buckets.get(bucket) ?? 0;
