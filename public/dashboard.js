@@ -2309,19 +2309,19 @@
   }
 
   /** Inline Markdown into `node`, as text nodes and elements. Returns `node`. */
-  function inline(node, s) {
+  function inline(node, s, insideLink) {
     var re = /(`+)([\s\S]*?)\1|\*\*([^*]+?)\*\*|__([^_]+?)__|~~([^~]+?)~~|\*([^*\s][^*]*?)\*|(^|[^\w])_([^_\s][^_]*?)_(?=[^\w]|$)|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
     var at = 0, m;
     while ((m = re.exec(s))) {
       var start = m.index + (m[7] !== undefined ? m[7].length : 0);
       if (start > at) node.appendChild(document.createTextNode(s.slice(at, start)));
       if (m[1]) node.appendChild(el('code', { text: m[2] }));
-      else if (m[3] || m[4]) node.appendChild(inline(el('strong'), m[3] || m[4]));
-      else if (m[5]) node.appendChild(inline(el('del'), m[5]));
-      else if (m[6]) node.appendChild(inline(el('em'), m[6]));
-      else if (m[8]) node.appendChild(inline(el('em'), m[8]));
-      else if (m[9]) node.appendChild(link(m[10], m[9]));
-      else if (m[11]) node.appendChild(link(m[11], m[11]));
+      else if (m[3] || m[4]) node.appendChild(inline(el('strong'), m[3] || m[4], insideLink));
+      else if (m[5]) node.appendChild(inline(el('del'), m[5], insideLink));
+      else if (m[6]) node.appendChild(inline(el('em'), m[6], insideLink));
+      else if (m[8]) node.appendChild(inline(el('em'), m[8], insideLink));
+      else if (m[9]) node.appendChild(insideLink ? document.createTextNode(m[9]) : link(m[10], m[9]));
+      else if (m[11]) node.appendChild(insideLink ? document.createTextNode(m[11]) : link(m[11], m[11]));
       at = re.lastIndex;
     }
     if (at < s.length) node.appendChild(document.createTextNode(s.slice(at)));
@@ -2332,7 +2332,8 @@
   function link(href, label) {
     var ok = /^(https?:\/\/|mailto:)/i.test(href);
     if (!ok) return document.createTextNode(label === href ? href : label + ' (' + href + ')');
-    return inline(el('a', { href: href, target: '_blank', rel: 'noopener noreferrer nofollow' }), label);
+    // Link labels may contain formatting, but must never create another link.
+    return inline(el('a', { href: href, target: '_blank', rel: 'noopener noreferrer nofollow' }), label, true);
   }
 
   // ---- chat apps -------------------------------------------------------------------------
