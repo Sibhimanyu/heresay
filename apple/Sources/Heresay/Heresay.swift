@@ -363,6 +363,18 @@ public final class Heresay: ObservableObject {
         }
     }
 
+    /// Take back one of this device's reports while it's open. It isn't deleted: the team sees it
+    /// as withdrawn, with the reason. Accepted reports can't be taken back.
+    @discardableResult
+    public func withdraw(_ id: String, reason: String? = nil) async throws -> SentReport {
+        guard let client else { throw Client.Failure(status: 0, message: "Heresay isn’t configured.") }
+        let why = reason?.trimmed.nilIfEmpty
+        let r = try await client.withdraw(deviceId: deviceId, reportId: id, reason: why)
+        if let i = reports.firstIndex(where: { $0.id == id }) { reports[i] = r }
+        markSeen()
+        return r
+    }
+
     /// Fetch what happened to this device's reports.
     public func refresh() async {
         guard let client else { return }
@@ -394,7 +406,7 @@ public final class Heresay: ObservableObject {
 
     private func recount() {
         let seen = seenStatuses
-        unseen = reports.filter { $0.status != .open && seen[$0.id] != Self.mark($0) }.count
+        unseen = reports.filter { $0.status != .open && $0.status != .withdrawn && seen[$0.id] != Self.mark($0) }.count
     }
 
     /// What the person has seen of a report: its status, and the version its fix ships in once known.

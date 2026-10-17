@@ -7,7 +7,7 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var TYPE_LABEL = { broken: 'Broken', confusing: 'Confusing', improvement: 'Could be better', idea: 'Idea' };
-  var STATUS_LABEL = { open: 'Open', accepted: 'Accepted', fixed: 'Fixed', declined: 'Declined' };
+  var STATUS_LABEL = { open: 'Open', accepted: 'Accepted', fixed: 'Fixed', declined: 'Declined', withdrawn: 'Withdrawn' };
   var SDK_URL = location.origin + '/sdk/v1.js';
   var me = null, projects = [], timer = null;
 
@@ -1374,7 +1374,7 @@
     function drawFilters(here) {
       here = here || reports.filter(function (r) { return where === 'all' || r.project_id === where; });
       filters.textContent = '';
-      ['open', 'accepted', 'fixed', 'declined', 'all'].forEach(function (f) {
+      ['open', 'accepted', 'fixed', 'declined', 'withdrawn', 'all'].forEach(function (f) {
         var n = f === 'all' ? here.length : here.filter(function (r) { return r.status === f; }).length;
         filters.appendChild(el('button', {
           'aria-pressed': String(filter === f),
@@ -1721,6 +1721,8 @@
       suggest,
       trailView(r.trail),
       r.decline_reason ? el('div', { class: 'reason', text: 'Declined: ' + r.decline_reason }) : null,
+      r.withdrawal ? el('div', { class: 'reason withdrawn', text: 'Withdrawn by ' + ({ reporter: 'the person who sent it', member: r.withdrawal.by, agent: 'the agent in ' + r.withdrawal.by }[r.withdrawal.kind] || r.withdrawal.by)
+        + ' on ' + new Date(r.withdrawal.at).toLocaleString() + (r.withdrawal.reason ? ': ' + r.withdrawal.reason : '') }) : null,
       r.fix_note ? el('div', { class: 'reason', text: 'Told them: ' + r.fix_note }) : null,
       r.status === 'fixed' ? fixRefLine() : null,
       r.status === 'accepted' && brief ? el('div', { class: 'brief-line' }, [
@@ -1728,7 +1730,7 @@
       ]) : null,
       brief && brief.notes.length ? el('details', { class: 'notes' }, [el('summary', { text: brief.notes.length + (brief.notes.length === 1 ? ' note' : ' notes') + ' from agents' })]
         .concat(brief.notes.map(function (n) { return el('p', {}, [el('span', { class: 'mute', text: n.by.replace(/^agent:/, '') + ' · ' + new Date(n.at).toLocaleString() + ': ' }), n.text]); }))) : null,
-      r.status === 'fixed' || r.status === 'declined' ? null : actions,
+      r.status === 'fixed' || r.status === 'declined' || r.status === 'withdrawn' ? null : actions,
     ]);
     return card;
   }

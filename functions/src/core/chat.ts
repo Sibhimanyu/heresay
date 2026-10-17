@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import type { Deps, Req, Res } from './handler.js';
 import { OPEN_CORS, baseUrl, chatCaller, signInFirst } from './oauth.js';
 import { notify } from './notifications.js';
+import { withdraw } from './withdraw.js';
 import { LIMITS, REPORT_TYPES, isReportType, type ChatDocument, type Member, type Project, type Report } from './types.js';
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -88,6 +89,21 @@ const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
+    name: 'withdraw_request',
+    title: 'Take back a Heresay request',
+    description: 'Withdraws a request this team member sent, while it is still open. It isn\'t deleted: the team sees it under Withdrawn, with the reason. Accepted requests can\'t be withdrawn.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The request id, from my_requests' },
+        reason: { type: 'string', maxLength: LIMITS.reasonMax, description: 'Why, in a sentence. Optional.' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
     name: 'my_requests',
     title: 'My Heresay requests',
     description: 'What happened to the requests this person sent from chat apps: open, accepted, fixed (with the note) or declined (with the reason).',
@@ -155,6 +171,7 @@ async function one(m: unknown, member: Member, via: string, req: Req, deps: Deps
         // send_request is what older bridges call; it drafts too, so nothing is sent unseen.
         if (name === 'draft_request' || name === 'send_request') return rpcResult(msg.id, await draftRequest(args, member, via, deps));
         if (name === 'send_draft') return rpcResult(msg.id, await sendDraft(args, member, req, deps));
+        if (name === 'withdraw_request') return rpcResult(msg.id, await withdrawRequest(args, member, deps));
         if (name === 'my_requests') return rpcResult(msg.id, await myRequests(args, member, req, deps));
         return rpcError(msg.id, -32602, `Unknown tool: ${String(name)}`);
       } catch (e) {
@@ -287,7 +304,22 @@ async function myRequests(a: Record<string, unknown>, member: Member, req: Req, 
     }
   }
   rows.sort((x, y) => String(y.sent_at).localeCompare(String(x.sent_at)));
-  const line = (r: Record<string, unknown>) => `- ${r.app} · ${r.type} · ${r.status}${r.status === 'declined' && r.decline_reason ? ` (why: ${r.decline_reason})` : ''}`
+  const line = (r: Record<string, unknown>) => `- ${r.id} · ${r.app} · ${r.type} · ${r.status}${r.status === 'declined' && r.decline_reason ? ` (why: ${r.decline_reason})` : ''}`
     + `${r.status === 'fixed' && r.fix_note ? ` (${r.fix_note})` : ''}: ${String(r.text).slice(0, 140)}`;
   return result(rows.length ? rows.slice(0, 50).map(line).join('\n') : 'Nothing sent from a chat app yet.', { requests: rows.slice(0, 50) });
+}
+
+/** Find one of this member's requests across the apps and take it back. */
+async function withdrawRequest(a: Record<string, unknown>, member: Member, deps: Deps) {
+  const id = str(a.id, 64);
+  if (!id) throw new ToolError('Say which request: its id, from my_requests.');
+  const device = chatDevice(member.email);
+  for (const p of await deps.store.listProjects()) {
+    const r = await deps.store.getReport(p.id, id);
+    if (!r) continue;
+    const res = await withdraw(p, id, { kind: 'member', by: member.email }, a.reason, (d) => d === device, deps);
+    if (res.status !== 200) throw new ToolError(String((res.body as { error?: string }).error ?? 'Couldn\'t withdraw it.'));
+    return result(`Withdrawn from ${p.name}. It stays on the team's dashboard under Withdrawn${a.reason ? ', with your reason' : ''}.`, { id, app: p.name, status: 'withdrawn' });
+  }
+  throw new ToolError('No request with that id was sent by you.');
 }

@@ -806,6 +806,10 @@ struct Flow: Layout {
 
 struct MineList: View {
     @ObservedObject var heresay: Heresay
+    /// "Take back": the report being asked about, the optional reason, and any error.
+    @State private var taking: SentReport?
+    @State private var reason = ""
+    @State private var takeError: String?
 
     var body: some View {
         if heresay.reports.isEmpty {
@@ -835,6 +839,15 @@ struct MineList: View {
                     if r.status == .fixed, let fix = r.fixNote {
                         note(fix, fill: heresay.accent.opacity(0.1))
                     }
+                    if r.status == .withdrawn, let why = r.withdrawnReason {
+                        Text(heresay.words[.yourWhy] + why).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if r.status == .open {
+                        Button(heresay.words[.takeBack]) { taking = r; reason = "" }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                            .tint(heresay.accent)
+                    }
                     if r.status == .fixed, let v = r.fixVersion {
                         Text(heresay.words(.fixedIn, ["v": v]) + (heresay.isOlder(than: v) ? " " + heresay.words(.updateTo, ["v": v]) : ""))
                             .font(.caption).foregroundStyle(.secondary)
@@ -847,6 +860,21 @@ struct MineList: View {
             #else
             .listStyle(.plain)
             #endif
+            .alert(heresay.words[.takeBackAsk], isPresented: Binding(get: { taking != nil }, set: { if !$0 { taking = nil } })) {
+                TextField(heresay.words[.takeBackWhy], text: $reason)
+                Button(heresay.words[.keep], role: .cancel) { taking = nil }
+                Button(heresay.words[.takeBackYes], role: .destructive) {
+                    guard let r = taking else { return }
+                    let why = reason
+                    taking = nil
+                    Task {
+                        do { try await heresay.withdraw(r.id, reason: why) } catch { takeError = error.localizedDescription }
+                    }
+                }
+            }
+            .alert(takeError ?? "", isPresented: Binding(get: { takeError != nil }, set: { if !$0 { takeError = nil } })) {
+                Button(heresay.words[.done]) { takeError = nil }
+            }
             .refreshable { await heresay.refresh() }
         }
     }
@@ -879,7 +907,7 @@ struct StatusPill: View {
 
     private var color: Color {
         switch status {
-        case .open, .declined: .secondary
+        case .open, .declined, .withdrawn: .secondary
         case .accepted: accent
         case .fixed: .green
         }

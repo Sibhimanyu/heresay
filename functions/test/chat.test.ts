@@ -97,7 +97,7 @@ test('connect, then send an idea with the conversation\'s context: it waits in t
   assert.match(init.result.instructions, /draft_request prepares one and returns a preview/);
   assert.equal((await s.call({ method: 'POST', path: '/v1/mcp', headers: { authorization: `Bearer ${access_token}` }, body: { jsonrpc: '2.0', method: 'notifications/initialized' } })).status, 202);
   const tools = ((await rpc(s, access_token, 'tools/list')).body as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
-  assert.deepEqual(tools, ['list_apps', 'draft_request', 'send_draft', 'my_requests'], 'nothing that reads others\' reports, accepts, declines or fixes');
+  assert.deepEqual(tools, ['list_apps', 'draft_request', 'send_draft', 'withdraw_request', 'my_requests'], 'nothing that reads others\' reports, accepts, declines or fixes');
 
   const raw = await rpc(s, access_token, 'tools/call', { name: 'list_apps', arguments: {} });
   const listed = (raw.body as { result: { structuredContent: { apps: { name: string }[] } } }).result;
@@ -326,4 +326,22 @@ test('apps that default to a client secret (Perplexity, some others) still conne
   assert.equal(tok.status, 200, JSON.stringify(tok.body));
   const r = await s.call({ method: 'POST', path: '/v1/chat-connections', headers: s.as('alice'), body: {} });
   assert.equal(r.status, 201, 'and a chat token works as an API key for apps that take one');
+});
+
+test('a member takes back a request from chat; an agent takes back a finding; both kept as withdrawn', async () => {
+  const s = setup();
+  await addApp(s);
+  const { access_token } = await connect(s, 'bob');
+  const sent = await send(s, access_token, { app: 'Greenroom', type: 'idea', text: 'A countdown' }) as { structuredContent: { id: string } };
+  const call = async (name: string, args: Record<string, unknown>) => ((await rpc(s, access_token, 'tools/call', { name, arguments: args })).body as { result: { isError?: boolean; content: { text: string }[] } }).result;
+  const mine = await call('my_requests', {});
+  assert.match(mine.content[0]!.text, new RegExp(sent.structuredContent.id), 'my_requests shows the id to withdraw by');
+  const w = await call('withdraw_request', { id: sent.structuredContent.id, reason: 'Already exists in settings' });
+  assert.match(w.content[0]!.text, /Withdrawn from Greenroom/);
+  const r = s.store.reports.get(sent.structuredContent.id)!;
+  assert.equal(r.status, 'withdrawn');
+  assert.deepEqual({ ...r.withdrawal, at: 'x' }, { kind: 'member', by: 'bob@example.com', at: 'x', reason: 'Already exists in settings' });
+  const alice = await connect(s, 'alice');
+  const theirs = ((await rpc(s, alice.access_token, 'tools/call', { name: 'withdraw_request', arguments: { id: sent.structuredContent.id } })).body as { result: { isError?: boolean } }).result;
+  assert.equal(theirs.isError, true, 'only your own');
 });

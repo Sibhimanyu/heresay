@@ -4,6 +4,7 @@ import { agent, normaliseRepo, reposFor, tokens } from './agent.js';
 import { parseTrail, trailLines } from './trail.js';
 import { OPEN_CORS, approve, authorizationServer, authorize, connections, describeAsk, protectedResource, register, token } from './oauth.js';
 import { mcp } from './chat.js';
+import { withdraw } from './withdraw.js';
 import { alsoReported, duplicatesOf, follow, merge, parseFixRef, stampFix, unmerge } from './duplicates.js';
 import { notificationSettings, notify, type NotificationSender, type TelegramLookup } from './notifications.js';
 import {
@@ -229,6 +230,7 @@ async function route(req: Req, deps: Deps): Promise<Res> {
   if (p[0] === 'health' && req.method === 'GET') return json(200, { ok: true, version: deps.version });
   if (p[0] === 'reports' && p.length === 1 && req.method === 'POST') return submit(req, deps);
   if (p[0] === 'reports' && p[1] === 'mine' && req.method === 'POST') return mine(req, deps);
+  if (p[0] === 'reports' && p[1] === 'withdraw' && req.method === 'POST') return withdrawMine(req, deps);
   if (p[0] === 'reports' && req.method === 'OPTIONS') return preflight(req);
 
   // Chat apps (ChatGPT and other MCP clients): OAuth with the member's own sign-in, then MCP.
@@ -482,6 +484,29 @@ async function mine(req: Req, deps: Deps): Promise<Res> {
   const rs = await deps.store.listReportsForDevice(project.id, body.device_id);
   rs.sort((a, b) => b.created_at.localeCompare(a.created_at));
   return json(200, { reports: rs.map(toReporterView) }, headers);
+}
+
+/**
+ * POST /v1/reports/withdraw { key, device_id, report_id, reason? }: the reporter takes back one of
+ * their own open reports. Origin-checked like every SDK call, limited like reading them, and the
+ * device id must be the one that sent it.
+ */
+async function withdrawMine(req: Req, deps: Deps): Promise<Res> {
+  const body = parseBody(req.body);
+  const got = await publicProject(req, body.key, deps);
+  if ('status' in got) return got;
+  const { project, headers } = got;
+  if (!validDeviceId(body.device_id)) return json(400, { error: 'bad device_id' }, headers);
+  const now = deps.now();
+  const start = Math.floor(now / MINE_LIMIT.windowMs) * MINE_LIMIT.windowMs;
+  if (!(await deps.store.hit(`mine:${sha(req.ip)}:${start}`, MINE_LIMIT.limit, start + MINE_LIMIT.windowMs))) {
+    return json(429, { error: 'too many requests, try again later' }, headers);
+  }
+  const device = body.device_id;
+  const res = await withdraw(project, String(body.report_id ?? ''), { kind: 'reporter', by: 'the reporter' }, body.reason,
+    (d) => d === device, deps);
+  const r = (res.body as { report?: Report }).report;
+  return { ...res, body: r ? { report: toReporterView(r) } : res.body, headers };
 }
 
 /** The SDK posts text/plain to avoid a preflight, so the body may arrive as a string. */

@@ -864,3 +864,21 @@ final class FixVersionTests: XCTestCase {
         XCTAssertEqual(Heresay.mark(r), "fixed@1.4", "a new version on a fixed report counts as new")
     }
 }
+
+@MainActor
+final class WithdrawTests: XCTestCase {
+    func testTakingBackAReportKeepsItAsWithdrawn() async throws {
+        StubProtocol.sent = []
+        let withdrawn = #"{"report":{"id":"r_1","type":"idea","text":"x","status":"withdrawn","decline_reason":null,"fix_note":null,"withdrawn_reason":"Found it","created_at":"2026-10-17T00:00:00Z","updated_at":"2026-10-17T00:00:00Z"}}"#
+        StubProtocol.handler = { req, _ in req.url!.path.hasSuffix("/withdraw") ? (200, Data(withdrawn.utf8)) : (200, Data(#"{"reports":[]}"#.utf8)) }
+        let h = Heresay(defaults: UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!)
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1", accent: nil, trail: [], session: StubProtocol.session())
+        let r = try await h.withdraw("r_1", reason: "  Found it ")
+        XCTAssertEqual(r.status, .withdrawn)
+        XCTAssertEqual(r.withdrawnReason, "Found it")
+        let body = try JSONSerialization.jsonObject(with: StubProtocol.sent.last { $0.0.url!.path.hasSuffix("/withdraw") }!.1) as! [String: Any]
+        XCTAssertEqual(body["report_id"] as? String, "r_1")
+        XCTAssertEqual(body["reason"] as? String, "Found it")
+        XCTAssertEqual(h.unseen, 0, "taking it back yourself isn't news")
+    }
+}

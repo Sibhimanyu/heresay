@@ -105,6 +105,7 @@ export function client(conn) {
     released: (version, app) => call('POST', '/released', { version, app }),
     file: (f) => call('POST', '/findings', f),
     findings: () => call('GET', '/findings'),
+    withdrawFinding: (id, reason) => call('POST', `/findings/${enc(id)}/withdraw`, { reason }),
   };
 }
 

@@ -11,6 +11,7 @@ import {
 import type { Deps, Req, Res } from './handler.js';
 import { notify } from './notifications.js';
 import { parseFixRef, stampFix } from './duplicates.js';
+import { withdraw } from './withdraw.js';
 
 const json = (status: number, body: unknown): Res => ({ status, body });
 const str = (v: unknown, max: number): string | null => {
@@ -361,6 +362,13 @@ async function findings(p: string[], req: Req, deps: Deps, body: Record<string, 
     }
     out.sort((a, b) => b.created_at.localeCompare(a.created_at));
     return json(200, { repo: repoName, findings: out.slice(0, 100) });
+  }
+  if (p.length === 3 && p[2] === 'withdraw' && req.method === 'POST') {
+    for (const app of apps) {
+      if (!(await deps.store.getReport(app.id, p[1]!))) continue;
+      return withdraw(app, p[1]!, { kind: 'agent', by: repoName }, body.reason, (d) => d === device, deps);
+    }
+    return json(404, { error: 'no such finding from this repo' });
   }
   if (p.length !== 1 || req.method !== 'POST') return json(404, { error: 'not found' });
 

@@ -34,6 +34,7 @@ const HELP = `
     heresay file <type> "<text>" [--app <app>] [--file <path:line>]… [--details "<md>"]
                                            file something you noticed; a person accepts it first
     heresay findings                       what happened to this repo's findings
+    heresay withdraw <id> ["<reason>"]      take back an open finding (kept as withdrawn)
 
   Your Heresay itself
     npx create-heresay                     set one up    (also: update, status, open, remove)
@@ -112,6 +113,7 @@ export async function main(argv) {
         app: args.app, details: args.details, files: [].concat(args.file ?? []), agent: args.agent ?? 'heresay CLI',
       }));
       case 'findings': return print(await api.findings());
+      case 'withdraw': return print(await api.withdrawFinding(need(rest[0], 'the finding id'), rest.slice(1).join(' ') || undefined));
       default:
         console.log(`Unknown command: ${cmd}\n${HELP}`);
         process.exit(2);

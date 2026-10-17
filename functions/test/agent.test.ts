@@ -408,3 +408,14 @@ test('fixes carry their PR, commit and version; a release stamps the rest; repor
   assert.equal(w.store.reports.get(c)!.fix_ref!.version, '1.6');
   assert.ok(w.store.reports.get(c)!.fix_ref!.released_at);
 });
+
+test('an agent withdraws its own open finding; it stays, as withdrawn by the repo', async () => {
+  const w = await world();
+  const tok = await w.token('github.com/acme/web', [w.web.id]);
+  const f = ((await w.call({ method: 'POST', path: '/v1/agent/findings', headers: w.as(tok), body: { type: 'broken', text: 'Looks broken' } })).body as { finding: { id: string } }).finding;
+  const r = await w.call({ method: 'POST', path: `/v1/agent/findings/${f.id}/withdraw`, headers: w.as(tok), body: { reason: 'It was my test data.' } });
+  assert.equal(r.status, 200);
+  assert.equal(w.store.reports.get(f.id)!.withdrawal!.by, 'github.com/acme/web');
+  const userReport = await w.report(w.web, 'A user report');
+  assert.equal((await w.call({ method: 'POST', path: `/v1/agent/findings/${userReport}/withdraw`, headers: w.as(tok), body: {} })).status, 404, 'not an agent\'s to take back');
+});
