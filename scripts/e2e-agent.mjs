@@ -226,6 +226,9 @@ const cli = (...a) => execFileSync(process.execPath, [join(PKG, 'bin/heresay.mjs
 assert.match(cli('guide', 'write-note'), /The fix note/);
 const viaCli = JSON.parse(cli('file', 'idea', 'Search could also match note titles.', '--file', 'src/search.ts:12'));
 assert.equal(viaCli.finding.status, 'open');
+const back = JSON.parse(cli('withdraw', viaCli.finding.id, 'It already does, I misread the code.'));
+assert.equal(back.report.status, 'withdrawn');
+assert.equal(back.report.withdrawal.by, repoName);
 assert.match(cli('guide', 'fix-brief'), /Noticed something else\?/);
 assert.deepEqual(JSON.parse(cli('briefs')).briefs.map((b) => b.id), [filed.finding.id], 'the accepted finding, and nothing filed but not accepted');
 

@@ -43,6 +43,19 @@ struct Client: Sendable {
         return try await post("reports", body, as: ReportEnvelope.self).report
     }
 
+    private struct WithdrawBody: Encodable {
+        let key: String
+        let device_id: String
+        let sdk: String
+        let report_id: String
+        let reason: String?
+    }
+
+    /// Take back one of this device's open reports. Kept as withdrawn, never deleted.
+    func withdraw(deviceId: String, reportId: String, reason: String?) async throws -> SentReport {
+        try await post("reports/withdraw", WithdrawBody(key: key, device_id: deviceId, sdk: sdk, report_id: reportId, reason: reason), as: ReportEnvelope.self).report
+    }
+
     func mine(deviceId: String) async throws -> [SentReport] {
         try await post("reports/mine", MineBody(key: key, device_id: deviceId, sdk: sdk), as: ReportsEnvelope.self).reports
     }

@@ -17,7 +17,7 @@ public enum ReportType: String, Codable, CaseIterable, Sendable, Identifiable {
 }
 
 public enum ReportStatus: String, Codable, Sendable {
-    case open, accepted, fixed, declined
+    case open, accepted, fixed, declined, withdrawn
 }
 
 /// A report as its sender sees it: no other device's reports, no triager identity.
@@ -30,6 +30,8 @@ public struct SentReport: Codable, Sendable, Identifiable, Equatable {
     public let fixNote: String?
     /// The app version the fix ships in, once the team knows it.
     public var fixVersion: String? = nil
+    /// Why the person took it back, if they said.
+    public var withdrawnReason: String? = nil
     public let createdAt: String
     public let updatedAt: String
 
@@ -38,6 +40,7 @@ public struct SentReport: Codable, Sendable, Identifiable, Equatable {
         case declineReason = "decline_reason"
         case fixNote = "fix_note"
         case fixVersion = "fix_version"
+        case withdrawnReason = "withdrawn_reason"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }

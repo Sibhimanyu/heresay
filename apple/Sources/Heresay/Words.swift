@@ -11,7 +11,8 @@ enum W: String, CaseIterable {
     case broken, brokenHint, brokenAsk, confusing, confusingHint, confusingAsk
     case improvement, improvementHint, improvementAsk, idea, ideaHint, ideaAsk
     case sentTitle, sentBody, sendAnother, seeReports
-    case none, why, statusOpen, statusAccepted, statusFixed, statusDeclined
+    case none, why, statusOpen, statusAccepted, statusFixed, statusDeclined, statusWithdrawn
+    case takeBack, takeBackAsk, takeBackWhy, takeBackYes, keep, yourWhy
     case you, signedInAs, yourAccount, seesReply, sees, name, email, optional, aboutYou
     case emailHint, emailBad, yourSetup, setupPrompt, setupLabel, setupFooter, clearAll
     case attachTrail, trailHint, trailHintTouch, seeTrail, alsoSent, trailLastRun
@@ -63,6 +64,7 @@ struct Words: Sendable {
         .sendAnother: "Send another", .seeReports: "See your reports",
         .none: "Nothing sent from this device yet.", .why: "Why: ",
         .statusOpen: "Waiting for the developer", .statusAccepted: "Accepted, being worked on", .statusFixed: "Fixed", .statusDeclined: "Declined",
+        .statusWithdrawn: "You took this back", .takeBack: "Take back", .takeBackAsk: "Take this back? It isn’t deleted: the team sees you withdrew it.", .takeBackWhy: "Why? (optional)", .takeBackYes: "Take it back", .keep: "Keep it", .yourWhy: "Your reason: ",
         .you: "You", .signedInAs: "Signed in as {who}", .yourAccount: "your account",
         .seesReply: "The team sees this with each report, and can reply to you.", .sees: "The team sees this with each report.",
         .name: "Name", .email: "Email", .optional: "Optional", .aboutYou: "About you",
@@ -109,6 +111,7 @@ struct Words: Sendable {
         .sendAnother: "En envoyer un autre", .seeReports: "Voir vos signalements",
         .none: "Aucun signalement envoyé depuis cet appareil.", .why: "Pourquoi : ",
         .statusOpen: "En attente de l’équipe", .statusAccepted: "Accepté, en cours", .statusFixed: "Corrigé", .statusDeclined: "Refusé",
+        .statusWithdrawn: "Vous l’avez retiré", .takeBack: "Retirer", .takeBackAsk: "Retirer ce signalement ? Il n’est pas supprimé : l’équipe voit que vous l’avez retiré.", .takeBackWhy: "Pourquoi ? (facultatif)", .takeBackYes: "Le retirer", .keep: "Le garder", .yourWhy: "Votre raison : ",
         .you: "Vous", .signedInAs: "Connecté en tant que {who}", .yourAccount: "votre compte",
         .seesReply: "L’équipe le voit avec chaque signalement et peut vous répondre.", .sees: "L’équipe le voit avec chaque signalement.",
         .name: "Nom", .email: "E-mail", .optional: "Facultatif", .aboutYou: "À propos de vous",
@@ -157,6 +160,7 @@ struct Words: Sendable {
         .sendAnother: "இன்னொன்று அனுப்பு", .seeReports: "உங்கள் புகார்களைப் பார்",
         .none: "இந்தச் சாதனத்திலிருந்து இன்னும் எதுவும் அனுப்பப்படவில்லை.", .why: "காரணம்: ",
         .statusOpen: "டெவலப்பருக்காகக் காத்திருக்கிறது", .statusAccepted: "ஏற்கப்பட்டது, வேலை நடக்கிறது", .statusFixed: "சரிசெய்யப்பட்டது", .statusDeclined: "நிராகரிக்கப்பட்டது",
+        .statusWithdrawn: "நீங்கள் திரும்பப் பெற்றீர்கள்", .takeBack: "திரும்பப் பெறு", .takeBackAsk: "இதைத் திரும்பப் பெறவா? இது நீக்கப்படாது: நீங்கள் திரும்பப் பெற்றதைக் குழு பார்க்கும்.", .takeBackWhy: "ஏன்? (விருப்பத்தேர்வு)", .takeBackYes: "திரும்பப் பெறு", .keep: "வைத்திரு", .yourWhy: "உங்கள் காரணம்: ",
         .you: "நீங்கள்", .signedInAs: "{who} ஆக உள்நுழைந்துள்ளீர்கள்", .yourAccount: "உங்கள் கணக்கு",
         .seesReply: "ஒவ்வொரு புகாருடனும் குழு இதைப் பார்க்கும், உங்களுக்குப் பதிலும் அனுப்பலாம்.", .sees: "ஒவ்வொரு புகாருடனும் குழு இதைப் பார்க்கும்.",
         .name: "பெயர்", .email: "மின்னஞ்சல்", .optional: "விருப்பத்தேர்வு", .aboutYou: "உங்களைப் பற்றி",
@@ -203,6 +207,7 @@ struct Words: Sendable {
         .sendAnother: "एक और भेजें", .seeReports: "अपनी रिपोर्ट देखें",
         .none: "इस डिवाइस से अभी तक कुछ नहीं भेजा गया।", .why: "वजह: ",
         .statusOpen: "डेवलपर का इंतज़ार", .statusAccepted: "स्वीकार, इस पर काम चल रहा है", .statusFixed: "ठीक हो गया", .statusDeclined: "अस्वीकार",
+        .statusWithdrawn: "आपने इसे वापस ले लिया", .takeBack: "वापस लें", .takeBackAsk: "इसे वापस लें? यह हटाया नहीं जाएगा: टीम देखेगी कि आपने इसे वापस लिया।", .takeBackWhy: "क्यों? (वैकल्पिक)", .takeBackYes: "वापस लें", .keep: "रहने दें", .yourWhy: "आपकी वजह: ",
         .you: "आप", .signedInAs: "{who} के रूप में साइन इन", .yourAccount: "आपका खाता",
         .seesReply: "टीम हर रिपोर्ट के साथ इसे देखती है, और आपको जवाब दे सकती है।", .sees: "टीम हर रिपोर्ट के साथ इसे देखती है।",
         .name: "नाम", .email: "ईमेल", .optional: "वैकल्पिक", .aboutYou: "आपके बारे में",
@@ -241,6 +246,7 @@ extension ReportStatus {
         case .accepted: w[.statusAccepted]
         case .fixed: w[.statusFixed]
         case .declined: w[.statusDeclined]
+        case .withdrawn: w[.statusWithdrawn]
         }
     }
 }

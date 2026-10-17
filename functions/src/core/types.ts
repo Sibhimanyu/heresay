@@ -30,7 +30,10 @@ export const REPORT_ORDER: Record<ReportType, number> = {
 /**
  * open -> accepted -> fixed, or open -> declined (with a reason). The reporter sees all four.
  */
-export type ReportStatus = 'open' | 'accepted' | 'fixed' | 'declined';
+export type ReportStatus = 'open' | 'accepted' | 'fixed' | 'declined' | 'withdrawn';
+
+/** Who took a report back, when and why. Kept: a withdrawn report is never deleted. */
+export interface Withdrawal { kind: 'reporter' | 'member' | 'agent'; by: string; at: string; reason: string | null }
 
 /** Attached by the SDK, not typed by the reporter. Every field is optional and length-capped. */
 export interface ReportContext {
@@ -111,6 +114,8 @@ export interface Report {
   device_id: string;
   /** Merged into another report: its status, reason and fix note follow that one. */
   duplicate_of?: DuplicateOf | null;
+  /** Taken back by whoever sent it, while it was open. */
+  withdrawal?: Withdrawal | null;
   type: ReportType;
   text: string;
   /** Unset for reports from the app. */
@@ -279,12 +284,14 @@ export interface ReporterView {
   fix_note: string | null;
   /** The app version the fix ships in, once known. Never the PR or commit: repos may be private. */
   fix_version: string | null;
+  /** Why they took it back, in their words, if they said. */
+  withdrawn_reason: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export const toReporterView = (r: Report): ReporterView => ({
-  id: r.id, type: r.type, text: r.text, status: r.status,
+  id: r.id, type: r.type, text: r.text, status: r.status, withdrawn_reason: r.withdrawal?.reason ?? null,
   decline_reason: r.decline_reason, fix_note: r.fix_note ?? null, fix_version: r.fix_ref?.version ?? null,
   created_at: r.created_at, updated_at: r.updated_at,
 });

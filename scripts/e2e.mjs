@@ -710,7 +710,7 @@ try {
   const { StreamableHTTPClientTransport } = await import(`${PKG}node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js`);
   const chat = new Client({ name: 'chatgpt-e2e', version: '1' });
   await chat.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/v1/mcp`), { requestInit: { headers: { authorization: `Bearer ${tokens.access_token}` } } }));
-  assert.deepEqual((await chat.listTools()).tools.map((t) => t.name), ['list_apps', 'draft_request', 'send_draft', 'my_requests']);
+  assert.deepEqual((await chat.listTools()).tools.map((t) => t.name), ['list_apps', 'draft_request', 'send_draft', 'withdraw_request', 'my_requests']);
   const chatApps = (await chat.callTool({ name: 'list_apps', arguments: {} })).structuredContent.apps;
   assert.ok(chatApps.some((a) => a.name === 'Acme Notes'));
   // Nothing is sent until a second step: the person sees which app it's for first.
@@ -840,6 +840,33 @@ try {
   assert.equal(await rsdk.getByText('pull/77').count(), 0);
   await rep.screenshot({ path: `${SHOTS}e2e-12b-fixed-in-version.png` });
   await fixCtx.close();
+
+  step('a reporter takes a report back: kept as withdrawn, with when and why, never deleted');
+  const wdDevice = 'e2e_withdraw_device_0001';
+  const toTake = (await sendAs('Please add a calendar view', wdDevice)).report;
+  const wdCtx = await browser.newContext({ viewport: { width: 1000, height: 760 } });
+  await wdCtx.addInitScript((d) => localStorage.setItem('fbsdk.device', d), wdDevice);
+  const wd = await wdCtx.newPage();
+  await wd.goto(`${BASE}/demo.html?key=${key}`);
+  const wsdk = wd.locator('[data-feedback-sdk]');
+  await wsdk.getByRole('button', { name: /Report a problem/ }).click();
+  await wsdk.getByRole('tab', { name: 'Your reports' }).click();
+  const item = wsdk.locator('.item', { hasText: 'Please add a calendar view' });
+  await item.getByRole('button', { name: 'Take back' }).click();
+  await item.getByText('It isn’t deleted').waitFor();
+  await item.getByLabel('Why? (optional)').fill('Found it under Views.');
+  await item.getByRole('button', { name: 'Take it back' }).click();
+  await item.getByText('You took this back').waitFor();
+  await item.getByText('Your reason: Found it under Views.').waitFor();
+  await wd.screenshot({ path: `${SHOTS}e2e-13a-take-back.png` });
+  await wdCtx.close();
+  await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.getByRole('button', { name: /^Withdrawn/ }).click();
+  const wdCard = dash.locator('article.report', { hasText: 'Please add a calendar view' });
+  await wdCard.getByText(/Withdrawn by the person who sent it on .*: Found it under Views\./).waitFor();
+  assert.equal(await wdCard.getByRole('button', { name: 'Accept' }).count(), 0, 'nothing to triage');
+  await wdCard.screenshot({ path: `${SHOTS}e2e-13b-withdrawn.png` });
+  assert.equal(((await (await api('GET', `/projects/${project.id}/reports`)).json()).reports.find((x) => x.id === toTake.id)).status, 'withdrawn');
 
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;

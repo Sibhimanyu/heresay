@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.32] - 2026-10-17
+
+### Added
+
+- **Take a report back.** Whoever sent a report can withdraw it while it's still open: "Take back" in Your reports (web widget and Swift), `withdraw_request` from a chat app, `withdraw_finding` / `npx heresay withdraw` for an agent's finding. It isn't deleted: it moves to **Withdrawn** on the dashboard with who, when and why. Accepted reports can't be taken back. Reports merged into a withdrawn one go back to being open on their own.
+
 ## [0.2.31] - 2026-10-17
 
 ### Added

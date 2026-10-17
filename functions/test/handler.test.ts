@@ -489,3 +489,45 @@ test('duplicates: a decline reaches everyone; merging chains to the top, stays i
   const other = ((await call({ method: 'POST', path: '/v1/projects', headers: asOwner(), body: { name: 'Elsewhere' } })).body as { project: { id: string } }).project;
   assert.equal((await call({ method: 'POST', path: `/v1/projects/${other.id}/reports/${d}/merge`, headers: asOwner(), body: { into: a } })).status, 404, 'other apps can\'t reach it');
 });
+
+test('withdraw: the reporter takes back an open report; it is kept, with who, when and why, never deleted', async () => {
+  const { call, asOwner, project, submit, store } = await withProject();
+  const id = ((await submit({ type: 'idea', text: 'A dark mode' })).body as { report: { id: string } }).report.id;
+  const other = ((await submit({ type: 'idea', text: 'Bigger fonts', device_id: 'dev_zzzzzzzzzzzzzzzzzzzz' })).body as { report: { id: string } }).report.id;
+  const take = (report_id: string, extra: Record<string, unknown> = {}, origin = ORIGIN) => call({ method: 'POST', path: '/v1/reports/withdraw', headers: { origin },
+    body: JSON.stringify({ key: project.key, device_id: DEVICE, report_id, ...extra }) });
+
+  assert.equal((await take(other)).status, 404, 'not this device\'s report, and it doesn\'t say so');
+  assert.equal((await take(id, {}, 'https://evil.example')).status, 403, 'origin-checked like every SDK call');
+  const r = await take(id, { reason: 'Found the setting, sorry!' });
+  assert.equal(r.status, 200);
+  assert.equal((r.body as { report: { status: string; withdrawn_reason: string } }).report.status, 'withdrawn');
+  assert.equal((r.body as { report: { withdrawn_reason: string } }).report.withdrawn_reason, 'Found the setting, sorry!');
+  const kept = store.reports.get(id)!;
+  assert.equal(kept.status, 'withdrawn');
+  assert.equal(kept.text, 'A dark mode', 'kept, not deleted');
+  assert.deepEqual({ ...kept.withdrawal, at: 'x' }, { kind: 'reporter', by: 'the reporter', at: 'x', reason: 'Found the setting, sorry!' });
+  assert.equal((await take(id)).status, 200, 'again: already withdrawn');
+
+  // The team still sees it, and can't accept it.
+  const listed = (await call({ path: `/v1/projects/${project.id}/reports`, headers: asOwner() })).body as { reports: { id: string; status: string }[] };
+  assert.equal(listed.reports.find((x) => x.id === id)!.status, 'withdrawn');
+  assert.equal((await call({ method: 'POST', path: `/v1/projects/${project.id}/reports/${id}/accept`, headers: asOwner() })).status, 409);
+
+  // Accepted: too late, the team is told instead.
+  const a2 = ((await submit({ type: 'broken', text: 'Export fails' })).body as { report: { id: string } }).report.id;
+  await call({ method: 'POST', path: `/v1/projects/${project.id}/reports/${a2}/accept`, headers: asOwner() });
+  const late = await take(a2);
+  assert.equal(late.status, 409);
+  assert.match((late.body as { error: string }).error, /can't be taken back now/);
+});
+
+test('withdraw: a report others were merged into lets them go, so they still get an answer', async () => {
+  const { call, asOwner, project, submit, store } = await withProject();
+  const main = ((await submit({ type: 'broken', text: 'Export fails' })).body as { report: { id: string } }).report.id;
+  const dup = ((await submit({ type: 'broken', text: 'Export is broken', device_id: 'dev_yyyyyyyyyyyyyyyyyyyy' })).body as { report: { id: string } }).report.id;
+  await call({ method: 'POST', path: `/v1/projects/${project.id}/reports/${dup}/merge`, headers: asOwner(), body: { into: main } });
+  await call({ method: 'POST', path: '/v1/reports/withdraw', headers: { origin: ORIGIN }, body: JSON.stringify({ key: project.key, device_id: DEVICE, report_id: main }) });
+  assert.equal(store.reports.get(dup)!.duplicate_of, null);
+  assert.equal(store.reports.get(dup)!.status, 'open');
+});

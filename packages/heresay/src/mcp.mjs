@@ -177,6 +177,12 @@ export async function serve() {
     },
   }, tool(async (a) => text(await api().file(a))));
 
+  server.registerTool('withdraw_finding', {
+    title: 'Take back a finding',
+    description: 'Withdraws a finding this repo filed, while it is still open (it was wrong, or already fixed). It isn\'t deleted: the team sees it under Withdrawn, with the reason.',
+    inputSchema: { id: z.string().describe('The finding id, from my_findings'), reason: z.string().optional().describe('Why, in a sentence') },
+  }, tool(async ({ id, reason }) => text(await api().withdrawFinding(id, reason))));
+
   server.registerTool('my_findings', {
     title: 'Findings this repo filed',
     description: 'What happened to the findings agents in this repo filed: open, accepted, fixed (with the note) or declined (with the reason).',

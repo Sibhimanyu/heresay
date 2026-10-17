@@ -97,7 +97,8 @@
         improvement: ['Could be better', 'It works, but it could be better'],
         idea: ['Idea', 'Something that does not exist yet'],
       },
-      status: { open: 'Waiting for the developer', accepted: 'Accepted, being worked on', fixed: 'Fixed', declined: 'Declined' },
+      status: { open: 'Waiting for the developer', accepted: 'Accepted, being worked on', fixed: 'Fixed', declined: 'Declined', withdrawn: 'You took this back' },
+      takeBack: 'Take back', takeBackAsk: 'Take this back? It isn’t deleted: the team sees you withdrew it.', takeBackWhy: 'Why? (optional)', takeBackYes: 'Take it back', keep: 'Keep it', yourWhy: 'Your reason: ',
       optional: '(optional)', yourName: 'Your name', email: 'Email',
       emailHint: 'Only if you are happy for the team to reply to you.',
       setup: 'About your setup', setupHint: 'Sent with every report, so you only say it once.',
@@ -136,7 +137,8 @@
         improvement: ['Pourrait être mieux', 'Ça marche, mais ça pourrait être mieux'],
         idea: ['Idée', 'Quelque chose qui n’existe pas encore'],
       },
-      status: { open: 'En attente de l’équipe', accepted: 'Accepté, en cours', fixed: 'Corrigé', declined: 'Refusé' },
+      status: { open: 'En attente de l’équipe', accepted: 'Accepté, en cours', fixed: 'Corrigé', declined: 'Refusé', withdrawn: 'Vous l’avez retiré' },
+      takeBack: 'Retirer', takeBackAsk: 'Retirer ce signalement ? Il n’est pas supprimé : l’équipe voit que vous l’avez retiré.', takeBackWhy: 'Pourquoi ? (facultatif)', takeBackYes: 'Le retirer', keep: 'Le garder', yourWhy: 'Votre raison : ',
       optional: '(facultatif)', yourName: 'Votre nom', email: 'E-mail',
       emailHint: 'Seulement si vous acceptez que l’équipe vous réponde.',
       setup: 'Votre configuration', setupHint: 'Envoyé avec chaque signalement, pour ne le dire qu’une fois.',
@@ -175,7 +177,8 @@
         improvement: ['இன்னும் சிறப்பாக்கலாம்', 'வேலை செய்கிறது, ஆனால் மேம்படுத்தலாம்'],
         idea: ['யோசனை', 'இன்னும் இல்லாத ஒன்று'],
       },
-      status: { open: 'டெவலப்பருக்காகக் காத்திருக்கிறது', accepted: 'ஏற்கப்பட்டது, வேலை நடக்கிறது', fixed: 'சரிசெய்யப்பட்டது', declined: 'நிராகரிக்கப்பட்டது' },
+      status: { open: 'டெவலப்பருக்காகக் காத்திருக்கிறது', accepted: 'ஏற்கப்பட்டது, வேலை நடக்கிறது', fixed: 'சரிசெய்யப்பட்டது', declined: 'நிராகரிக்கப்பட்டது', withdrawn: 'நீங்கள் திரும்பப் பெற்றீர்கள்' },
+      takeBack: 'திரும்பப் பெறு', takeBackAsk: 'இதைத் திரும்பப் பெறவா? இது நீக்கப்படாது: நீங்கள் திரும்பப் பெற்றதைக் குழு பார்க்கும்.', takeBackWhy: 'ஏன்? (விருப்பத்தேர்வு)', takeBackYes: 'திரும்பப் பெறு', keep: 'வைத்திரு', yourWhy: 'உங்கள் காரணம்: ',
       optional: '(விருப்பத்தேர்வு)', yourName: 'உங்கள் பெயர்', email: 'மின்னஞ்சல்',
       emailHint: 'குழு உங்களுக்குப் பதில் அனுப்பலாம் என்றால் மட்டும்.',
       setup: 'உங்கள் அமைப்பு பற்றி', setupHint: 'ஒவ்வொரு புகாருடனும் அனுப்பப்படும், எனவே ஒருமுறை சொன்னால் போதும்.',
@@ -214,7 +217,8 @@
         improvement: ['बेहतर हो सकता है', 'काम करता है, पर बेहतर हो सकता है'],
         idea: ['सुझाव', 'कुछ ऐसा जो अभी नहीं है'],
       },
-      status: { open: 'डेवलपर का इंतज़ार', accepted: 'स्वीकार, इस पर काम चल रहा है', fixed: 'ठीक हो गया', declined: 'अस्वीकार' },
+      status: { open: 'डेवलपर का इंतज़ार', accepted: 'स्वीकार, इस पर काम चल रहा है', fixed: 'ठीक हो गया', declined: 'अस्वीकार', withdrawn: 'आपने इसे वापस ले लिया' },
+      takeBack: 'वापस लें', takeBackAsk: 'इसे वापस लें? यह हटाया नहीं जाएगा: टीम देखेगी कि आपने इसे वापस लिया।', takeBackWhy: 'क्यों? (वैकल्पिक)', takeBackYes: 'वापस लें', keep: 'रहने दें', yourWhy: 'आपकी वजह: ',
       optional: '(वैकल्पिक)', yourName: 'आपका नाम', email: 'ईमेल',
       emailHint: 'सिर्फ़ तब, जब आप चाहते हैं कि टीम आपको जवाब दे।',
       setup: 'आपके सेटअप के बारे में', setupHint: 'हर रिपोर्ट के साथ भेजा जाता है, ताकि आपको एक ही बार बताना पड़े।',
@@ -334,7 +338,7 @@
   }
   function unseen() {
     var s = seen();
-    return state.reports.filter(function (r) { return r.status !== 'open' && s[r.id] !== mark(r); }).length;
+    return state.reports.filter(function (r) { return r.status !== 'open' && r.status !== 'withdrawn' && s[r.id] !== mark(r); }).length;
   }
   /** a < b for versions like 1.4, 1.10.2, 2.0 (build suffixes ignored). Unknown: false. */
   function older(a, b) {
@@ -1022,6 +1026,15 @@
     }).then(body);
   }
 
+  function withdrawReport(id, reason) {
+    if (PREVIEW) return Promise.resolve({ report: Object.assign({}, state.reports.filter(function (x) { return x.id === id; })[0], { status: 'withdrawn', withdrawn_reason: reason || null }) });
+    return fetch(API + '/reports/withdraw', {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ key: KEY, device_id: deviceId(), report_id: id, reason: reason || null }),
+    }).then(body);
+  }
+
   function refresh() {
     if (PREVIEW) return Promise.resolve();
     return fetch(API + '/reports/mine', {
@@ -1155,6 +1168,8 @@
     '.thanks{padding:10px 12px;margin:0 0 8px;border-radius:10px;background:var(--fb-line)}',
     '.item{border-top:1px solid var(--fb-line);padding:10px 0}',
     '.item:first-child{border-top:0}',
+    '.take-back{margin-top:6px}.take-back input{width:100%;padding:7px 9px;border:1px solid var(--fb-line);border-radius:8px;background:none;margin:4px 0}',
+    '.take-back .row{margin-top:4px;justify-content:flex-end}',
     '.status{font-size:12px;font-weight:600}',
     '.status.fixed,.status.accepted{color:var(--fb-fg)}',
     '.reason{margin-top:4px;padding:8px;border-radius:8px;background:var(--fb-line);font-size:13px}',
@@ -1503,7 +1518,7 @@
     var s = seen();
     state.reports.forEach(function (r) {
       var label = (TYPES.filter(function (t) { return t.id === r.type; })[0] || {}).label || r.type;
-      var fresh = r.status !== 'open' && s[r.id] !== mark(r);
+      var fresh = r.status !== 'open' && r.status !== 'withdrawn' && s[r.id] !== mark(r);
       listBox.appendChild(el('div', { class: 'item' }, [
         el('div', { class: 'status ' + r.status, text: (fresh ? '● ' : '') + (S.status[r.status] || r.status) }),
         el('div', { class: 'text', text: r.text }),
@@ -1514,8 +1529,40 @@
           ? el('div', { class: 'reason', text: r.fix_note }) : null,
         r.status === 'fixed' && r.fix_version
           ? el('div', { class: 'small', text: fmt(S.fixedIn, { v: r.fix_version }) + (older(state.version, r.fix_version) ? ' ' + fmt(S.updateTo, { v: r.fix_version }) : '') }) : null,
+        r.status === 'withdrawn' && r.withdrawn_reason ? el('div', { class: 'small', text: S.yourWhy + r.withdrawn_reason }) : null,
+        r.status === 'open' ? takeBack(r) : null,
       ]));
     });
+  }
+
+  /** "Take back": a report they sent and the team hasn't accepted. Kept as withdrawn, not deleted. */
+  function takeBack(r) {
+    var box = el('div', { class: 'take-back' });
+    function ask() {
+      box.textContent = '';
+      var why = el('input', { type: 'text', maxlength: '500', placeholder: S.takeBackWhy, 'aria-label': S.takeBackWhy });
+      var err = el('div', { class: 'err', role: 'alert' });
+      box.appendChild(el('p', { class: 'small', text: S.takeBackAsk }));
+      box.appendChild(why);
+      box.appendChild(el('div', { class: 'row' }, [
+        el('button', { class: 'link', type: 'button', text: S.keep, onclick: idle }),
+        el('button', { class: 'send', type: 'button', text: S.takeBackYes, onclick: function () {
+          withdrawReport(r.id, why.value.trim()).then(function (b) {
+            state.reports = state.reports.map(function (x) { return x.id === r.id ? b.report : x; });
+            markSeen();
+            renderList();
+          }).catch(function (x) { err.textContent = x.message || S.cantSend; });
+        } }),
+      ]));
+      box.appendChild(err);
+      why.focus();
+    }
+    function idle() {
+      box.textContent = '';
+      box.appendChild(el('button', { class: 'link', type: 'button', text: S.takeBack, onclick: ask }));
+    }
+    idle();
+    return box;
   }
 
   // ---- introduction ----------------------------------------------------------------------
