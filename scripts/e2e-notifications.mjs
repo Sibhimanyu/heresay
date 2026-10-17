@@ -41,8 +41,8 @@ try {
   await signIn(page, OWNER);
   await page.getByRole('link', { name: 'Notifications', exact: true }).click();
   await page.getByRole('heading', { name: 'When to notify' }).waitFor();
-  assert.equal(await page.locator('[data-nav=notifications]').getAttribute('aria-current'), 'true');
-  assert.equal(await page.locator('[data-nav=apps]').getAttribute('aria-current'), 'false');
+  assert.equal(await page.locator('[data-nav=notifications]').getAttribute('aria-current'), 'page');
+  assert.equal(await page.locator('[data-nav=apps]').getAttribute('aria-current'), null);
   const events = page.locator('section').filter({ has: page.getByRole('heading', { name: 'When to notify' }) });
   const telegram = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Telegram', exact: true }) });
   const cliq = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Zoho Cliq', exact: true }) });

@@ -1,0 +1,206 @@
+// Workspace redesign coverage, against the real Firebase emulators.
+// Run while npm run dev is running: node scripts/e2e-workspace.mjs
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+const BASE = 'http://127.0.0.1:5055';
+const PROJECT = 'demo-feedback-sdk';
+const email = `workspace${Date.now()}@example.com`;
+const stamp = new Date().toISOString();
+const shot = new URL('../.context/design/', import.meta.url).pathname;
+mkdirSync(shot, { recursive: true });
+const seeded = await fetch(`http://127.0.0.1:8181/v1/projects/${PROJECT}/databases/(default)/documents/meta/instance`, {
+  method: 'PATCH', headers: { authorization: 'Bearer owner', 'content-type': 'application/json' },
+  body: JSON.stringify({ fields: { created_at: { stringValue: stamp }, members: { arrayValue: { values: [{ mapValue: { fields: {
+    email: { stringValue: email }, role: { stringValue: 'owner' }, added_at: { stringValue: stamp }, added_by: { nullValue: null },
+  } } }] } } } }),
+});
+assert.equal(seeded.status, 200);
+const browser = await chromium.launch();
+const context = await browser.newContext({ viewport: { width: 1536, height: 1024 }, permissions: ['clipboard-read', 'clipboard-write'] });
+await context.addInitScript(() => {
+  const interval = window.setInterval.bind(window);
+  window.setInterval = (fn, ms, ...args) => {
+    if (ms === 30000) window.__refreshInbox = fn;
+    return interval(fn, ms, ...args);
+  };
+});
+const page = await context.newPage();
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+await page.route('https://registry.npmjs.org/create-heresay/latest', r => r.fulfill({ json: { version: '0.0.0' } }));
+try {
+  await page.goto(`${BASE}/app/`);
+  await page.locator('#gate').waitFor();
+  await page.fill('#link-email', email);
+  await page.click('#link-form button');
+  await page.getByText(`Check your inbox at ${email}`).waitFor();
+  const codes = (await (await fetch(`http://127.0.0.1:9199/emulator/v1/projects/${PROJECT}/oobCodes`)).json()).oobCodes;
+  const code = codes.filter(c => c.email === email).pop();
+  await page.goto(`${BASE}/app/?mode=signIn&oobCode=${code.oobCode}&apiKey=fake&lang=en`);
+  await page.locator('#app').waitFor();
+  const token = await page.evaluate(() => firebase.auth().currentUser.getIdToken());
+  const api = async (method, path, body) => {
+    const r = await fetch(`${BASE}/v1${path}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
+    const b = await r.json(); assert.ok(r.ok, JSON.stringify(b)); return b;
+  };
+  const web = (await api('POST', '/projects', { name: 'Fieldnotes', platform: 'web', allowed_origins: [BASE] })).project;
+  const ios = (await api('POST', '/projects', { name: 'Fieldnotes', platform: 'ios', product_id: web.id })).project;
+  const other = (await api('POST', '/projects', { name: 'Studio', platform: 'web', allowed_origins: [BASE] })).project;
+  async function report(p, text, type = 'broken', extra = {}) {
+    const r = await fetch(`${BASE}/v1/reports`, { method: 'POST', headers: { origin: BASE, 'content-type': 'text/plain' }, body: JSON.stringify({ key: p.key, device_id: 'workspace_' + crypto.randomUUID(), sdk: p.platform === 'ios' ? 'ios' : undefined, type, text,
+      context: { platform: p.platform, route: '/notes/weekly-plan', app_version: '1.4.2', browser: 'Chrome 129', os: 'macOS 15', network: 'Wi-Fi', locale: 'en-IN', theme: 'light' }, ...extra }) });
+    const b = await r.json(); assert.ok(r.ok, JSON.stringify(b)); return b.report;
+  }
+  const save = await report(web, 'Save changes does nothing', 'broken', { reporter: { name: 'Jamie L.', email: null, note: null }, trail: [
+    { kind: 'page', ago: 42, text: 'Opened /notes/weekly-plan' }, { kind: 'click', ago: 18, text: 'Clicked Save changes' }, { kind: 'request', ago: 18, text: 'PATCH /api/notes/482 · 500' }, { kind: 'error', ago: 17, text: 'Could not save note' },
+  ] });
+  const duplicate = await report(ios, 'Save changes does nothing on iPhone');
+  await api('POST', `/projects/${ios.id}/reports/${duplicate.id}/merge`, { into: save.id, into_app: web.id });
+  const crash = await report(ios, 'App closes when opening a note');
+  await report(web, 'Cannot find my archived notes', 'confusing');
+  await report(web, 'Remember the last workspace', 'improvement');
+  await report(ios, 'Export notes as Markdown', 'idea');
+  const elsewhere = await report(other, 'Search results are empty');
+  await page.goto(`${BASE}/app/#/inbox`);
+  await page.locator('.report-preview').filter({ hasText: 'Save changes' }).click();
+  await page.getByText('2 people reported this', { exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Device & app' }).waitFor();
+  assert.equal(await page.locator('.report-preview').count(), 6);
+  assert.equal(await page.getByRole('button', { name: 'Copy prompt for agent' }).count(), 0, 'open reports never expose agent prompts');
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('loader')).visibility === 'hidden');
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ animations: 'disabled', style: '.firebase-emulator-warning { visibility: hidden !important; }', path: `${shot}heresay-workspace-desktop.png` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Back to reports', exact: false }).click();
+  await page.screenshot({ animations: 'disabled', style: '.firebase-emulator-warning { visibility: hidden !important; }', path: `${shot}heresay-workspace-mobile-inbox.png` });
+  await page.locator('.report-preview').filter({ hasText: 'Save changes' }).click();
+  await page.screenshot({ animations: 'disabled', style: '.firebase-emulator-warning { visibility: hidden !important; }', path: `${shot}heresay-workspace-mobile-detail.png` });
+  await page.getByRole('button', { name: 'Back to reports', exact: false }).click();
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  console.log('PASS: unified inbox, duplicate counts, trail, device context, human acceptance gate');
+  await page.getByLabel('Search reports').fill('Search results');
+  assert.equal(await page.locator('.report-preview').count(), 1);
+  await page.getByLabel('Search reports').fill('zzzzmissing');
+  await page.getByRole('heading', { name: 'No matching reports' }).waitFor();
+  await page.getByLabel('Search reports').fill('');
+  await page.getByLabel('Product', { exact: true }).selectOption(web.id);
+  assert.equal(await page.locator('.report-preview').count(), 5);
+  await page.getByLabel('Platform', { exact: true }).selectOption('ios');
+  assert.equal(await page.locator('.report-preview').count(), 2);
+  await page.getByLabel('Platform', { exact: true }).selectOption('all');
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByLabel('Report type', { exact: true }).selectOption('idea');
+  assert.equal(await page.locator('.report-preview').count(), 1);
+  await page.getByLabel('Report type', { exact: true }).selectOption('all');
+  await page.getByLabel('Report source', { exact: true }).selectOption('agent');
+  assert.equal(await page.locator('.report-preview').count(), 0);
+  await page.getByLabel('Report source', { exact: true }).selectOption('all');
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByRole('button', { name: /^Accepted/ }).click();
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.status), 'accepted', 'status activation preserves keyboard focus');
+  await page.getByRole('button', { name: /^Open/ }).click();
+  await page.locator('.report-preview').first().focus();
+  await page.evaluate(() => { window.__focusedPreview = document.activeElement; window.__focusedKey = document.activeElement.dataset.report; window.__refreshInbox(); });
+  await page.waitForFunction(() => document.activeElement !== window.__focusedPreview && document.activeElement.dataset.report === window.__focusedKey);
+  console.log('PASS: search, filters, and keyboard focus across status changes and polling');
+  await page.locator('.report-preview').filter({ hasText: 'Save changes' }).click();
+  await page.getByLabel('Add a note for the coding agent (optional)').fill('Check save error handling.');
+  await page.getByRole('button', { name: 'Accept', exact: true }).click();
+  await page.getByText('Accepted. Waiting for an agent.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: /^Accepted/ }).click();
+  await page.getByRole('button', { name: 'Copy prompt for agent' }).waitFor();
+  const prompt = (await api('GET', `/projects/${web.id}/reports/${save.id}/prompt`)).prompt;
+  assert.match(prompt, /Check save error handling/);
+  await page.getByRole('button', { name: 'Mark fixed…' }).click();
+  await page.getByLabel('Note for the reporter').fill('Saving works again.');
+  await page.getByLabel('Ships in version', { exact: true }).fill('1.4.3');
+  await page.getByRole('button', { name: 'Mark fixed', exact: true }).click();
+  await page.getByText('Marked fixed. They will see it.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: /^Fixed/ }).click();
+  await page.getByText('Fixed in 1.4.3', { exact: true }).waitFor();
+  console.log('PASS: accept with note, accepted-only prompt, mark fixed with release version');
+  await page.getByRole('button', { name: /^Open/ }).click();
+  await page.locator('.report-preview').filter({ hasText: 'App closes' }).click();
+  await page.getByRole('button', { name: 'Decline…' }).click();
+  await page.getByRole('button', { name: 'Decline', exact: true }).click();
+  await page.getByText('Give a reason. They will see it.').waitFor();
+  await page.getByLabel('Reason for declining').fill('This is fixed in the latest release.');
+  await page.getByRole('button', { name: 'Decline', exact: true }).click();
+  await page.getByRole('button', { name: /^Declined/ }).click();
+  await page.getByText('Declined: This is fixed in the latest release.').waitFor();
+  console.log('PASS: required decline reason and declined state');
+  await page.getByRole('button', { name: /^Open/ }).click();
+  await page.locator('.report-preview').filter({ hasText: 'Cannot find' }).click();
+  await api('POST', '/agent-tokens', { repo: 'github.com/fieldnotes/web', app_ids: [web.id] });
+  await api('POST', '/agent-tokens', { repo: 'github.com/fieldnotes/shared', app_ids: [web.id] });
+  await page.locator('.report-preview').first().focus();
+  await page.evaluate(() => window.__refreshInbox());
+  await page.getByLabel('Where the fix goes').waitFor();
+  assert.equal(await page.getByLabel('Where the fix goes').locator('option').count(), 2, 'polling refreshes destinations in preserved details');
+  console.log('PASS: changed repository destinations refresh the selected report');
+  const mac = (await api('POST', '/projects', { name: 'Fieldnotes', platform: 'macos', product_id: web.id })).project;
+  const failedRepo = `**/projects/${mac.id}/repos`;
+  await page.route(failedRepo, r => r.fulfill({ status: 503, json: { error: 'Temporary test outage' } }));
+  await page.evaluate(() => window.__refreshInbox());
+  await page.getByText('Could not refresh reports. Temporary test outage').waitFor();
+  await page.getByLabel('Product', { exact: true }).selectOption('all');
+  await page.getByLabel('Product', { exact: true }).selectOption(web.id);
+  await page.getByRole('heading', { name: 'Fieldnotes', exact: true }).waitFor();
+  await page.unroute(failedRepo);
+  await page.evaluate(() => window.__refreshInbox());
+  await page.getByText('Manage app', { exact: true }).click();
+  await page.locator('.app-tool-row b', { hasText: 'macOS' }).waitFor();
+  console.log('PASS: failed refresh retains a complete snapshot; retry adds new platforms');
+  await report(web, 'Newly reported problem to merge');
+  await page.evaluate(() => window.__refreshInbox());
+  await page.locator('.report-preview', { hasText: 'Newly reported problem to merge' }).waitFor();
+  await page.getByRole('button', { name: 'Merge into…', exact: true }).click();
+  assert.match(await page.getByLabel('Merge into', { exact: true }).textContent(), /Newly reported problem to merge/, 'preserved details use the newest merge candidates');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  console.log('PASS: preserved details use current merge candidates');
+  await page.goto(`${BASE}/app/#/apps/${web.id}`);
+  await page.getByRole('heading', { name: 'Fieldnotes', exact: true }).waitFor();
+  await page.getByText('Manage app', { exact: true }).click();
+  await page.locator('.app-tool-row').first().getByRole('link', { name: 'Design', exact: true }).click();
+  await page.getByRole('heading', { name: 'Design the Report button' }).waitFor();
+  await page.goto(`${BASE}/app/#/apps`);
+  await page.getByRole('heading', { name: 'Apps', exact: true }).waitFor();
+  await page.screenshot({ animations: 'disabled', style: '.firebase-emulator-warning { visibility: hidden !important; }', path: `${shot}heresay-workspace-apps.png` });
+  await page.getByRole('link', { name: 'Team', exact: true }).click();
+  await page.getByRole('heading', { name: 'Team', exact: true }).waitFor();
+  await page.goto(`${BASE}/app/#/notifications`);
+  await page.getByRole('heading', { name: 'When to notify', exact: true }).waitFor();
+  await page.screenshot({ animations: 'disabled', style: '.firebase-emulator-warning { visibility: hidden !important; }', path: `${shot}heresay-workspace-notifications.png` });
+  console.log('PASS: app management, design, team and notification pages');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/app/#/inbox`);
+  await page.locator('.report-preview').first().waitFor();
+  assert.ok(await page.locator('.inbox-master').isVisible());
+  assert.equal(await page.locator('.report-detail').isVisible(), false);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'no mobile horizontal overflow');
+  await page.locator('.report-preview').first().click();
+  await page.getByRole('button', { name: 'Back to reports', exact: false }).waitFor();
+  assert.ok(await page.locator('.report-detail').isVisible());
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.getByRole('button', { name: 'Back to reports', exact: false }).click();
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#nav-toggle').getAttribute('aria-expanded'), 'false');
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.locator('#nav-scrim').click();
+  assert.equal(await page.locator('#nav-toggle').getAttribute('aria-expanded'), 'false');
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.getByRole('link', { name: 'Apps', exact: true }).click();
+  await page.getByRole('heading', { name: 'Apps', exact: true }).waitFor();
+  assert.equal(await page.locator('#nav-toggle').getAttribute('aria-expanded'), 'false');
+  for (const width of [820, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${BASE}/app/#/inbox`);
+    await page.locator('.report-preview').first().waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `no overflow at ${width}px`);
+  }
+  console.log('PASS: mobile/tablet/desktop master/detail navigation, sidebar, keyboard and overflow checks');
+  assert.deepEqual(errors, [], 'no uncaught browser errors');
+  console.log('PASS: console errors = []');
+} finally { await browser.close(); }
