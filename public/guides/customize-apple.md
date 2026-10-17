@@ -76,8 +76,8 @@ anyone typed. On by default; change it only when asked.
 
 When someone seems stuck, a small note by the button (or in its corner on macOS) asks "Something
 not working?" and opens the sheet as Broken, with the trail. Watched on the device, never sent. At
-most once per launch, and not for 7 days after "Not now". Off by default: it appears on the app's
-own screen, so add it only when asked.
+most once per launch. Off by default: it appears on the app's own screen, so add it only when
+asked.
 
 | Option | Values |
 | --- | --- |

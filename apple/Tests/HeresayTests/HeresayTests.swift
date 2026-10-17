@@ -605,7 +605,7 @@ final class NudgeTests: XCTestCase {
         XCTAssertEqual(h.offer, .trouble)
     }
 
-    func testOncePerLaunchAndQuietForSevenDaysAfterNotNow() {
+    func testOncePerLaunchAndNotNowOnlyClosesIt() {
         let d = UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!
         let h = configured(d)
         XCTAssertTrue(h.offerHelp(.trouble))
@@ -616,8 +616,8 @@ final class NudgeTests: XCTestCase {
         XCTAssertTrue(next.offerHelp(.trouble), "a new launch may ask again")
         next.answerOffer(false)
         XCTAssertNil(next.offer)
-        XCTAssertFalse(configured(d).offerHelp(.trouble), "not for 7 days after Not now")
-        XCTAssertTrue(configured(d).offerHelp(.trouble, now: Date().addingTimeInterval(8 * 86_400)))
+        XCTAssertFalse(next.offerHelp(.trouble), "still once per launch")
+        XCTAssertTrue(configured(d).offerHelp(.trouble), "Not now is about now: the next launch may ask")
     }
 
     func testNotOverTheSheetTheIntroductionOrAHiddenScreen() {
