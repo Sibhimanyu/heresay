@@ -119,6 +119,7 @@ by verified email: the team lives in `meta/instance`, and `create-heresay` write
 npm install && npm --prefix functions install
 npm test        # handler logic, in memory
 npm run e2e     # the whole loop in a real browser against the emulators
+npm run e2e:workspace # inbox filters, review actions and responsive navigation
 npm run e2e:notifications # notification settings in Chromium, with delivery stubbed
 npm run e2e:agent  # heresay connect + the MCP server driving an app from install to fixed
 npm run dev     # emulators; site at http://127.0.0.1:5055, dashboard at /app/, demo host app at /demo.html?key=pk_...

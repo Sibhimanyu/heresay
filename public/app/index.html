@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/dashboard.css">
+<link rel="stylesheet" href="/workspace.css">
 </head>
 <body class="booting pending">
 
@@ -39,20 +40,32 @@
 </div>
 
 <div id="app" hidden>
-  <header class="top">
-    <a href="#/" aria-label="Your apps"><img src="/logo.svg" alt="Heresay" height="28" style="display:block"></a>
+  <a class="skip-link" href="#view">Skip to content</a>
+  <aside class="sidebar" aria-label="Workspace navigation">
+    <button id="nav-close" class="btn ghost nav-close" type="button" aria-label="Close navigation">×</button>
+    <a class="brand" href="#/inbox" aria-label="Heresay inbox"><img src="/logo.svg" alt="Heresay" height="30"></a>
+    <div class="workspace-label"><span class="workspace-icon" aria-hidden="true">H</span><span>Your workspace</span><span class="workspace-role" id="workspace-role"></span></div>
     <nav class="tabs" aria-label="Main">
-      <a href="#/" data-nav="apps">Apps</a>
-      <a href="#/team" data-nav="team">Team</a>
-      <a href="#/notifications" data-nav="notifications">Notifications</a>
-      <a href="#/chat" data-nav="chat">Chat apps</a>
+      <a href="#/inbox" data-nav="inbox"><span class="nav-icon" data-icon="inbox"></span>Inbox<span id="inbox-count" class="nav-count" hidden></span></a>
+      <a href="#/apps" data-nav="apps"><span class="nav-icon" data-icon="apps"></span>Apps</a>
+      <a href="#/connect" data-nav="connect"><span class="nav-icon" data-icon="repos"></span>Connected repos</a>
+      <a href="#/chat" data-nav="chat"><span class="nav-icon" data-icon="chat"></span>Chat apps</a>
     </nav>
-    <span class="spacer"></span>
-    <span id="who" class="who"></span>
-    <button id="signout" class="btn ghost">Sign out</button>
-  </header>
+    <div class="nav-section">Workspace</div>
+    <nav class="tabs" aria-label="Workspace settings">
+      <a href="#/team" data-nav="team"><span class="nav-icon" data-icon="team"></span>Team</a>
+      <a href="#/notifications" data-nav="notifications"><span class="nav-icon" data-icon="bell"></span>Notifications</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <a class="help-link" href="/docs.html" target="_blank" rel="noopener"><span class="nav-icon" data-icon="help"></span>Help &amp; docs<span aria-hidden="true">↗</span></a>
+      <div class="account"><span id="account-avatar" class="avatar" aria-hidden="true">H</span><span id="who" class="who"></span></div>
+      <button id="signout" class="btn ghost signout">Sign out</button>
+    </div>
+  </aside>
+  <button id="nav-scrim" class="nav-scrim" type="button" aria-label="Close navigation" tabindex="-1"></button>
+  <header class="workspace-top"><button id="nav-toggle" class="btn ghost" aria-label="Open navigation" aria-expanded="false" type="button">☰</button><span class="breadcrumb">Workspace <span aria-hidden="true">/</span> <span id="page-label">Apps</span></span><span class="top-caption">Every report gets a hearing.</span></header>
   <div id="update" class="update" role="status" hidden></div>
-  <main id="view"></main>
+  <main id="view" tabindex="-1"></main>
 </div>
 
 <script src="/__/firebase/10.14.1/firebase-app-compat.js"></script>

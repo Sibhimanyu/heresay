@@ -41,6 +41,45 @@
     return n;
   }
 
+  // Reuse the dashboard's outline icon language throughout the workspace chrome.
+  var NAV_ICONS = {
+    inbox: '<path d="M4 4h16l2 12v4H2v-4zM2 14h6l2 3h4l2-3h6"/>',
+    apps: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    repos: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M6 7v10M18 7v2a4 4 0 0 1-4 4h-4a4 4 0 0 0-4 4"/>',
+    chat: '<path d="M21 11a9 9 0 0 1-9 9H4l-2 2V11a9 9 0 0 1 19 0z"/>',
+    team: '<circle cx="9" cy="8" r="3"/><path d="M2 21v-3a7 7 0 0 1 14 0v3M16 5a3 3 0 0 1 0 6M22 21v-3a7 7 0 0 0-4-6"/>',
+    bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 5M12 17h.01"/>'
+  };
+  document.querySelectorAll('[data-icon]').forEach(function (n) {
+    n.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + NAV_ICONS[n.dataset.icon] + '</svg>';
+  });
+  function setNavigation(open, restoreFocus) {
+    $('app').classList.toggle('nav-open', open);
+    $('nav-toggle').setAttribute('aria-expanded', String(open));
+    $('nav-toggle').setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+    $('view').inert = open;
+    document.querySelector('.sidebar').inert = window.innerWidth <= 640 && !open;
+    if (open) $('nav-close').focus();
+    else if (restoreFocus) $('nav-toggle').focus();
+  }
+  $('nav-toggle').onclick = function () { setNavigation(!$('app').classList.contains('nav-open'), true); };
+  $('nav-close').onclick = $('nav-scrim').onclick = function () { setNavigation(false, true); };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && $('app').classList.contains('nav-open')) setNavigation(false, true);
+    if (e.key === 'Tab' && $('app').classList.contains('nav-open')) {
+      var nodes = document.querySelector('.sidebar').querySelectorAll('a, button');
+      var first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && $('report-search')) {
+      e.preventDefault(); $('view').classList.remove('detail-open'); $('report-search').focus();
+    }
+  });
+  window.addEventListener('resize', function () { setNavigation(window.innerWidth <= 640 && $('app').classList.contains('nav-open'), false); });
+  document.querySelector('.skip-link').onclick = function (e) { e.preventDefault(); $('view').focus(); };
+
   function show(which) {
     ['gate', 'blocked', 'app'].forEach(function (id) { $(id).hidden = id !== which; });
     syncLoader();
@@ -180,6 +219,9 @@
     api('GET', '/me').then(function (b) {
       me = b;
       $('who').textContent = b.email;
+      $('who').title = b.email;
+      $('account-avatar').textContent = b.email.slice(0, 2).toUpperCase();
+      $('workspace-role').textContent = b.role === 'owner' ? 'Owner' : 'Member';
       try {
         var after = JSON.parse(localStorage.getItem('heresay.after') || 'null');
         localStorage.removeItem('heresay.after');
@@ -254,14 +296,19 @@
     var hash = location.hash.replace(/^#\/?/, '');
     var query = new URLSearchParams(hash.split('?')[1] || '');
     var parts = hash.split('?')[0].split('/').filter(Boolean);
+    var active = ['team', 'notifications', 'chat', 'connect', 'inbox'].indexOf(parts[0]) >= 0 ? parts[0] : 'apps';
+    if (!parts.length || (parts[0] === 'apps' && parts[1] && !parts[2])) active = 'inbox';
     document.querySelectorAll('[data-nav]').forEach(function (a) {
-      var active = parts[0] === 'team' || parts[0] === 'notifications' || parts[0] === 'chat' ? parts[0] : 'apps';
-      a.setAttribute('aria-current', String(active === a.dataset.nav));
+      if (active === a.dataset.nav) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
     });
+    $('page-label').textContent = { inbox: 'Inbox', apps: 'Apps', connect: 'Connected repos', chat: 'Chat apps', team: 'Team', notifications: 'Notifications' }[active];
+    setNavigation(false, false);
     var view = $('view');
     view.textContent = '';
     view.appendChild(loading());
-    view.classList.remove('wide');
+    view.classList.remove('wide', 'inbox-view', 'detail-open');
+    if (!parts.length || parts[0] === 'inbox') return reportsView(view, null);
     if (parts[0] === 'team') return teamView(view);
     if (parts[0] === 'notifications') return notificationsView(view);
     if (parts[0] === 'connect') return connectView(view, query);
@@ -283,7 +330,7 @@
     var hit = projects.filter(function (p) { return p.id === id; })[0];
     if (hit) return fn(hit);
     api('GET', '/projects/' + id).then(function (b) { fn(b.project); })
-      .catch(function () { location.hash = '#/'; });
+      .catch(function () { location.hash = '#/apps'; });
   }
 
   // ---- apps ------------------------------------------------------------------------------
@@ -400,7 +447,7 @@
       return api('GET', '/projects').then(function (b) {
         projects = b.projects;
         var first = projects.filter(function (x) { return productOf(x) === productId; })[0];
-        if (!first) { location.hash = '#/'; return; }
+        if (!first) { location.hash = '#/apps'; return; }
         drawNewApp(view, platform, null, first);
       });
     }
@@ -1203,7 +1250,7 @@
         rs.slice(0, 5).forEach(function (r) {
           feed.appendChild(el('li', { class: !first && !known[r.id] ? 'fresh' : '' }, [
             el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
-        showPlatform ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
+            el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }),
             el('span', { class: 'feed-text', text: r.text }),
             el('span', { class: 'mute small', text: [r.context.route, r.context.platform, new Date(r.created_at).toLocaleTimeString()].filter(Boolean).join(' · ') }),
           ]));
@@ -1262,167 +1309,195 @@
    * from. Install, delete and repos stay per platform, because keys and code differ.
    */
   function reportsView(view, p) {
-    var reports = [];
-    var sibs = [p];
-    var where = 'all';
-    var filters = el('nav', { class: 'filters', 'aria-label': 'Filter' });
-    var platformBar = el('nav', { class: 'filters platforms-filter', 'aria-label': 'Platform' });
-    var list = el('div', { class: 'reports' }, [loading()]);
-    var empty = el('p', { class: 'empty' });
-    var ctxs = {};
-    var head = el('div', { class: 'head' });
-    var platformsBox = el('div', { class: 'product-platforms' });
-    view.appendChild(el('a', { class: 'back', href: '#/', text: '← All apps' }));
-    view.appendChild(head);
-    view.appendChild(platformsBox);
-    view.appendChild(platformBar);
-    view.appendChild(filters);
-    view.appendChild(list);
-    view.appendChild(empty);
+    view.classList.add('inbox-view');
+    var reports = [], ctxs = {}, selected = null, loaded = false, detailSignature = null, loadSerial = 0;
+    var product = p ? productOf(p) : 'all', platform = 'all', search = '', type = 'all', source = 'all';
+    var shell = el('div', { class: 'inbox-shell' });
+    var list = el('div', { class: 'report-list', 'aria-label': 'Reports' });
+    var detail = el('section', { class: 'report-detail', 'aria-label': 'Report details', tabindex: '-1' });
+    var filters = el('nav', { class: 'status-tabs', 'aria-label': 'Filter' });
+    var productSelect = el('select', { 'aria-label': 'Product', onchange: function () { product = this.value; selected = null; drawProducts(); render(); } });
+    var platformSelect = el('select', { 'aria-label': 'Platform', onchange: function () { platform = this.value; selected = null; render(); } },
+      [el('option', { value: 'all', text: 'All platforms' })].concat(PLATFORMS.filter(function (x) { return x.ready; }).map(function (x) { return el('option', { value: x.id, text: x.label }); })));
+    var searchInput = el('input', { id: 'report-search', type: 'search', placeholder: 'Search reports', 'aria-label': 'Search reports', oninput: function () { search = this.value.toLowerCase().trim(); render(); } });
+    var advanced = el('div', { class: 'inbox-advanced', hidden: true });
+    var filterButton = el('button', { class: 'btn', type: 'button', text: 'Filters', 'aria-expanded': 'false', 'aria-controls': 'inbox-advanced', onclick: function () { advanced.hidden = !advanced.hidden; this.setAttribute('aria-expanded', String(!advanced.hidden)); } });
+    advanced.id = 'inbox-advanced';
+    advanced.appendChild(el('label', {}, ['Type ', el('select', { 'aria-label': 'Report type', onchange: function () { type = this.value; render(); } },
+      [el('option', { value: 'all', text: 'All types' })].concat(Object.keys(TYPE_LABEL).map(function (t) { return el('option', { value: t, text: TYPE_LABEL[t] }); })))]));
+    advanced.appendChild(el('label', {}, ['Source ', el('select', { 'aria-label': 'Report source', onchange: function () { source = this.value; render(); } },
+      [['all', 'All sources'], ['sdk', 'In-app'], ['chat', 'Chat apps'], ['agent', 'Agents']].map(function (t) { return el('option', { value: t[0], text: t[1] }); }))]));
+    var heading = el('h1', { text: p ? productName(p) : 'Inbox' });
+    var controls = el('div', { class: 'inbox-controls' }, [productSelect, platformSelect, filterButton]);
+    var productTools = el('details', { class: 'inbox-app-tools', hidden: !p }, [el('summary', { text: 'Manage app' })]);
+    var listHead = el('div', { class: 'list-heading' }, [el('b', { text: 'Needs review' }), el('span', { text: 'Type, then most reported' })]);
+    var master = el('section', { class: 'inbox-master', 'aria-label': 'Report inbox' }, [
+      el('div', { class: 'inbox-heading' }, [heading, el('p', { class: 'mute', text: 'A hearing for every report.' })]),
+      el('div', { class: 'inbox-search' }, [searchInput, el('kbd', { text: '⌘ K', 'aria-hidden': 'true' })]),
+      controls, advanced, productTools, filters, listHead, list,
+    ]);
+    shell.appendChild(master); shell.appendChild(detail); view.appendChild(shell);
+    detail.appendChild(loading());
 
-    function drawHead() {
-      head.textContent = '';
-      var many = sibs.length > 1;
-      head.appendChild(el('div', { class: 'title' }, [
-        many ? el('span', { class: 'picon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><path d="M17 13v8M13 17h8"/></svg>' }) : icon(platformOf(p.platform)),
-        el('div', {}, [el('h1', { text: productName(p) }),
-          el('span', { class: 'mute small', text: many ? sibs.map(function (x) { return platformOf(x.platform).label; }).join(' · ')
-            : (p.framework ? frameworkLabel(p.framework) + (p.framework_detected ? ' (detected)' : '') : platformOf(p.platform).label) })])]));
-      head.appendChild(el('div', { class: 'row tight' }, [
-        el('a', { class: 'btn ghost', href: '#/new?product=' + productOf(p), text: '+ Add a platform' }),
-        many || !designable(p) ? null : el('a', { class: 'btn ghost', href: '#/apps/' + p.id + '/design', text: 'Design' }),
-        many ? null : el('a', { class: 'btn', href: '#/apps/' + p.id + '/setup', text: 'Install' }),
-        many ? null : el('a', { class: 'btn ghost', href: '#/apps/' + p.id + '/delete', text: 'Delete…' }),
-      ]));
+    function relative(iso) {
+      var m = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60000));
+      return m < 1 ? 'Just now' : m < 60 ? m + 'm ago' : m < 1440 ? Math.floor(m / 60) + 'h ago' : new Date(iso).toLocaleDateString();
     }
-
-    /** Per platform: where agents fix it, and its own Install and Delete. */
-    function drawPlatforms() {
-      platformsBox.textContent = '';
-      var many = sibs.length > 1;
-      sibs.forEach(function (x) {
-        var repos = (ctxs[x.id] || {}).repos || [];
-        platformsBox.appendChild(el('p', { class: 'repos-line' }, [
-          many ? el('b', { text: platformOf(x.platform).label + ': ' }) : null,
-          document.createTextNode(repos.length ? 'Agents fix these in ' + repos.join(', ') + ' · ' : 'No repo connected for agents yet · '),
+    function key(r) { return r.project_id + '/' + r.id; }
+    function title(r) { return r.text.replace(/[#*_`>]/g, '').split(/\n/)[0].slice(0, 110) || TYPE_LABEL[r.type] + ' report'; }
+    function inProduct(r) { return product === 'all' || productOf(ctxs[r.project_id].project) === product; }
+    function baseReports() { return reports.filter(function (r) {
+      return inProduct(r) && (platform === 'all' || ctxs[r.project_id].project.platform === platform)
+        && (type === 'all' || r.type === type) && (source === 'all' || (r.source || 'sdk') === source)
+        && (!search || [r.text, r.id, ctxs[r.project_id].project.name, r.details, r.from_repo, r.via].filter(Boolean).join(' ').toLowerCase().indexOf(search) >= 0);
+    }); }
+    function drawProducts() {
+      productSelect.textContent = '';
+      productSelect.appendChild(el('option', { value: 'all', text: 'All products' }));
+      var seen = {};
+      projects.forEach(function (x) { var id = productOf(x); if (seen[id]) return; seen[id] = true; productSelect.appendChild(el('option', { value: id, text: productName(x) })); });
+      if (product !== 'all' && !seen[product]) product = 'all';
+      productSelect.value = product;
+      productTools.querySelectorAll('.product-platforms').forEach(function (n) { n.remove(); });
+      var managed = projects.filter(function (x) { return productOf(x) === product; })[0];
+      productTools.hidden = !managed;
+      if (managed) {
+        var box = el('div', { class: 'product-platforms' });
+        siblings(managed).forEach(function (x) { box.appendChild(el('div', { class: 'app-tool-row' }, [
+          el('b', { text: platformOf(x.platform).label }),
+          el('span', { class: 'app-repo-status', text: ctxs[x.id].repos.length ? 'Agents fix these in ' + ctxs[x.id].repos.join(', ') : 'No repo connected for agents yet' }),
+          el('a', { href: '#/apps/' + x.id + '/setup', text: 'Install' }),
+          designable(x) ? el('a', { href: '#/apps/' + x.id + '/design', text: 'Design' }) : null,
           el('a', { href: '#/connect?app=' + x.id, text: 'Connect a repo' }),
-          many ? document.createTextNode(' · ') : null,
-          many ? el('a', { href: '#/apps/' + x.id + '/setup', text: 'Install' }) : null,
-          many && designable(x) ? document.createTextNode(' · ') : null,
-          many && designable(x) ? el('a', { href: '#/apps/' + x.id + '/design', text: 'Design' }) : null,
-          many ? document.createTextNode(' · ') : null,
-          many ? el('a', { href: '#/apps/' + x.id + '/delete', text: 'Delete…' }) : null,
-        ]));
-      });
-    }
-
-    function load() {
-      return api('GET', '/projects').then(function (b) {
-        projects = b.projects;
-        sibs = siblings(p);
-        drawHead();
-        return Promise.all(sibs.map(function (x) {
-          return Promise.all([api('GET', '/projects/' + x.id + '/reports'), api('GET', '/projects/' + x.id + '/repos')])
-            .then(function (r) { ctxs[x.id] = { briefs: r[0].briefs || {}, repos: r[1].repos, project: x, reports: r[0].reports }; });
-        }));
-      }).then(function () {
-        var everything = [].concat.apply([], sibs.map(function (x) { return ctxs[x.id].reports; }));
-        // Merged reports leave the list and show under the one they were merged into.
-        var dups = {};
-        everything.forEach(function (r) { if (r.duplicate_of) (dups[r.duplicate_of.report_id] = dups[r.duplicate_of.report_id] || []).push(r); });
-        var counts = {};
-        Object.keys(dups).forEach(function (k) { counts[k] = dups[k].length; });
-        sibs.forEach(function (x) { ctxs[x.id].dups = dups; ctxs[x.id].all = everything; ctxs[x.id].reload = load; ctxs[x.id].siblings = ctxs; });
-        reports = triageSort(everything.filter(function (r) { return !r.duplicate_of; }), counts);
-        drawPlatforms();
-        render();
-      }).catch(function (x) {
-        if (reports.length) return;  // a background refresh failed: keep what is on screen
-        list.textContent = '';
-        list.appendChild(el('p', { class: 'err', role: 'alert', text: x.message }));
-        list.appendChild(el('button', { class: 'btn', text: 'Retry', onclick: function () { route(); } }));
-      });
-    }
-
-    function render() {
-      var many = sibs.length > 1;
-      platformBar.textContent = '';
-      platformBar.hidden = !many;
-      if (many) {
-        [{ id: 'all', label: 'All platforms' }].concat(sibs.map(function (x) { return { id: x.id, label: platformOf(x.platform).label }; })).forEach(function (f) {
-          var n = f.id === 'all' ? reports.length : reports.filter(function (r) { return r.project_id === f.id; }).length;
-          platformBar.appendChild(el('button', { 'aria-pressed': String(where === f.id), onclick: function () { where = f.id; render(); } },
-            [f.label + ' ', el('span', { class: 'n', text: String(n) })]));
-        });
+          el('a', { href: '#/apps/' + x.id + '/delete', text: 'Delete…' }),
+        ])); });
+        box.appendChild(el('a', { href: '#/new?product=' + productOf(managed), text: '+ Add a platform' }));
+        productTools.appendChild(box);
       }
-      var here = reports.filter(function (r) { return where === 'all' || r.project_id === where; });
-      drawFilters(here);
-      list.textContent = '';
-      var shown = here.filter(function (r) { return filter === 'all' || r.status === filter; });
-      empty.hidden = shown.length > 0;
-      empty.textContent = '';
-      if (!here.length) {
-        empty.appendChild(document.createTextNode('No reports yet. '));
-        empty.appendChild(el('a', { href: '#/apps/' + (where === 'all' ? p.id : where) + '/setup', text: 'Check the install' }));
-      } else empty.textContent = filter === 'open' ? 'Nothing waiting. Every report has had its hearing.' : 'Nothing here.';
-      shown.forEach(function (r) {
-        var c = ctxs[r.project_id];
-        list.appendChild(row(c.project, r, settled, c, many));
-      });
     }
-
-    function drawFilters(here) {
-      here = here || reports.filter(function (r) { return where === 'all' || r.project_id === where; });
+    function render(preserveDetail) {
+      if (!shell.isConnected) return;
+      var focused = document.activeElement;
+      var focusedReport = list.contains(focused) && focused.dataset.report;
+      var focusedStatus = filters.contains(focused) && focused.dataset.status;
+      var currentProduct = projects.filter(function (x) { return productOf(x) === product; })[0];
+      heading.textContent = currentProduct ? productName(currentProduct) : 'Inbox';
+      var here = baseReports();
       filters.textContent = '';
       ['open', 'accepted', 'fixed', 'declined', 'withdrawn', 'all'].forEach(function (f) {
         var n = f === 'all' ? here.length : here.filter(function (r) { return r.status === f; }).length;
-        filters.appendChild(el('button', {
-          'aria-pressed': String(filter === f),
-          onclick: function () { filter = f; render(); },
-        }, [(f === 'all' ? 'All' : STATUS_LABEL[f]) + ' ', el('span', { class: 'n', text: String(n) })]));
+        filters.appendChild(el('button', { type: 'button', 'data-status': f, 'aria-pressed': String(filter === f), onclick: function () { filter = f; selected = null; render(); } },
+          [(f === 'all' ? 'All' : STATUS_LABEL[f]) + ' ', el('span', { class: 'n', text: String(n) })]));
+      });
+      var open = reports.filter(function (r) { return r.status === 'open'; }).length;
+      $('inbox-count').textContent = String(open); $('inbox-count').hidden = !open;
+      var shown = here.filter(function (r) { return filter === 'all' || r.status === filter; });
+      listHead.firstChild.textContent = filter === 'open' ? 'Needs review' : filter === 'all' ? 'All reports' : STATUS_LABEL[filter] + ' reports';
+      if (!shown.some(function (r) { return key(r) === selected; })) selected = shown.length ? key(shown[0]) : null;
+      list.textContent = '';
+      if (!projects.length) {
+        list.appendChild(el('div', { class: 'inbox-empty' }, [el('img', { src: '/mark.svg', alt: '', width: '48', height: '48' }), el('h2', { text: 'Add your first app' }), el('p', { text: 'Connect your app to give every report a hearing.' }), el('a', { class: 'btn primary', href: '#/new', text: 'Add an app' })]));
+      } else if (!shown.length) list.appendChild(el('div', { class: 'inbox-empty' }, [el('h2', { text: search || type !== 'all' || source !== 'all' ? 'No matching reports' : filter === 'open' ? 'All caught up' : 'Nothing here yet' }), el('p', { text: search || type !== 'all' || source !== 'all' ? 'Try another search or adjust your filters.' : 'New reports will appear here. Every report gets a hearing.' })]));
+      shown.forEach(function (r) {
+        var c = ctxs[r.project_id], count = (c.dups[r.id] || []).length + 1;
+        var button = el('button', { type: 'button', class: 'report-preview t-' + r.type, 'data-report': key(r), 'aria-current': key(r) === selected ? 'true' : 'false', onclick: function () {
+          if (selected !== key(r)) { selected = key(r); render(); }
+          view.classList.add('detail-open'); detail.focus();
+        } }, [
+          el('span', { class: 'type-symbol', 'aria-hidden': 'true', text: { broken: '!', confusing: '?', improvement: '↗', idea: '+' }[r.type] }),
+          el('span', { class: 'preview-copy' }, [el('b', { text: title(r) }), el('span', { class: 'preview-app', text: productName(c.project) + ' · ' + platformOf(c.project.platform).label }),
+            el('span', { class: 'preview-meta', text: (count > 1 ? count + ' reports · ' : '') + (r.source === 'agent' ? 'Agent' : r.source === 'chat' ? r.via || 'Chat app' : 'In-app') + ' · ' + relative(r.created_at) })]),
+          el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
+        ]);
+        list.appendChild(button);
+      });
+      drawDetail(shown, preserveDetail);
+      var candidates = focusedReport ? list.querySelectorAll('[data-report]') : focusedStatus ? filters.querySelectorAll('[data-status]') : [];
+      Array.prototype.some.call(candidates, function (n) {
+        if ((focusedReport && n.dataset.report === focusedReport) || (focusedStatus && n.dataset.status === focusedStatus)) { n.focus({ preventScroll: true }); return true; }
+        return false;
       });
     }
-
-    /**
-     * A report moved. The card says so where the click was, the counts move at once, and only
-     * then does it leave this filter, so nothing vanishes without a word.
-     */
+    function drawDetail(shown, preserve) {
+      var chosen = shown.filter(function (x) { return key(x) === selected; })[0];
+      var signature = chosen ? JSON.stringify([chosen, ctxs[chosen.project_id].briefs[chosen.id], ctxs[chosen.project_id].dups[chosen.id], ctxs[chosen.project_id].repos]) : null;
+      if (preserve && signature === detailSignature && detail.querySelector('.detail-card, .detail-placeholder')) return;
+      detailSignature = signature;
+      detail.textContent = '';
+      detail.appendChild(el('button', { class: 'btn ghost detail-back', type: 'button', text: '← Back to reports', onclick: function () { view.classList.remove('detail-open'); var active = list.querySelector('[aria-current=true]'); if (active) active.focus(); } }));
+      var r = shown.filter(function (x) { return key(x) === selected; })[0];
+      if (!r) { view.classList.remove('detail-open'); detail.appendChild(el('div', { class: 'detail-placeholder' }, [el('img', { src: '/mark.svg', width: '52', height: '52', alt: '' }), el('h2', { text: 'Every report gets a hearing.' }), el('p', { text: 'Select a report to read its story and decide what comes next.' })])); return; }
+      var c = ctxs[r.project_id];
+      var card = row(c.project, r, settled, c, true);
+      card.classList.add('detail-card');
+      card.setAttribute('data-report', key(r));
+      card.prepend(el('div', { class: 'detail-eyebrow', text: productName(c.project) + ' / ' + r.id }));
+      card.querySelector('.meta').before(el('h2', { class: 'detail-title', text: title(r) }));
+      var evidence = card.querySelector('.trail');
+      if (evidence) evidence.open = true;
+      var device = deviceView(r.context);
+      if (device) { var actions = card.querySelector('.actions'); card.insertBefore(device, actions || null); }
+      detail.appendChild(card);
+    }
     function settled(r, card, done) {
-      if (!done) return load();  // someone else got there first: show what they did
-      drawFilters();
-      var to = r.status;
-      toast(DONE_TOAST[to], filter === to || filter === 'all' ? null : {
-        label: 'View ' + STATUS_LABEL[to].toLowerCase(), run: function () { filter = to; render(); window.scrollTo(0, 0); },
-      });
+      if (!done) return load();
+      // A preserved detail may hold the pre-refresh object; keep filter counts in sync.
+      reports.forEach(function (current) { if (key(current) === key(r)) Object.assign(current, r); });
+      toast(DONE_TOAST[r.status], { label: 'View ' + STATUS_LABEL[r.status].toLowerCase(), run: function () { filter = r.status; selected = key(r); load(); } });
       card.classList.add('settled');
-      setTimeout(function () {
-        if (!card.isConnected) return;
-        if (filter === 'all' || filter === to) return load();  // it stays in this list
-        card.style.height = card.offsetHeight + 'px';
-        card.getBoundingClientRect();
-        card.classList.add('leaving');
-        card.style.height = '0px';
-        setTimeout(load, 320);
-      }, 2200);
+      list.querySelectorAll('[data-report]').forEach(function (n) { if (n.dataset.report === key(r)) n.classList.add('settled'); });
+      setTimeout(function () { if (card.isConnected) load(); }, 1400);
     }
-
+    function readingReport() {
+      return (detail.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) || detail.querySelector('.busy, .settled')
+        || Array.prototype.some.call(detail.querySelectorAll('textarea, input'), function (n) { return n.value.trim(); });
+    }
+    function load(background) {
+      var serial = ++loadSerial, nextProjects, nextContexts = {};
+      return api('GET', '/projects').then(function (b) {
+        if (!shell.isConnected) return;
+        nextProjects = b.projects;
+        return Promise.all(nextProjects.map(function (x) {
+          return Promise.all([api('GET', '/projects/' + x.id + '/reports'), api('GET', '/projects/' + x.id + '/repos')]).then(function (r) {
+            nextContexts[x.id] = { project: x, reports: r[0].reports, briefs: r[0].briefs || {}, repos: r[1].repos || [] };
+          });
+        }));
+      }).then(function () {
+        if (!shell.isConnected || serial !== loadSerial || (background && readingReport())) return;
+        // Commit a complete snapshot together; failed refreshes leave the old one intact.
+        // Retained details close over their context; update it in place after success.
+        Object.keys(nextContexts).forEach(function (id) {
+          if (ctxs[id]) nextContexts[id] = Object.assign(ctxs[id], nextContexts[id]);
+        });
+        projects = nextProjects; ctxs = nextContexts;
+        var everything = [].concat.apply([], projects.map(function (x) { return ctxs[x.id].reports; }));
+        var dups = {}, counts = {};
+        everything.forEach(function (r) { if (r.duplicate_of) (dups[r.duplicate_of.report_id] = dups[r.duplicate_of.report_id] || []).push(r); });
+        Object.keys(dups).forEach(function (id) { counts[id] = dups[id].length; });
+        projects.forEach(function (x) { var c = ctxs[x.id]; c.dups = dups; c.all = everything.filter(function (r) { return productOf(ctxs[r.project_id].project) === productOf(x); }); c.siblings = ctxs; c.reload = load; });
+        reports = triageSort(everything.filter(function (r) { return !r.duplicate_of; }), counts);
+        loaded = true; drawProducts(); render(background === true);
+      }).catch(function (x) {
+        if (!shell.isConnected) return;
+        if (loaded) { toast('Could not refresh reports. ' + x.message); return; }
+        list.textContent = ''; detail.textContent = '';
+        list.appendChild(el('div', { class: 'inbox-empty' }, [el('h2', { text: 'Could not load reports' }), el('p', { class: 'err', role: 'alert', text: x.message }), el('button', { class: 'btn', text: 'Retry', onclick: load })]));
+      });
+    }
     load();
-    // Reports arrive while you read. Don't refresh under someone typing, or a card on its way out.
-    every(30000, function () { if (!list.querySelector('textarea, .report.settled, .report .busy')) load(); });
+    every(30000, function () {
+      // Keep a person's form, selection and reading position steady while they work.
+      if (readingReport()) return;
+      load(true);
+    });
   }
 
-  function ctxLine(c) {
-    return [c.page_title, c.route, c.app_version && ('v' + c.app_version), c.platform, c.os, c.browser,
-      c.viewport]
-      .filter(Boolean).join(' · ');
-  }
-
-  /** The device around the app: what layout, language and timing bugs depend on. */
-  function deviceLine(c) {
-    var s = c.session_s;
-    var inApp = s == null ? null : 'in the app ' + (s < 60 ? s + ' s' : s < 3600 ? Math.floor(s / 60) + ' min' : Math.floor(s / 3600) + ' h ' + Math.floor(s % 3600 / 60) + ' min');
-    return [c.device, c.screen, c.theme && c.theme + ' mode', c.locale, c.timezone, c.network, c.settings, inApp]
-      .filter(Boolean).join(' · ');
+  function deviceView(c) {
+    var fields = [['Platform', c.platform], ['App version', c.app_version], ['Browser', c.browser], ['OS', c.os], ['Page', c.route], ['Network', c.network]];
+    var more = [['Page title', c.page_title], ['Device', c.device], ['Screen', c.screen], ['Viewport', c.viewport], ['Language', c.locale], ['Timezone', c.timezone], ['Theme', c.theme], ['Settings', c.settings], ['Session', c.session_s == null ? null : c.session_s + ' seconds']];
+    function grid(values) { var dl = el('dl', { class: 'device-grid' }); values.forEach(function (f) { if (f[1]) { dl.appendChild(el('dt', { text: f[0] })); dl.appendChild(el('dd', { text: f[1] })); } }); return dl; }
+    if (!fields.concat(more).some(function (f) { return f[1]; })) return null;
+    return el('section', { class: 'device-section', 'aria-label': 'Device and app' }, [el('h3', { text: 'Device & app' }), grid(fields), more.some(function (f) { return f[1]; }) ? el('details', {}, [el('summary', { text: 'View all details' }), grid(more)]) : null]);
   }
 
   var TRAIL_LABEL = { page: 'Page', click: 'Click', request: 'Request', error: 'Error', warn: 'Warning', state: 'Device' };
@@ -1473,11 +1548,16 @@
     var typed = [rp.name, rp.email].filter(Boolean).join(' · ');
     if (!app && !typed && !rp.note) return null;
     var reply = c.user_email || rp.email;
-    return el('div', { class: 'ctx' }, [
+    var label = c.user_label || c.user_id || rp.name || rp.email || '';
+    var initials = label.split(/\s+/).slice(0, 2).map(function (part) { return part.charAt(0); }).join('').toUpperCase();
+    return el('div', { class: 'ctx reporter-context' }, [
+      label ? el('span', { class: 'avatar', 'aria-hidden': 'true', text: initials }) : null,
+      el('div', {}, [
       app ? el('span', {}, [document.createTextNode('Signed in: ' + app + ' ')]) : null,
       !app && typed ? el('span', {}, [document.createTextNode('From: ' + typed + ' ')]) : null,
       reply ? mailto(reply) : null,
       rp.note ? el('div', { text: 'About their setup: ' + rp.note }) : null,
+      ]),
     ]);
   }
 
@@ -1492,6 +1572,7 @@
     var brief = ctx.briefs[r.id];
     var err = el('span', { class: 'err', role: 'alert' });
     var actions = el('div', { class: 'actions' });
+    var acceptNote = el('textarea', { class: 'accept-note', rows: '2', maxlength: '1000', placeholder: 'Clarify what should change…', 'aria-label': 'Add a note for the coding agent (optional)' });
     var card, sentTo = null;
     var act = function (action, body, b) {
       if (action === 'accept') sentTo = (body && body.repo) || ctx.repos[0] || null;
@@ -1538,8 +1619,12 @@
         // Several repos hold this app's code: say where the fix goes, defaulting to the first.
         var pick = ctx.repos.length > 1 ? el('select', { 'aria-label': 'Where the fix goes' },
           ctx.repos.map(function (x) { return el('option', { value: x, text: 'Fix in ' + x }); })) : null;
+        actions.appendChild(el('label', { class: 'accept-note-label' }, ['Add a note for the coding agent (optional)', acceptNote]));
         actions.appendChild(el('button', { class: 'btn primary', type: 'button', text: 'Accept', onclick: function (e) {
-          act('accept', pick ? { repo: pick.value } : undefined, e.currentTarget);
+          var body = {};
+          if (pick) body.repo = pick.value;
+          if (acceptNote.value.trim()) body.note = acceptNote.value.trim();
+          act('accept', body, e.currentTarget);
         } }));
         if (pick) actions.appendChild(pick);
         actions.appendChild(el('button', { class: 'btn', type: 'button', text: 'Decline…', onclick: declineForm }));
@@ -1565,6 +1650,7 @@
         }));
         actions.appendChild(el('button', { class: 'btn', type: 'button', text: 'Mark fixed…', onclick: fixedForm }));
       }
+      if (r.status === 'open') actions.appendChild(el('p', { class: 'accept-hint', text: 'Accepting makes this report available to a connected coding agent.' }));
       actions.appendChild(err);
     }
 
@@ -1713,8 +1799,8 @@
         el('summary', { text: 'Attached document' + (r.document.title ? ': ' + r.document.title : '') + ' · ' + (r.document.markdown.length < 1000 ? r.document.markdown.length + ' characters' : Math.round(r.document.markdown.length / 1000) + 'k characters') }),
         markdown(r.document.markdown),
       ]) : null,
-      r.source === 'chat' || r.source === 'agent' ? null : el('div', { class: 'ctx', text: ctxLine(r.context) }),
-      r.source !== 'chat' && r.source !== 'agent' && deviceLine(r.context) ? el('div', { class: 'ctx', text: deviceLine(r.context) }) : null,
+      null,
+      null,
       r.context.page_url ? el('div', { class: 'ctx' }, [el('a', { href: r.context.page_url, target: '_blank', rel: 'noopener noreferrer', text: r.context.page_url })]) : null,
       reporterLine(r.context, r.reporter),
       dupBox,
@@ -1797,7 +1883,7 @@
       go.disabled = true;
       api('DELETE', '/projects/' + p.id, { confirm: confirm.value }).then(function () {
         projects = projects.filter(function (x) { return x.id !== p.id; });
-        location.hash = '#/';
+        location.hash = '#/apps';
       }).catch(function (x) { err.textContent = x.message; go.disabled = false; });
     };
     view.appendChild(el('section', { class: 'card' }, owner ? [el('h2', { text: '2. Delete the app from Heresay' }), form]

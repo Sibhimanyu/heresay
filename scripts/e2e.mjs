@@ -159,7 +159,7 @@ try {
   await dash.screenshot({ path: `${SHOTS}e2e-1e-not-sure.png`, fullPage: true });
 
   step('the apps list sends an unverified app back to finish setup');
-  await dash.goto(`${BASE}/app/#/`);
+  await dash.goto(`${BASE}/app/#/apps`);
   await dash.locator('.app-card', { hasText: 'Mystery app' }).getByText('Setup not finished').waitFor();
   await dash.locator('.app-card', { hasText: 'Mystery app' }).click();
   await dash.getByText('Checking automatically…').waitFor();
@@ -214,7 +214,7 @@ try {
   await app.unroute('**/reports', hold);
 
   step('developer sees it with screen and version, declines with a reason');
-  await dash.goto(`${BASE}/app/#/`);
+  await dash.goto(`${BASE}/app/#/apps`);
   // A slow inbox shows the one Glance loader and none of the half-built page, then all of it at once.
   const slow = async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); };
   await dash.route('**/reports', slow);
@@ -225,7 +225,7 @@ try {
   assert.equal(await dash.locator('.app-loader img').count(), 1, 'one loader, never a second');
   await dash.screenshot({ path: `${SHOTS}e2e-3a-inbox-loading.png` });
   await dash.unroute('**/reports', slow);
-  await dash.locator('.filters button', { hasText: 'Open' }).click();
+  await dash.locator('.status-tabs button', { hasText: 'Open' }).click();
   await dash.locator('#loader:not(.on)').waitFor({ state: 'attached' });
   assert.equal(await dash.locator('#view h1').isVisible(), true, 'the page arrives in one go');
   // A cold refresh on the inbox: the same loader, in the same place, from first paint to the full page.
@@ -251,10 +251,11 @@ try {
   await dash.locator('#view h1').waitFor();
   const row = dash.locator('article.report').first();
   await row.waitFor();
-  const ctxText = await row.locator('.ctx').first().textContent();
+  await row.getByText('View all details', { exact: true }).click();
+  const ctxText = await row.textContent();
   console.log('context shown:', ctxText);
   assert.match(ctxText, /\/demo\.html#\/settings\/billing/);
-  assert.match(ctxText, /v0\.0\.1-demo/);
+  assert.match(ctxText, /0\.0\.1-demo/);
   assert.match(ctxText, /web/);
   assert.match(ctxText, /Heresay test page/, 'page title');
   assert.match(ctxText, /\d+x\d+/, 'viewport');
@@ -272,7 +273,7 @@ try {
   // The click is answered where it happened, and the card says what it did before it leaves.
   await row.locator('.done-line', { hasText: 'Declined' }).waitFor();
   await dash.locator('.toast.on', { hasText: 'Declined' }).waitFor();
-  await dash.locator('.filters button', { hasText: 'Declined 1' }).waitFor();
+  await dash.locator('.status-tabs button', { hasText: 'Declined 1' }).waitFor();
   await dash.waitForTimeout(400);  // let the card finish fading into its new state
   await dash.screenshot({ path: `${SHOTS}e2e-3b-dashboard-just-declined.png` });
   await dash.locator('.toast').getByRole('button', { name: 'View declined' }).click();
@@ -304,7 +305,8 @@ try {
   await sw.getByRole('button', { name: 'Send' }).click();
   await sw.getByText('Waiting for the developer').waitFor();
   await dash.reload();
-  await dash.locator('.filters button', { hasText: 'Open' }).click();
+  await dash.locator('.status-tabs button', { hasText: 'Open' }).click();
+  await dash.locator('.report-preview', { hasText: 'Dark mode for the calendar' }).click();
   const sRow = dash.locator('article.report', { hasText: 'Dark mode for the calendar' });
   await sRow.getByText('Signed in: Sibhi Govindasamy · sibhi@example.com').waitFor();
   assert.equal(await sRow.getByText('Asha').count(), 0, 'what this device typed while signed out is not sent');
@@ -519,10 +521,11 @@ try {
   await dash.locator('.apple-frame').screenshot({ path: `${SHOTS}e2e-1k-design-mac-intro.png` });
 
   step('one product on two platforms: add iOS to Acme Notes; one card, one inbox, each report marked');
-  await dash.goto(`${BASE}/app/#/`);
+  await dash.goto(`${BASE}/app/#/apps`);
   await dash.locator('.app-card', { hasText: 'Acme Notes' }).click();
   await dash.getByRole('heading', { name: 'Acme Notes' }).waitFor();
-  await dash.locator('.head').getByRole('link', { name: '+ Add a platform' }).click();
+  await dash.getByText('Manage app', { exact: true }).click();
+  await dash.getByRole('link', { name: '+ Add a platform' }).click();
   await dash.getByRole('heading', { name: 'Add a platform to Acme Notes' }).waitFor();
   assert.equal(await dash.locator('.platform.added', { hasText: 'Web' }).count(), 1, 'the platform it already has is marked');
   await dash.locator('a.platform', { hasText: 'iOS' }).click();
@@ -536,24 +539,25 @@ try {
   assert.notEqual(iosApp.key, webApp.key);
   await fetch(`${BASE}/v1/reports`, { method: 'POST', headers: { 'content-type': 'text/plain' },
     body: JSON.stringify({ key: iosApp.key, device_id: 'ios_device_000000000001', sdk: 'ios', type: 'broken', text: 'The iPhone share sheet is empty', context: { platform: 'ios', route: 'Share' } }) });
-  await dash.goto(`${BASE}/app/#/`);
+  await dash.goto(`${BASE}/app/#/apps`);
   const product = dash.locator('.product-card', { hasText: 'Acme Notes' });
   await product.locator('.platform-line', { hasText: 'Web' }).waitFor();
   await product.locator('.platform-line', { hasText: 'iOS' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-5a-product-card.png`, fullPage: true });
   await product.locator('.platform-line', { hasText: 'Web' }).click();
   await dash.getByRole('heading', { name: 'Acme Notes' }).waitFor();
-  await dash.locator('.platforms-filter button', { hasText: 'iOS' }).waitFor();
-  await dash.locator('.filters button', { hasText: 'All' }).last().click();
+  await dash.getByLabel('Platform', { exact: true }).waitFor();
+  await dash.locator('.status-tabs button', { hasText: 'All' }).last().click();
+  await dash.locator('.report-preview', { hasText: 'The iPhone share sheet is empty' }).click();
   const iosRow = dash.locator('article.report', { hasText: 'The iPhone share sheet is empty' });
   await iosRow.locator('.platform-pill', { hasText: 'iOS' }).waitFor();
-  await dash.locator('article.report .platform-pill', { hasText: 'Web' }).first().waitFor();
+  await dash.locator('.report-preview', { hasText: 'Web' }).first().waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-5b-product-inbox.png`, fullPage: true });
-  await dash.locator('.platforms-filter button', { hasText: 'iOS' }).click();
+  await dash.getByLabel('Platform', { exact: true }).selectOption('ios');
   assert.equal(await dash.locator('article.report .platform-pill', { hasText: 'Web' }).count(), 0, 'the platform filter narrows it');
   await iosRow.getByRole('button', { name: 'Accept' }).click();
   await iosRow.locator('.done-line', { hasText: 'Accepted' }).waitFor();
-  await dash.locator('.filters button', { hasText: 'Accepted 1' }).waitFor();
+  await dash.locator('.status-tabs button', { hasText: 'Accepted 1' }).waitFor();
 
   step('connect a repo for coding agents from the dashboard: the token is shown once');
   await dash.goto(`${BASE}/app/#/connect?repo=github.com/acme/notes&app=${project.id}`);
@@ -566,6 +570,8 @@ try {
   await dash.locator('.members li', { hasText: 'github.com/acme/notes' }).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-7-connect.png`, fullPage: true });
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.reload();
+  await dash.getByText('Manage app', { exact: true }).click();
   await dash.getByText(/Agents fix these in github.com\/acme\/notes/).waitFor();
 
   step('the trail: pages, clicks, failed requests and errors go with a report; the reporter can leave parts out');
@@ -618,10 +624,15 @@ try {
   assert.deepEqual([...new Set(withTrail.trail.map((e) => e.kind))].sort(), ['error', 'page', 'request']);
   assert.match(withTrail.trail.find((e) => e.kind === 'error').detail ?? '', /at /, 'the top of the stack');
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.reload();
+  await dash.locator('.status-tabs button', { hasText: 'Open' }).click();
+  await dash.locator('.report-preview', { hasText: 'Saving my profile does nothing.' }).click();
   const tcard = dash.locator('article.report', { hasText: 'Saving my profile does nothing.' });
   await tcard.locator('details.trail[open]').waitFor();
   await tcard.locator('.trail li.k-request', { hasText: 'PATCH /api/profile → 404' }).waitFor();
-  await tcard.locator('.ctx', { hasText: /desktop, mouse · \d+x\d+@\d/ }).waitFor();
+  await tcard.getByText('View all details', { exact: true }).click();
+  await tcard.locator('.device-grid dd', { hasText: 'desktop, mouse' }).waitFor();
+  await tcard.locator('.device-grid dd', { hasText: /\d+x\d+@\d/ }).waitFor();
   await tcard.screenshot({ path: `${SHOTS}e2e-8c-trail-dashboard.png` });
   assert.equal((await api('POST', `/projects/${project.id}/reports/${withTrail.id}/accept`)).status, 200);
   const tprompt = (await (await api('GET', `/projects/${project.id}/reports/${withTrail.id}/prompt`)).json()).prompt;
@@ -726,6 +737,8 @@ try {
   await chat.close();
 
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.reload();
+  await dash.locator('.report-preview', { hasText: 'Let people pin a note to the top of the list.' }).click();
   const chatCard = dash.locator('article.report', { hasText: 'Let people pin a note to the top of the list.' });
   await chatCard.getByText('From ChatGPT').waitFor();
   await chatCard.getByText(`From the team: ${OWNER}, in a conversation in ChatGPT`).waitFor();
@@ -772,6 +785,8 @@ try {
     document_title: 'Pinning spec' });
   await viaTokenCall('send_draft', { draft_id: mdDraft.structuredContent.draft_id });
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.reload();
+  await dash.locator('.report-preview', { hasText: 'Pin notes with a' }).click();
   const mdCard = dash.locator('article.report', { hasText: 'Pin notes with a' });
   await mdCard.locator('.md strong', { hasText: 'keyboard shortcut' }).waitFor();
   assert.equal(await mdCard.locator('.md a[href="https://example.com/spec"]').count(), 1);
@@ -797,9 +812,12 @@ try {
   const first = (await sendAs('Changing the avatar photo fails with an error', 'e2e_dup_device_00000001')).report;
   const second = (await sendAs('Avatar photo change fails, shows an error', 'e2e_dup_device_00000002')).report;
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.reload();
+  await dash.locator('.report-preview', { hasText: 'Avatar photo change fails, shows an error' }).click();
   const dupCard = dash.locator('article.report', { hasText: 'Avatar photo change fails, shows an error' });
   await dupCard.locator('.suggest', { hasText: 'Changing the avatar photo fails with an error' }).waitFor();
   await dupCard.getByRole('button', { name: 'Merge into it' }).click();
+  await dash.locator('.report-preview', { hasText: 'Changing the avatar photo fails with an error' }).click();
   const keep = dash.locator('article.report', { hasText: 'Changing the avatar photo fails with an error' });
   await keep.getByText('2 people reported this').waitFor();
   assert.equal(await dash.locator('article.report', { hasText: 'Avatar photo change fails, shows an error' }).filter({ hasNot: dash.locator('.dups') }).count(), 0, 'the merged one left the list');
@@ -817,7 +835,9 @@ try {
   const toFix = (await sendAs('Printing a note cuts off the last line', fixDevice)).report;
   assert.equal((await api('POST', `/projects/${project.id}/reports/${toFix.id}/accept`)).status, 200);
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.reload();
   await dash.getByRole('button', { name: /^Accepted/ }).click();
+  await dash.locator('.report-preview', { hasText: 'Printing a note cuts off the last line' }).click();
   const fixCard = dash.locator('article.report', { hasText: 'Printing a note cuts off the last line' });
   await fixCard.getByRole('button', { name: 'Mark fixed…' }).click();
   await fixCard.getByLabel('Note for the reporter').fill('Printing keeps every line now.');
@@ -825,6 +845,7 @@ try {
   await fixCard.getByLabel('Ships in version').fill('1.4');
   await fixCard.getByRole('button', { name: 'Mark fixed' }).click();
   await dash.getByRole('button', { name: /^Fixed/ }).click();
+  await dash.locator('.report-preview', { hasText: 'Printing a note cuts off the last line' }).click();
   const fixedCard = dash.locator('article.report', { hasText: 'Printing a note cuts off the last line' });
   await fixedCard.getByText('Fixed in 1.4').waitFor();
   await fixedCard.getByRole('link', { name: 'PR #77' }).waitFor();
@@ -861,7 +882,9 @@ try {
   await wd.screenshot({ path: `${SHOTS}e2e-13a-take-back.png` });
   await wdCtx.close();
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.reload();
   await dash.getByRole('button', { name: /^Withdrawn/ }).click();
+  await dash.locator('.report-preview', { hasText: 'Please add a calendar view' }).click();
   const wdCard = dash.locator('article.report', { hasText: 'Please add a calendar view' });
   await wdCard.getByText(/Withdrawn by the person who sent it on .*: Found it under Views\./).waitFor();
   assert.equal(await wdCard.getByRole('button', { name: 'Accept' }).count(), 0, 'nothing to triage');
@@ -881,8 +904,8 @@ try {
   await dash.getByText(`${other}`).waitFor();
   await dash.screenshot({ path: `${SHOTS}e2e-6-team.png`, fullPage: true });
   await outsider.reload();
-  await outsider.getByRole('heading', { name: 'Apps' }).waitFor();
-  await outsider.getByText('Acme Notes').waitFor();
+  await outsider.getByRole('heading', { name: 'Inbox', exact: true }).waitFor();
+  await outsider.locator('.report-preview', { hasText: 'Acme Notes' }).first().waitFor();
   await outsider.goto(`${BASE}/app/#/team`);
   assert.equal(await outsider.locator('#invite-email').count(), 0, 'members do not get the invite form');
   await ctx2.close();
