@@ -9,7 +9,7 @@ import UIKit
 /// When someone seems stuck, a small note by the button asks whether they want to tell the team.
 /// Pass to `Heresay.configure(…, nudge:)`. Off unless the app turns it on: it is the app's screen it
 /// appears on. Watched on the device and never sent anywhere; it only offers the sheet, with the
-/// trail. At most once per launch, and not for 7 days after "Not now".
+/// trail. At most once per launch.
 public struct HeresayNudge: OptionSet, Sendable, Hashable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }

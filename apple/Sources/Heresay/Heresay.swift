@@ -176,7 +176,7 @@ public final class Heresay: ObservableObject {
     func setScreen(_ name: String?, now: Date = Date()) {
         if let name, name != screen {
             trail.note(.page, name)
-            if nudges.contains(.circles), circles.visit(name, at: now) { offerHelp(.stuck, now: now) }
+            if nudges.contains(.circles), circles.visit(name, at: now) { offerHelp(.stuck) }
         }
         screen = name
     }
@@ -221,38 +221,33 @@ public final class Heresay: ObservableObject {
 
     /// The app saw trouble itself (an error screen, a retry that failed): offer to report it, with
     /// a small note by the button. Works without `nudge:` in `configure`; the same limits apply
-    /// (once per launch, not for 7 days after "Not now"). Returns whether it showed.
+    /// (once per launch). Returns whether it showed.
     /// `stuck: true` for someone who seems unsure rather than blocked: "Stuck on something?", and the
     /// sheet opens as Confusing.
     @discardableResult
     public static func nudge(stuck: Bool = false) -> Bool { shared.offerHelp(stuck ? .stuck : .trouble) }
 
     @discardableResult
-    func offerHelp(_ why: HelpOffer, now: Date = Date()) -> Bool {
+    func offerHelp(_ why: HelpOffer) -> Bool {
         guard client != nil, buttonVisible, !isPresented, !introPending, offer == nil, !offeredThisLaunch else { return false }
         #if os(macOS)
         guard !IntroWindow.isOpen else { return false }
         #endif
-        if let no = defaults.object(forKey: Keys.nudgeDeclined) as? Date, now.timeIntervalSince(no) < Self.nudgeRest { return false }
         offeredThisLaunch = true
         offer = why
         NudgeCard.announce(words[why == .crash ? .nudgeCrashTitle : why == .stuck ? .nudgeStuckTitle : .nudgeTitle])
         return true
     }
 
-    static let nudgeRest: TimeInterval = 7 * 86_400
-
     /// "Tell the team" opens the sheet as Broken (Confusing when they seemed unsure), with the trail;
-    /// "Not now" quiets it for 7 days.
-    func answerOffer(_ yes: Bool, now: Date = Date()) {
+    /// "Not now" only closes it.
+    func answerOffer(_ yes: Bool) {
         let was = offer
         offer = nil
         if yes {
             let type: ReportType = was == .stuck ? .confusing : .broken
             if draft.type == nil, style.types.contains(type) { draft.type = type }
             present(.report)
-        } else {
-            defaults.set(now, forKey: Keys.nudgeDeclined)
         }
     }
 
@@ -534,7 +529,6 @@ public final class Heresay: ObservableObject {
         static let seen = "heresay.seen"
         static let prefs = "heresay.prefs"
         static let introduced = "heresay.introduced"
-        static let nudgeDeclined = "heresay.nudge.declined"
         static let nudgedCrash = "heresay.nudge.crash"
     }
 }
