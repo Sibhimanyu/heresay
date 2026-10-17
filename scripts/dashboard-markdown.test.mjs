@@ -45,7 +45,8 @@ test('links retain scheme restrictions and render HTML as text', () => {
   assert.equal(nodes(root, 'a').length, 0);
   assert.equal(nodes(root, 'img').length, 0);
   assert.match(root.textContent, /<img src=x onerror=alert>/);
-  const mail = nodes(markdown('[https://example.com](mailto:help@example.com)'), 'a');
+  const mailHref = 'mailto:help@example.com';
+  const mail = nodes(markdown('[https://example.com](' + mailHref + ')'), 'a');
   assert.equal(mail.length, 1);
   assert.equal(mail[0].attributes.href, 'mailto:help@example.com');
 });
