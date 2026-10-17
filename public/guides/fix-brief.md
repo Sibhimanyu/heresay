@@ -41,5 +41,9 @@ accepts it. `my_findings` shows what happened to them.
 
 ## 6. Done
 
-When the fix is merged or ready to merge, `mark_fixed(id, note)`. The reporter reads the note
-in the app next to "Fixed", so write it for them: see `write-note`.
+When the fix is merged or ready to merge, `mark_fixed(id, note, pr, commit, version)`. The
+reporter reads the note in the app next to "Fixed", so write it for them: see `write-note`. Link
+the PR and commit; the team sees them on the report. If you know the app version it ships in,
+pass it: reporters see "Fixed in 1.4" and, on an older version, a nudge to update. If not,
+`mark_released(version)` (or `npx heresay released 1.4`) stamps it on every unversioned fix when
+the release goes out.

@@ -6,10 +6,11 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   CLAIM_TTL_MS, LIMITS, PLATFORMS, REPORT_TYPES, isPlatform, isReportType, toReporterView,
-  type AgentToken, type CodeRef, type Member, type Project, type Report, type Task, type TaskNote,
+  type AgentToken, type CodeRef, type FixRef, type Member, type Project, type Report, type Task, type TaskNote,
 } from './types.js';
 import type { Deps, Req, Res } from './handler.js';
 import { notify } from './notifications.js';
+import { parseFixRef, stampFix } from './duplicates.js';
 
 const json = (status: number, body: unknown): Res => ({ status, body });
 const str = (v: unknown, max: number): string | null => {
@@ -116,7 +117,7 @@ export async function agent(
   p: string[], req: Req, deps: Deps, body: Record<string, unknown>,
   prompt: (project: Project, t: Task) => string,
   createProject: (by: string, body: Record<string, unknown>) => Promise<Res>,
-  toReporter: (project: Project, report_id: string, note: string, by: string) => Promise<Res>,
+  toReporter: (project: Project, report_id: string, note: string, by: string, ref?: Partial<FixRef>) => Promise<Res>,
 ): Promise<Res> {
   const token = await tokenFromHeader(req, deps);
   if (!token) return json(401, { error: 'this agent token is not valid (revoked, or never issued). Run npx heresay connect again.' });
@@ -186,6 +187,27 @@ export async function agent(
   }
 
   if (p[0] === 'findings') return findings(p, req, deps, body, token, repoName, apps, now);
+
+  // A release went out: every fix from this repo's apps without a version ships in it.
+  if (p[0] === 'released' && p.length === 1 && req.method === 'POST') {
+    const fx = parseFixRef({ version: body.version });
+    if (fx.error || !fx.ref.version) return json(400, { error: fx.error ?? 'say which version was released, e.g. 1.4' });
+    const want = str(body.app, 100);
+    const targets = want ? apps.filter((a) => a.id === want || a.name.toLowerCase() === want.toLowerCase()) : apps;
+    if (!targets.length) return json(400, { error: `this repo is not connected to an app called "${want}"` });
+    const stamped: { app: string; id: string }[] = [];
+    for (const app of targets) {
+      for (const t of await deps.store.listTasks(app.id)) {
+        if ((t.repo ?? null) !== null && t.repo !== repoName) continue;
+        const r = await deps.store.getReport(app.id, t.report_id);
+        if (r?.status !== 'fixed' || r.fix_ref?.version) continue;
+        await stampFix(app, r.id, { version: fx.ref.version, released_at: new Date(now).toISOString() }, deps);
+        stamped.push({ app: app.name, id: r.id });
+      }
+    }
+    deps.log('api.release_stamped', { repo: repoName, version: fx.ref.version, n: stamped.length });
+    return json(200, { version: fx.ref.version, stamped });
+  }
 
   if (p[0] !== 'briefs') return json(404, { error: 'not found' });
 
@@ -275,7 +297,9 @@ export async function agent(
     const note = str(body.note, LIMITS.reasonMax);
     if (!note) return json(400, { error: 'write a note for the person who reported it: what changed, in their words' });
     if (takenByOther(found.task)) return json(409, { error: `in progress in ${found.task.claim!.repo}` });
-    const res = await toReporter(app, found.task.id, note, me);
+    const fx = parseFixRef(body);
+    if (fx.error) return json(400, { error: fx.error });
+    const res = await toReporter(app, found.task.id, note, me, fx.ref);
     if (res.status === 200) {
       await deps.store.updateTask(app.id, found.task.id, (cur) => ({ ...addNote(cur, `Fixed: ${note}`, 'note'), claim: null }));
     }

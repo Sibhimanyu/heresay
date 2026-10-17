@@ -117,6 +117,7 @@
       seeTrail: 'See it', alsoSent: 'Also sent: ',
       trail: { page: ['page', 'pages'], click: ['click', 'clicks'], request: ['failed request', 'failed requests'], error: ['error', 'errors'], warn: ['warning', 'warnings'], state: ['device event', 'device events'] },
       nudgeStuckTitle: 'Stuck on something?', nudgeStuckBody: 'If something here isn’t clear, tell the team. A real person reads it.', nudgeAria: 'Offer to report a problem', nudgeTitle: 'Something not working?', nudgeBody: 'Tell the team what happened. A real person reads it.', nudgeYes: 'Tell the team', nudgeNo: 'Not now',
+      fixedIn: 'Fixed in version {v}.', updateTo: 'Update to {v} to get it.',
       sentTo: 'Sent to this app’s team', powered: 'Powered by Heresay',
     },
     fr: {
@@ -155,6 +156,7 @@
       seeTrail: 'Voir', alsoSent: 'Aussi envoyé : ',
       trail: { page: ['page', 'pages'], click: ['clic', 'clics'], request: ['requête échouée', 'requêtes échouées'], error: ['erreur', 'erreurs'], warn: ['avertissement', 'avertissements'], state: ['événement de l’appareil', 'événements de l’appareil'] },
       nudgeStuckTitle: 'Bloqué quelque part ?', nudgeStuckBody: 'Si quelque chose n’est pas clair ici, dites-le à l’équipe. Une vraie personne le lit.', nudgeAria: 'Proposition de signaler un problème', nudgeTitle: 'Quelque chose ne marche pas ?', nudgeBody: 'Dites à l’équipe ce qui s’est passé. Une vraie personne le lit.', nudgeYes: 'Signaler', nudgeNo: 'Pas maintenant',
+      fixedIn: 'Corrigé dans la version {v}.', updateTo: 'Passez à la {v} pour en profiter.',
       sentTo: 'Envoyé à l’équipe de cette app', powered: 'Propulsé par Heresay',
     },
     ta: {
@@ -193,6 +195,7 @@
       seeTrail: 'பார்', alsoSent: 'இவையும் அனுப்பப்படும்: ',
       trail: { page: ['பக்கம்', 'பக்கங்கள்'], click: ['கிளிக்', 'கிளிக்குகள்'], request: ['தோல்வியடைந்த கோரிக்கை', 'தோல்வியடைந்த கோரிக்கைகள்'], error: ['பிழை', 'பிழைகள்'], warn: ['எச்சரிக்கை', 'எச்சரிக்கைகள்'], state: ['சாதன நிகழ்வு', 'சாதன நிகழ்வுகள்'] },
       nudgeStuckTitle: 'எங்காவது சிக்கிக்கொண்டீர்களா?', nudgeStuckBody: 'இங்கே ஏதாவது புரியவில்லை என்றால், குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.', nudgeAria: 'சிக்கலைத் தெரிவிக்க ஒரு அழைப்பு', nudgeTitle: 'ஏதாவது வேலை செய்யவில்லையா?', nudgeBody: 'என்ன நடந்தது என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.', nudgeYes: 'குழுவிடம் சொல்', nudgeNo: 'இப்போது வேண்டாம்',
+      fixedIn: 'பதிப்பு {v} இல் சரிசெய்யப்பட்டது.', updateTo: 'இதைப் பெற {v} க்குப் புதுப்பிக்கவும்.',
       sentTo: 'இந்த ஆப்பின் குழுவுக்கு அனுப்பப்படும்', powered: 'Heresay மூலம் இயங்குகிறது',
     },
     hi: {
@@ -231,6 +234,7 @@
       seeTrail: 'देखें', alsoSent: 'यह भी भेजा जाता है: ',
       trail: { page: ['पेज', 'पेज'], click: ['क्लिक', 'क्लिक'], request: ['विफल अनुरोध', 'विफल अनुरोध'], error: ['त्रुटि', 'त्रुटियाँ'], warn: ['चेतावनी', 'चेतावनियाँ'], state: ['डिवाइस घटना', 'डिवाइस घटनाएँ'] },
       nudgeStuckTitle: 'कहीं अटक गए?', nudgeStuckBody: 'अगर यहाँ कुछ साफ़ नहीं है, तो टीम को बताइए। इसे कोई इंसान पढ़ता है।', nudgeAria: 'समस्या बताने का सुझाव', nudgeTitle: 'कुछ काम नहीं कर रहा?', nudgeBody: 'टीम को बताइए क्या हुआ। इसे कोई इंसान पढ़ता है।', nudgeYes: 'टीम को बताएँ', nudgeNo: 'अभी नहीं',
+      fixedIn: 'वर्शन {v} में ठीक किया गया।', updateTo: 'इसे पाने के लिए {v} पर अपडेट करें।',
       sentTo: 'इस ऐप की टीम को भेजा जाता है', powered: 'Heresay द्वारा संचालित',
     },
   };
@@ -321,14 +325,26 @@
 
   /** Statuses the reporter has already seen, so a new outcome can show a dot. */
   function seen() { try { return JSON.parse(load('fbsdk.seen.' + KEY) || '{}'); } catch (e) { return {}; } }
+  /** What the reporter has seen of a report: its status, and the version a fix ships in once known. */
+  function mark(r) { return r.status + (r.fix_version ? '@' + r.fix_version : ''); }
   function markSeen() {
     var s = {};
-    state.reports.forEach(function (r) { s[r.id] = r.status; });
+    state.reports.forEach(function (r) { s[r.id] = mark(r); });
     save('fbsdk.seen.' + KEY, JSON.stringify(s));
   }
   function unseen() {
     var s = seen();
-    return state.reports.filter(function (r) { return r.status !== 'open' && s[r.id] !== r.status; }).length;
+    return state.reports.filter(function (r) { return r.status !== 'open' && s[r.id] !== mark(r); }).length;
+  }
+  /** a < b for versions like 1.4, 1.10.2, 2.0 (build suffixes ignored). Unknown: false. */
+  function older(a, b) {
+    var x = String(a || '').split(/[\s(+-]/)[0].split('.'), y = String(b || '').split(/[\s(+-]/)[0].split('.');
+    if (!x[0] || !y[0] || x.concat(y).some(function (n) { return !/^\d+$/.test(n); })) return false;
+    for (var i = 0; i < Math.max(x.length, y.length); i++) {
+      var d = (+x[i] || 0) - (+y[i] || 0);
+      if (d) return d < 0;
+    }
+    return false;
   }
 
   /**
@@ -1487,7 +1503,7 @@
     var s = seen();
     state.reports.forEach(function (r) {
       var label = (TYPES.filter(function (t) { return t.id === r.type; })[0] || {}).label || r.type;
-      var fresh = r.status !== 'open' && s[r.id] !== r.status;
+      var fresh = r.status !== 'open' && s[r.id] !== mark(r);
       listBox.appendChild(el('div', { class: 'item' }, [
         el('div', { class: 'status ' + r.status, text: (fresh ? '● ' : '') + (S.status[r.status] || r.status) }),
         el('div', { class: 'text', text: r.text }),
@@ -1496,6 +1512,8 @@
           ? el('div', { class: 'reason', text: S.why + r.decline_reason }) : null,
         r.status === 'fixed' && r.fix_note
           ? el('div', { class: 'reason', text: r.fix_note }) : null,
+        r.status === 'fixed' && r.fix_version
+          ? el('div', { class: 'small', text: fmt(S.fixedIn, { v: r.fix_version }) + (older(state.version, r.fix_version) ? ' ' + fmt(S.updateTo, { v: r.fix_version }) : '') }) : null,
       ]));
     });
   }

@@ -485,3 +485,11 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .report .dups li .link { margin-left:6px; }
 .report .suggest { margin-top:8px; padding:8px 10px; border-radius:8px; background:#fff7ed; color:#7c2d12; font-size:13px; }
 .report .dups .link, .report .suggest .link { border:0; background:none; padding:0; font:inherit; color:var(--deep, #0b5e57); text-decoration:underline; cursor:pointer; }
+
+/* fixes: PR, commit, version */
+.report .fix-line { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; font-size:13px; }
+.report .fix-line code { font:12px var(--mono, ui-monospace, monospace); padding:1px 6px; border-radius:5px; background:rgba(127,127,127,.12); }
+.report .fix-line input { max-width:140px; }
+.report .fix-line .link { border:0; background:none; padding:0; font:inherit; color:var(--deep, #0b5e57); text-decoration:underline; cursor:pointer; }
+.pill.version-pill { background:#dcfce7; color:#166534; }
+.fix-ref input { flex:1; min-width:160px; }

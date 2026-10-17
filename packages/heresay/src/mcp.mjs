@@ -184,9 +184,23 @@ export async function serve() {
 
   server.registerTool('mark_fixed', {
     title: 'Mark a brief fixed',
-    description: 'The reporter sees "Fixed" and your note in the app. Write the note for them (see heresay_guide write-note).',
-    inputSchema: { id: z.string(), note: z.string().describe('One or two plain sentences for the reporter') },
-  }, tool(async ({ id, note }) => text(await api().fixed(id, note))));
+    description: 'The reporter sees "Fixed" and your note in the app. Write the note for them (see heresay_guide write-note). '
+      + 'Link the proof: the PR, the commit, and the app version it ships in if you know it (otherwise mark_released sets it at release). '
+      + 'Reporters see the version ("Fixed in 1.4"), never the PR or commit.',
+    inputSchema: {
+      id: z.string(), note: z.string().describe('One or two plain sentences for the reporter'),
+      pr: z.string().optional().describe('Link to the pull request'),
+      commit: z.string().optional().describe('The commit hash'),
+      version: z.string().optional().describe('The app version the fix ships in, e.g. 1.4'),
+    },
+  }, tool(async ({ id, note, pr, commit, version }) => text(await api().fixed(id, note, { pr, commit, version }))));
+
+  server.registerTool('mark_released', {
+    title: 'A release went out',
+    description: 'Stamps a version on every fix from this repo\'s apps that doesn\'t have one yet, so their reporters see "Fixed in <version>". '
+      + 'Call it when a release that includes them ships.',
+    inputSchema: { version: z.string().describe('The version released, e.g. 1.4'), app: z.string().optional().describe('Only this app (id or name)') },
+  }, tool(async ({ version, app }) => text(await api().released(version, app))));
 
   await server.connect(new StdioServerTransport());
 }

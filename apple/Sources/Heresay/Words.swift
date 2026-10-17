@@ -18,6 +18,7 @@ enum W: String, CaseIterable {
     case trailPage, trailPages, trailClick, trailClicks, trailRequest, trailRequests
     case trailError, trailErrors, trailWarn, trailWarns, trailState, trailStates
     case nudgeTitle, nudgeBody, nudgeCrashTitle, nudgeCrashBody, nudgeStuckTitle, nudgeStuckBody, nudgeYes, nudgeNo
+    case fixedIn, updateTo
     case powered
 }
 
@@ -81,6 +82,7 @@ struct Words: Sendable {
         .nudgeCrashTitle: "The app closed unexpectedly", .nudgeCrashBody: "Tell the team what you were doing when it closed. A real person reads it.",
         .nudgeStuckTitle: "Stuck on something?", .nudgeStuckBody: "If something here isn’t clear, tell the team. A real person reads it.",
         .nudgeYes: "Tell the team", .nudgeNo: "Not now",
+        .fixedIn: "Fixed in version {v}.", .updateTo: "Update to {v} to get it.",
         .clearAll: "Clear all", .powered: "Powered by Heresay",
     ]
 
@@ -126,6 +128,7 @@ struct Words: Sendable {
         .nudgeCrashTitle: "L’app s’est fermée sans prévenir", .nudgeCrashBody: "Dites à l’équipe ce que vous faisiez à ce moment. Une vraie personne le lit.",
         .nudgeStuckTitle: "Bloqué quelque part ?", .nudgeStuckBody: "Si quelque chose n’est pas clair ici, dites-le à l’équipe. Une vraie personne le lit.",
         .nudgeYes: "Signaler", .nudgeNo: "Pas maintenant",
+        .fixedIn: "Corrigé dans la version {v}.", .updateTo: "Passez à la {v} pour en profiter.",
         .clearAll: "Tout effacer", .powered: "Propulsé par Heresay",
     ]
 
@@ -173,6 +176,7 @@ struct Words: Sendable {
         .nudgeCrashTitle: "ஆப் எதிர்பாராமல் மூடப்பட்டது", .nudgeCrashBody: "அப்போது நீங்கள் என்ன செய்துகொண்டிருந்தீர்கள் என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.",
         .nudgeStuckTitle: "எங்காவது சிக்கிக்கொண்டீர்களா?", .nudgeStuckBody: "இங்கே ஏதாவது புரியவில்லை என்றால், குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.",
         .nudgeYes: "குழுவிடம் சொல்", .nudgeNo: "இப்போது வேண்டாம்",
+        .fixedIn: "பதிப்பு {v} இல் சரிசெய்யப்பட்டது.", .updateTo: "இதைப் பெற {v} க்குப் புதுப்பிக்கவும்.",
         .clearAll: "அனைத்தையும் அழி", .powered: "Heresay மூலம் இயங்குகிறது",
     ]
 
@@ -218,6 +222,7 @@ struct Words: Sendable {
         .nudgeCrashTitle: "ऐप अचानक बंद हो गया", .nudgeCrashBody: "टीम को बताइए कि उस समय आप क्या कर रहे थे। इसे कोई इंसान पढ़ता है।",
         .nudgeStuckTitle: "कहीं अटक गए?", .nudgeStuckBody: "अगर यहाँ कुछ साफ़ नहीं है, तो टीम को बताइए। इसे कोई इंसान पढ़ता है।",
         .nudgeYes: "टीम को बताएँ", .nudgeNo: "अभी नहीं",
+        .fixedIn: "वर्शन {v} में ठीक किया गया।", .updateTo: "इसे पाने के लिए {v} पर अपडेट करें।",
         .clearAll: "सब हटाएँ", .powered: "Heresay द्वारा संचालित",
     ]
 }

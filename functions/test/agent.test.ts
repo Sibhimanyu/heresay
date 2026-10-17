@@ -372,3 +372,39 @@ test('findings: only for this repo\'s apps, a type and never a priority, and lim
   const two = await w.token('github.com/acme/two', [w.web.id, w.other.id]);
   assert.equal((await w.call({ method: 'POST', path: '/v1/agent/findings', headers: w.as(two), body: { type: 'idea', text: 'Which app?' } })).status, 400, 'two apps: say which');
 });
+
+test('fixes carry their PR, commit and version; a release stamps the rest; reporters see the version, not the PR', async () => {
+  const w = await world();
+  const tok = await w.token('github.com/acme/web', [w.web.id]);
+  const a = await w.report(w.web, 'Export is broken');
+  const b = await w.report(w.web, 'Search is slow');
+  await w.accept(w.web, a); await w.accept(w.web, b);
+  for (const id of [a, b]) await w.call({ method: 'POST', path: `/v1/agent/briefs/${id}/claim`, headers: w.as(tok) });
+  const bad = await w.call({ method: 'POST', path: `/v1/agent/briefs/${a}/fixed`, headers: w.as(tok), body: { note: 'x', pr: 'javascript:alert(1)' } });
+  assert.equal(bad.status, 400);
+  await w.call({ method: 'POST', path: `/v1/agent/briefs/${a}/fixed`, headers: w.as(tok),
+    body: { note: 'Export downloads a CSV again.', pr: 'https://github.com/acme/web/pull/42', commit: 'ABC1234DEF', version: '1.4' } });
+  await w.call({ method: 'POST', path: `/v1/agent/briefs/${b}/fixed`, headers: w.as(tok), body: { note: 'Search is fast again.' } });
+  assert.deepEqual(w.store.reports.get(a)!.fix_ref, { pr: 'https://github.com/acme/web/pull/42', commit: 'abc1234def', version: '1.4', released_at: null });
+  assert.equal(w.store.reports.get(b)!.fix_ref ?? null, null);
+
+  const rel = (await w.call({ method: 'POST', path: '/v1/agent/released', headers: w.as(tok), body: { version: '1.5' } })).body as { stamped: { id: string }[] };
+  assert.deepEqual(rel.stamped.map((x) => x.id), [b], 'only fixes without a version');
+  assert.equal(w.store.reports.get(b)!.fix_ref!.version, '1.5');
+  assert.equal(w.store.reports.get(a)!.fix_ref!.version, '1.4', 'kept');
+  assert.equal((await w.call({ method: 'POST', path: '/v1/agent/released', headers: w.as(tok), body: { version: 'one point five; drop' } })).status, 400);
+
+  const mine = (await w.call({ method: 'POST', path: '/v1/reports/mine', headers: { origin: ORIGIN }, body: JSON.stringify({ key: w.web.key, device_id: DEVICE }) })).body as { reports: Record<string, unknown>[] };
+  const seen = mine.reports.find((x) => x.id === a)!;
+  assert.equal(seen.fix_version, '1.4');
+  assert.ok(!JSON.stringify(mine).includes('pull/42') && !JSON.stringify(mine).includes('abc1234'), 'the PR and commit stay with the team');
+
+  // From the dashboard: a version on a fixed report, later.
+  const c = await w.report(w.web, 'Typo on settings');
+  await w.accept(w.web, c);
+  await w.call({ method: 'POST', path: `/v1/projects/${w.web.id}/reports/${c}/fixed`, headers: w.alice, body: { note: 'Fixed the typo.' } });
+  const set = await w.call({ method: 'POST', path: `/v1/projects/${w.web.id}/reports/${c}/fix-ref`, headers: w.alice, body: { version: '1.6', pr: 'https://github.com/acme/web/pull/50' } });
+  assert.equal(set.status, 200);
+  assert.equal(w.store.reports.get(c)!.fix_ref!.version, '1.6');
+  assert.ok(w.store.reports.get(c)!.fix_ref!.released_at);
+});

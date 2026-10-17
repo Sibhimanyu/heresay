@@ -812,6 +812,35 @@ try {
   assert.equal(heard.status, 'declined');
   assert.equal(heard.decline_reason, 'Fixed by the new upload flow in 2.0.', 'the merged reporter reads the same reason');
 
+  step('a fix carries its PR and version; the reporter, on an older version, is told to update');
+  const fixDevice = 'e2e_fix_device_000000001';
+  const toFix = (await sendAs('Printing a note cuts off the last line', fixDevice)).report;
+  assert.equal((await api('POST', `/projects/${project.id}/reports/${toFix.id}/accept`)).status, 200);
+  await dash.goto(`${BASE}/app/#/apps/${project.id}`);
+  await dash.getByRole('button', { name: /^Accepted/ }).click();
+  const fixCard = dash.locator('article.report', { hasText: 'Printing a note cuts off the last line' });
+  await fixCard.getByRole('button', { name: 'Mark fixed…' }).click();
+  await fixCard.getByLabel('Note for the reporter').fill('Printing keeps every line now.');
+  await fixCard.getByLabel('Pull request link').fill('https://github.com/acme/notes/pull/77');
+  await fixCard.getByLabel('Ships in version').fill('1.4');
+  await fixCard.getByRole('button', { name: 'Mark fixed' }).click();
+  await dash.getByRole('button', { name: /^Fixed/ }).click();
+  const fixedCard = dash.locator('article.report', { hasText: 'Printing a note cuts off the last line' });
+  await fixedCard.getByText('Fixed in 1.4').waitFor();
+  await fixedCard.getByRole('link', { name: 'PR #77' }).waitFor();
+  await fixedCard.screenshot({ path: `${SHOTS}e2e-12a-fix-ref.png` });
+  // The reporter's widget, on 0.0.1-demo: the version, and a nudge to update. Never the PR.
+  const fixCtx = await browser.newContext({ viewport: { width: 1000, height: 760 } });
+  await fixCtx.addInitScript((d) => localStorage.setItem('fbsdk.device', d), fixDevice);
+  const rep = await fixCtx.newPage();
+  await rep.goto(`${BASE}/demo.html?key=${key}`);
+  const rsdk = rep.locator('[data-feedback-sdk]');
+  await rsdk.getByRole('button', { name: /update/ }).click();
+  await rsdk.getByText('Fixed in version 1.4. Update to 1.4 to get it.').waitFor();
+  assert.equal(await rsdk.getByText('pull/77').count(), 0);
+  await rep.screenshot({ path: `${SHOTS}e2e-12b-fixed-in-version.png` });
+  await fixCtx.close();
+
   step('someone not on the team is told so; once added, they get in');
   const other = `teammate${Date.now()}@example.com`;
   const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 760 } });
