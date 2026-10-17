@@ -1,7 +1,7 @@
 # What's outstanding
 
-As of 2026-10-05. Live: Heresay 0.2.30 at https://heresay-sibhi-42b1.web.app. npm:
-`create-heresay` 0.2.30, `heresay` 0.2.10 Swift: `github.com/Sibhimanyu/heresay-swift` 0.2.7.
+As of 2026-10-05. Live: Heresay 0.2.31 at https://heresay-sibhi-42b1.web.app. npm:
+`create-heresay` 0.2.31, `heresay` 0.2.11 Swift: `github.com/Sibhimanyu/heresay-swift` 0.2.7.
 Product page: https://sibhimanyu.github.io/heresay/ (from `site/`, published by
 `.github/workflows/pages.yml` when `site/` changes on master).
 
