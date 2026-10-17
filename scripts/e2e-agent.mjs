@@ -162,7 +162,10 @@ await call('add_note', { id: r.id, note: 'Found it: the click handler was never 
 const dash = await person('GET', `/projects/${app.id}/reports`);
 assert.equal(dash.body.briefs[r.id].claimed_by, repoName, 'the team sees who has it');
 await assert.rejects(call('mark_fixed', { id: r.id, note: '' }), /note/);
-await call('mark_fixed', { id: r.id, note: 'Export now downloads your notes as a CSV.' });
+await call('mark_fixed', { id: r.id, note: 'Export now downloads your notes as a CSV.', pr: 'https://github.com/acme/notes/pull/9' });
+assert.ok(tools.includes('mark_released'));
+const rel = await call('mark_released', { version: '2.1' });
+assert.ok(rel.stamped.some((x) => x.id === r.id), 'the release stamps the fix');
 assert.deepEqual((await call('list_briefs')).briefs, []);
 
 step('while working, the agent files what it noticed; it waits for a person, then becomes a brief');
@@ -188,6 +191,8 @@ const mine = await (await fetch(`${BASE}/v1/reports/mine`, { method: 'POST', hea
 const fixed = mine.reports.find((x) => x.id === r.id);
 assert.equal(fixed.status, 'fixed');
 assert.equal(fixed.fix_note, 'Export now downloads your notes as a CSV.');
+assert.equal(fixed.fix_version, '2.1', 'the reporter sees which version has it');
+assert.equal(fixed.fix_ref, undefined, 'never the PR');
 
 step('an MCP server behind npm says so in its results, so the agent can tell the person');
 assert.equal((await call('list_apps')).heresay_update, undefined, 'up to date: no notice');

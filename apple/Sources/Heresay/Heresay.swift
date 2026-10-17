@@ -387,14 +387,34 @@ public final class Heresay: ObservableObject {
     /// The outcomes on screen now count as read.
     func markSeen() {
         var seen = seenStatuses
-        for r in reports where r.status != .open { seen[r.id] = r.status.rawValue }
+        for r in reports where r.status != .open { seen[r.id] = Self.mark(r) }
         defaults.set(seen, forKey: Keys.seen)
         recount()
     }
 
     private func recount() {
         let seen = seenStatuses
-        unseen = reports.filter { $0.status != .open && seen[$0.id] != $0.status.rawValue }.count
+        unseen = reports.filter { $0.status != .open && seen[$0.id] != Self.mark($0) }.count
+    }
+
+    /// What the person has seen of a report: its status, and the version its fix ships in once known.
+    nonisolated static func mark(_ r: SentReport) -> String { r.status.rawValue + (r.fixVersion.map { "@" + $0 } ?? "") }
+
+    /// The app is on an older version than `v` ("1.3 (22)" < "1.4"). Unknown: false.
+    func isOlder(than v: String) -> Bool { Self.older(version, v) }
+
+    nonisolated static func older(_ a: String?, _ b: String?) -> Bool {
+        let num = { (s: String?) -> [Int]? in
+            guard let head = s?.split(whereSeparator: { " (+-".contains($0) }).first else { return nil }
+            let parts = head.split(separator: ".").map { Int($0) }
+            return parts.contains(nil) || parts.isEmpty ? nil : parts.map { $0! }
+        }
+        guard let x = num(a), let y = num(b) else { return false }
+        for i in 0..<max(x.count, y.count) {
+            let d = (i < x.count ? x[i] : 0) - (i < y.count ? y[i] : 0)
+            if d != 0 { return d < 0 }
+        }
+        return false
     }
 
     private var seenStatuses: [String: String] {

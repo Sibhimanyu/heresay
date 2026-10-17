@@ -28,7 +28,9 @@ const HELP = `
     heresay claim <id>                     start working on it
     heresay note <id> "<text>"             private progress note
     heresay handoff <id> <repo> "<text>"   move it to the repo where the fix belongs
-    heresay fixed <id> "<note>"            the reporter reads the note in the app
+    heresay fixed <id> "<note>" [--pr <url>] [--commit <sha>] [--version <v>]
+                                           the reporter reads the note (and "Fixed in <v>") in the app
+    heresay released <version> [--app <app>]   stamp the version on fixes that don't have one
     heresay file <type> "<text>" [--app <app>] [--file <path:line>]… [--details "<md>"]
                                            file something you noticed; a person accepts it first
     heresay findings                       what happened to this repo's findings
@@ -102,7 +104,9 @@ export async function main(argv) {
       case 'claim': return print(await api.claim(need(rest[0], 'the brief id')));
       case 'note': return print(await api.note(need(rest[0], 'the brief id'), need(rest.slice(1).join(' '), 'the note')));
       case 'handoff': return print(await api.handoff(need(rest[0], 'the brief id'), need(rest[1], 'the repo'), need(rest.slice(2).join(' '), 'the note')));
-      case 'fixed': return print(await api.fixed(need(rest[0], 'the brief id'), need(rest.slice(1).join(' '), 'a note for the reporter')));
+      case 'fixed': return print(await api.fixed(need(rest[0], 'the brief id'), need(rest.slice(1).join(' '), 'a note for the reporter'),
+        { pr: args.pr, commit: args.commit, version: args.version }));
+      case 'released': return print(await api.released(need(rest[0], 'the version'), args.app));
       case 'file': return print(await api.file({
         type: need(rest[0], 'the type (broken, confusing, improvement, idea)'), text: need(rest.slice(1).join(' '), 'what you found'),
         app: args.app, details: args.details, files: [].concat(args.file ?? []), agent: args.agent ?? 'heresay CLI',

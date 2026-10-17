@@ -4,7 +4,7 @@ import { agent, normaliseRepo, reposFor, tokens } from './agent.js';
 import { parseTrail, trailLines } from './trail.js';
 import { OPEN_CORS, approve, authorizationServer, authorize, connections, describeAsk, protectedResource, register, token } from './oauth.js';
 import { mcp } from './chat.js';
-import { alsoReported, duplicatesOf, follow, merge, unmerge } from './duplicates.js';
+import { alsoReported, duplicatesOf, follow, merge, parseFixRef, stampFix, unmerge } from './duplicates.js';
 import { notificationSettings, notify, type NotificationSender, type TelegramLookup } from './notifications.js';
 import {
   LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, isSignIn, toReporterView,
@@ -242,11 +242,12 @@ async function route(req: Req, deps: Deps): Promise<Res> {
   if (p[0] === 'agent') {
     return agent(p.slice(1), req, deps, parseBody(req.body), agentPrompt,
       (by, body) => createProject({ email: by, role: 'member', added_at: '', added_by: null }, { ...req, body }, deps),
-      async (project, id, note, by) => {
+      async (project, id, note, by, ref) => {
         const updated_at = new Date(deps.now()).toISOString();
         const result = await deps.store.move(project.id, id, 'accepted', 'fixed', { fix_note: note, triaged_by: by, updated_at });
         if (result.ok) {
           await follow(project, id, 'accepted', 'fixed', { fix_note: note, triaged_by: by, updated_at }, deps);
+          if (ref && (ref.pr || ref.commit || ref.version)) await stampFix(project, id, ref, deps);
           await notify('fixed', project, id, deps);
         }
         return transitionRes(result);
@@ -303,6 +304,15 @@ async function route(req: Req, deps: Deps): Promise<Res> {
       return json(200, { repos: await reposFor(project.id, deps) });
     }
     if (p[2] === 'reports' && p[3] && p[4] === 'merge' && req.method === 'POST') return merge(project, p[3], parseBody(req.body), member, deps);
+    if (p[2] === 'reports' && p[3] && p[4] === 'fix-ref' && req.method === 'POST') {
+      const r = await deps.store.getReport(project.id, p[3]);
+      if (!r) return json(404, { error: 'no such report' });
+      if (r.status !== 'fixed') return json(409, { error: 'only a fixed report has a fix to link' });
+      const fx = parseFixRef(parseBody(req.body));
+      if (fx.error) return json(400, { error: fx.error });
+      await stampFix(project, r.id, { ...fx.ref, ...(fx.ref.version ? { released_at: new Date(deps.now()).toISOString() } : {}) }, deps);
+      return json(200, { report: await deps.store.getReport(project.id, r.id) });
+    }
     if (p[2] === 'reports' && p[3] && p[4] === 'unmerge' && req.method === 'POST') return unmerge(project, p[3], member, deps);
     if (p[2] === 'reports' && p[3] && req.method === 'POST') {
       return triage(project, p[3], p[4], member.email, req, deps);
@@ -598,6 +608,7 @@ async function triage(
   const body = parseBody(req.body);
   const at = new Date(deps.now()).toISOString();
   let t: Transition;
+  let fixRefLater: Partial<import('./types.js').FixRef> | null = null;
   if (action === 'accept') {
     const report = await deps.store.getReport(project.id, report_id);
     if (!report) return json(404, { error: 'no such report' });
@@ -630,8 +641,11 @@ async function triage(
       { decline_reason: reason, triaged_by: uid, updated_at: at });
   } else if (action === 'fixed') {
     // Optional from the dashboard; when given, the reporter reads it next to "Fixed".
+    const fx = parseFixRef(body);
+    if (fx.error) return json(400, { error: fx.error });
     t = await deps.store.move(project.id, report_id, 'accepted', 'fixed',
       { fix_note: str(body.note, LIMITS.reasonMax), triaged_by: uid, updated_at: at });
+    if (t.ok && (fx.ref.pr || fx.ref.commit || fx.ref.version)) fixRefLater = fx.ref;
   } else {
     return json(404, { error: 'not found' });
   }
@@ -641,6 +655,11 @@ async function triage(
     if (action === 'accept') await follow(project, report_id, 'open', 'accepted', { triaged_by: uid, updated_at: at }, deps);
     if (action === 'decline') await follow(project, report_id, 'open', 'declined', { decline_reason: t.report.decline_reason ?? undefined, triaged_by: uid, updated_at: at }, deps);
     if (action === 'fixed') await follow(project, report_id, 'accepted', 'fixed', { fix_note: t.report.fix_note ?? null, triaged_by: uid, updated_at: at }, deps);
+    if (fixRefLater) {
+      await stampFix(project, report_id, fixRefLater, deps);
+      const r2 = await deps.store.getReport(project.id, report_id);
+      if (r2) t = { ok: true, report: r2 };
+    }
   }
   if (t.ok && (action === 'accept' || action === 'fixed')) {
     await notify(action === 'accept' ? 'accepted' : 'fixed', project, report_id, deps);

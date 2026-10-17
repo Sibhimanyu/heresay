@@ -1571,11 +1571,18 @@
     function fixedForm() {
       actions.textContent = '';
       var note = el('textarea', { placeholder: 'What changed, in their words. The person who sent this will read it. Optional.', 'aria-label': 'Note for the reporter' });
+      var pr = el('input', { type: 'url', placeholder: 'Pull request link (optional)', 'aria-label': 'Pull request link' });
+      var version = el('input', { type: 'text', placeholder: 'Ships in version (optional)', 'aria-label': 'Ships in version', maxlength: '40' });
       var go = el('button', { class: 'btn primary', type: 'button', text: 'Mark fixed', onclick: function (e) {
-        act('fixed', note.value.trim() ? { note: note.value } : undefined, e.currentTarget);
+        var body = {};
+        if (note.value.trim()) body.note = note.value;
+        if (pr.value.trim()) body.pr = pr.value.trim();
+        if (version.value.trim()) body.version = version.value.trim();
+        act('fixed', Object.keys(body).length ? body : undefined, e.currentTarget);
       } });
       submitOnCmdEnter(note, go);
       actions.appendChild(note);
+      actions.appendChild(el('div', { class: 'row tight fix-ref' }, [pr, version]));
       actions.appendChild(go);
       actions.appendChild(el('button', { class: 'btn ghost', type: 'button', text: 'Cancel', onclick: buttons }));
       actions.appendChild(err);
@@ -1653,6 +1660,34 @@
       actions.appendChild(err);
     }
 
+    /** Where the fix is: its PR and commit for the team, the version reporters see. A version can be set later. */
+    function fixRefLine() {
+      var f = r.fix_ref || {};
+      var line = el('div', { class: 'fix-line' });
+      function draw() {
+        line.textContent = '';
+        if (f.version) line.appendChild(el('span', { class: 'pill version-pill', text: 'Fixed in ' + f.version }));
+        if (f.pr) line.appendChild(el('a', { href: f.pr, target: '_blank', rel: 'noopener noreferrer', text: (/\/pull\/(\d+)/.exec(f.pr) || [])[1] ? 'PR #' + /\/pull\/(\d+)/.exec(f.pr)[1] : 'Pull request' }));
+        if (f.commit) line.appendChild(el('code', { text: f.commit.slice(0, 7) }));
+        if (!f.version) line.appendChild(el('button', { class: 'link', type: 'button', text: 'Set the version it ships in', onclick: ask }));
+      }
+      function ask() {
+        line.textContent = '';
+        var v = el('input', { type: 'text', placeholder: 'e.g. 1.4', 'aria-label': 'Version', maxlength: '40' });
+        var save = el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: function () {
+          api('POST', '/projects/' + r.project_id + '/reports/' + r.id + '/fix-ref', { version: v.value.trim() })
+            .then(function (b) { f = b.report.fix_ref || f; draw(); toast('They’ll see “Fixed in ' + f.version + '”.'); })
+            .catch(function (x) { toast(x.message); });
+        } });
+        submitOnCmdEnter(v, save);
+        line.appendChild(v); line.appendChild(save);
+        line.appendChild(el('button', { class: 'btn ghost', type: 'button', text: 'Cancel', onclick: draw }));
+        v.focus();
+      }
+      draw();
+      return line;
+    }
+
     var status = el('span', { class: 'status s-' + r.status, text: STATUS_LABEL[r.status] });
     card = el('article', { class: 'report t-' + r.type }, [
       el('div', { class: 'meta' }, [
@@ -1687,6 +1722,7 @@
       trailView(r.trail),
       r.decline_reason ? el('div', { class: 'reason', text: 'Declined: ' + r.decline_reason }) : null,
       r.fix_note ? el('div', { class: 'reason', text: 'Told them: ' + r.fix_note }) : null,
+      r.status === 'fixed' ? fixRefLine() : null,
       r.status === 'accepted' && brief ? el('div', { class: 'brief-line' }, [
         brief.claimed_by ? el('b', { text: 'In progress in ' + brief.claimed_by }) : document.createTextNode(brief.repo ? 'Waiting for an agent in ' + brief.repo : 'Waiting for an agent in any connected repo'),
       ]) : null,

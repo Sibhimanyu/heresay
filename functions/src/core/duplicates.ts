@@ -102,3 +102,35 @@ export async function follow(project: Project, primary_id: string, from: ReportS
   }
   return n;
 }
+
+/** Set (or add to) the proof of a fix on a report and everything merged into it. */
+export async function stampFix(project: Project, report_id: string, ref: Partial<import('./types.js').FixRef>, deps: Deps): Promise<void> {
+  const all = [await deps.store.getReport(project.id, report_id), ...await duplicatesOf(project, report_id, deps)].filter((r): r is Report => !!r);
+  for (const r of all) {
+    const cur = r.fix_ref ?? { pr: null, commit: null, version: null, released_at: null };
+    const next = { pr: ref.pr ?? cur.pr, commit: ref.commit ?? cur.commit, version: ref.version ?? cur.version, released_at: ref.released_at ?? cur.released_at };
+    await deps.store.updateReport(r.project_id, r.id, { fix_ref: next, updated_at: new Date(deps.now()).toISOString() });
+  }
+}
+
+const VERSION = /^[\w.+-]{1,40}$/;
+/** A PR as an http(s) URL, a commit as 7 to 40 hex, a version as up to 40 plain characters. */
+export function parseFixRef(b: Record<string, unknown>): { ref: Partial<import('./types.js').FixRef>; error?: string } {
+  const ref: Partial<import('./types.js').FixRef> = {};
+  if (b.pr != null && b.pr !== '') {
+    try {
+      const u = new URL(String(b.pr));
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') throw 0;
+      ref.pr = u.href.slice(0, 300);
+    } catch { return { ref, error: 'pr must be a link to the pull request' }; }
+  }
+  if (b.commit != null && b.commit !== '') {
+    if (!/^[0-9a-f]{7,40}$/i.test(String(b.commit))) return { ref, error: 'commit must be a git hash' };
+    ref.commit = String(b.commit).toLowerCase();
+  }
+  if (b.version != null && b.version !== '') {
+    if (!VERSION.test(String(b.version).trim())) return { ref, error: 'version must be like 1.4 or 2.0.1-beta' };
+    ref.version = String(b.version).trim();
+  }
+  return { ref };
+}

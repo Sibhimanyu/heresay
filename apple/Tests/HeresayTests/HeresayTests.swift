@@ -846,3 +846,21 @@ final class BlackBoxTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: d.appendingPathComponent("run.json").path))
     }
 }
+
+final class FixVersionTests: XCTestCase {
+    func testVersionsCompareAsNumbers() {
+        XCTAssertTrue(Heresay.older("1.3 (22)", "1.4"))
+        XCTAssertTrue(Heresay.older("1.9", "1.10"))
+        XCTAssertFalse(Heresay.older("1.4", "1.4"))
+        XCTAssertFalse(Heresay.older("2.0", "1.10.3"))
+        XCTAssertFalse(Heresay.older(nil, "1.4"), "unknown: no nudge")
+        XCTAssertFalse(Heresay.older("beta", "1.4"))
+    }
+
+    func testAFixVersionShowsAsAnUpdate() throws {
+        let json = #"{"id":"r_1","type":"broken","text":"x","status":"fixed","decline_reason":null,"fix_note":"Done","fix_version":"1.4","created_at":"2026-10-17T00:00:00Z","updated_at":"2026-10-17T00:00:00Z"}"#
+        let r = try JSONDecoder().decode(SentReport.self, from: Data(json.utf8))
+        XCTAssertEqual(r.fixVersion, "1.4")
+        XCTAssertEqual(Heresay.mark(r), "fixed@1.4", "a new version on a fixed report counts as new")
+    }
+}

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.31] - 2026-10-17
+
+### Added
+
+- **Fixes link to their PR, commit and version.** Agents (`mark_fixed`, `npx heresay fixed --pr --commit --version`) and the dashboard's Mark fixed can attach them; the report shows "Fixed in 1.4 · PR #77".
+- **Reporters see "Fixed in version 1.4"**, and "Update to 1.4 to get it" when their app is older (web widget and the Swift package). A version added later counts as an update.
+- **`mark_released` / `npx heresay released 1.4`** stamps the version on every fix that doesn't have one yet, when the release ships. **Set the version it ships in** does one from the dashboard.
+
 ## [0.2.30] - 2026-10-16
 
 ### Added

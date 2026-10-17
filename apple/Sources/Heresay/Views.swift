@@ -835,6 +835,10 @@ struct MineList: View {
                     if r.status == .fixed, let fix = r.fixNote {
                         note(fix, fill: heresay.accent.opacity(0.1))
                     }
+                    if r.status == .fixed, let v = r.fixVersion {
+                        Text(heresay.words(.fixedIn, ["v": v]) + (heresay.isOlder(than: v) ? " " + heresay.words(.updateTo, ["v": v]) : ""))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.vertical, 6)
             }

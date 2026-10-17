@@ -28,6 +28,8 @@ public struct SentReport: Codable, Sendable, Identifiable, Equatable {
     public let status: ReportStatus
     public let declineReason: String?
     public let fixNote: String?
+    /// The app version the fix ships in, once the team knows it.
+    public var fixVersion: String? = nil
     public let createdAt: String
     public let updatedAt: String
 
@@ -35,6 +37,7 @@ public struct SentReport: Codable, Sendable, Identifiable, Equatable {
         case id, type, text, status
         case declineReason = "decline_reason"
         case fixNote = "fix_note"
+        case fixVersion = "fix_version"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }

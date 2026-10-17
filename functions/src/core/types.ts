@@ -96,6 +96,9 @@ export interface CodeRef { path: string; line: number | null }
 /** A document a chat app attached to a request: a title and Markdown. */
 export interface ChatDocument { title: string | null; markdown: string }
 
+/** The proof of a fix. `version` is what reporters see ("Fixed in 1.4"); the rest is for the team. */
+export interface FixRef { pr: string | null; commit: string | null; version: string | null; released_at: string | null }
+
 /** A report a person merged into another: it follows that one's outcome. */
 export interface DuplicateOf { project_id: string; report_id: string; by: string; at: string }
 
@@ -135,6 +138,8 @@ export interface Report {
   decline_reason: string | null;
   /** What was done, in words for the reporter. Set when marked fixed. */
   fix_note?: string | null;
+  /** Where the fix is: the PR or commit, and the app version it ships in (often set later, at release). */
+  fix_ref?: FixRef | null;
   created_at: string;
   updated_at: string;
   triaged_by: string | null;
@@ -272,13 +277,15 @@ export interface ReporterView {
   status: ReportStatus;
   decline_reason: string | null;
   fix_note: string | null;
+  /** The app version the fix ships in, once known. Never the PR or commit: repos may be private. */
+  fix_version: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export const toReporterView = (r: Report): ReporterView => ({
   id: r.id, type: r.type, text: r.text, status: r.status,
-  decline_reason: r.decline_reason, fix_note: r.fix_note ?? null,
+  decline_reason: r.decline_reason, fix_note: r.fix_note ?? null, fix_version: r.fix_ref?.version ?? null,
   created_at: r.created_at, updated_at: r.updated_at,
 });
 

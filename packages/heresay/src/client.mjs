@@ -101,7 +101,8 @@ export function client(conn) {
     claim: (id) => call('POST', `/briefs/${enc(id)}/claim`),
     note: (id, note) => call('POST', `/briefs/${enc(id)}/notes`, { note }),
     handoff: (id, repo, note) => call('POST', `/briefs/${enc(id)}/handoff`, { repo, note }),
-    fixed: (id, note) => call('POST', `/briefs/${enc(id)}/fixed`, { note }),
+    fixed: (id, note, ref = {}) => call('POST', `/briefs/${enc(id)}/fixed`, { note, ...ref }),
+    released: (version, app) => call('POST', '/released', { version, app }),
     file: (f) => call('POST', '/findings', f),
     findings: () => call('GET', '/findings'),
   };
