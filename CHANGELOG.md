@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.33] - 2026-10-17
+
+### Added
+
+- **A unified inbox.** Review reports across products and platforms in a searchable list beside a detail pane, with filters for status, type and source. Reports show their event trail, device details and duplicate reports together. An optional note at acceptance clarifies the work for the coding agent.
+
+### Changed
+
+- **A clearer workspace.** Persistent navigation, original Heresay branding and consistent styling across apps, setup, widget design, connected repos, chat apps, team and notifications. On phones and tablets, reports open in a dedicated detail view with a back button; the phone navigation supports keyboard focus and dismissal.
+- **Refresh without interrupting review.** New reports refresh the list while an unchanged detail pane stays in place; editing a report note pauses background refresh.
+
+### Fixed
+
+- Setup's incoming-report feed no longer references an undefined platform-display variable.
+
 ## [0.2.32] - 2026-10-17
 
 ### Added
