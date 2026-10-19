@@ -92,9 +92,8 @@ app updated from 1.3 to 1.4". On by default; change it only when asked.
 **Offering help**
 
 When someone seems stuck, a small note by the button asks "Something not working?" and opens the
-form as Broken, with the trail. Watched on the device, never sent. At most once per tab, and not
-for 7 days after "Not now". Off by default: it appears on the app's own page, so add it only when
-asked.
+form as Broken, with the trail. Watched on the device, never sent. At most once per tab. Off by default:
+it appears on the app's own page, so add it only when asked.
 
 | Attribute | Values |
 | --- | --- |

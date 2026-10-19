@@ -14,9 +14,8 @@ Date: 2026-10-16
 - **Watched on the device, never sent.** The signals live in memory and lead only to the note.
   Nothing reaches the server unless the person writes and sends a report, so the trail's rule
   ("only when a person reports") holds.
-- **Rarely.** At most once per tab (web, `sessionStorage`) or launch (Swift), and not for 7 days
-  after "Not now". Not over the open panel or the introduction, not on paths or screens where the
-  button is hidden. It takes no focus, goes by itself after 15 s unless the pointer or focus is on
+- **Rarely.** At most once per tab (web, `sessionStorage`) or launch (Swift). Not over the open
+  panel or the introduction, not on paths or screens where the button is hidden. It takes no focus, goes by itself after 15 s unless the pointer or focus is on
   it, and on Apple platforms VoiceOver announces it (and it stays while VoiceOver is running).
 - **The host can ask too:** `Heresay.nudge()` on both, for an error screen or a retry that failed.
   It works without the setting, with the same limits.
@@ -48,7 +47,14 @@ Chosen so a false alarm is rare; missing some trouble is the better mistake.
     the app setting `aria-invalid="true"`.
 - **Anything sent starts these over:** a form submit, or a request other than GET or HEAD that
   worked.
+- **Only what the person sent (2026-10-17).** The request must start within 2 s of a click or key
+  press, with no page change in between. Apps send requests by themselves: polling, analytics,
+  and loading a new page's data (Firestore POSTs to listen on every page change). Counting those
+  meant `circles` almost never fired in a Firestore app (reported from one, through Heresay).
 - Only that something was typed is noticed, never what.
+- **"Not now" only closes it (2026-10-17).** It used to quiet the note for 7 days. "Not now"
+  means now; once per tab or launch already keeps it rare, and a week of silence hid the next,
+  unrelated problem.
 
 ## Not done
 

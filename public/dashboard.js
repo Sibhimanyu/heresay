@@ -127,14 +127,15 @@
 
   /** One message at a time, bottom of the screen, with an optional action. Read out by screen readers. */
   var toastBox = null, toastTimer = null;
-  function toast(text, action) {
+  /** `failed`: something didn't work, so no tick. */
+  function toast(text, action, failed) {
     if (!toastBox) {
       toastBox = el('div', { class: 'toast', role: 'status', 'aria-live': 'polite' });
       document.body.appendChild(toastBox);
     }
     clearTimeout(toastTimer);
     toastBox.textContent = '';
-    toastBox.appendChild(el('span', { class: 'toast-tick', 'aria-hidden': 'true' }));
+    if (!failed) toastBox.appendChild(el('span', { class: 'toast-tick', 'aria-hidden': 'true' }));
     toastBox.appendChild(el('span', { text: text }));
     if (action) toastBox.appendChild(el('button', { type: 'button', text: action.label, onclick: function () { hideToast(); action.run(); } }));
     toastBox.classList.add('on');
@@ -1479,7 +1480,7 @@
         loaded = true; drawProducts(); render(background === true);
       }).catch(function (x) {
         if (!shell.isConnected) return;
-        if (loaded) { toast('Could not refresh reports. ' + x.message); return; }
+        if (loaded) { toast('Could not refresh reports. ' + x.message, null, true); return; }
         list.textContent = ''; detail.textContent = '';
         list.appendChild(el('div', { class: 'inbox-empty' }, [el('h2', { text: 'Could not load reports' }), el('p', { class: 'err', role: 'alert', text: x.message }), el('button', { class: 'btn', text: 'Retry', onclick: load })]));
       });
@@ -1701,7 +1702,7 @@
           el('span', { class: 'mute', text: ' · ' + TYPE_LABEL[d.type] + (showPlatform ? ' · ' + platformOf(dp.platform).label : '') + ' · ' + new Date(d.created_at).toLocaleDateString() }),
           d.status === 'open' ? el('button', { class: 'link', type: 'button', text: 'Unmerge', onclick: function () {
             api('POST', '/projects/' + d.project_id + '/reports/' + d.id + '/unmerge').then(function () { toast('Unmerged.'); ctx.reload(); })
-              .catch(function (x) { toast(x.message); });
+              .catch(function (x) { toast(x.message, null, true); });
           } }) : null,
         ]);
       })),
@@ -1763,7 +1764,7 @@
         var save = el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: function () {
           api('POST', '/projects/' + r.project_id + '/reports/' + r.id + '/fix-ref', { version: v.value.trim() })
             .then(function (b) { f = b.report.fix_ref || f; draw(); toast('They’ll see “Fixed in ' + f.version + '”.'); })
-            .catch(function (x) { toast(x.message); });
+            .catch(function (x) { toast(x.message, null, true); });
         } });
         submitOnCmdEnter(v, save);
         line.appendChild(v); line.appendChild(save);

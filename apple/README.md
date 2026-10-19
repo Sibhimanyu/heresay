@@ -136,8 +136,8 @@ goes by itself after 15 seconds unless the pointer is on it.
 `.circles` and `.stalled` say "Stuck on something?" and open the sheet as Confusing;
 `Heresay.nudge(stuck: true)` does the same from the app's code.
 
-Watched on the device; nothing is sent unless the person sends a report. At most once per launch,
-and not for 7 days after **Not now**. `Heresay.nudge()` offers it from the app's own code, with the
+Watched on the device; nothing is sent unless the person sends a report. At most once per launch.
+`Heresay.nudge()` offers it from the app's own code, with the
 same limits. iOS has no taps to watch, so there it is `.crash`, `.circles`, `.stalled` and `nudge()`.
 
 The key is public: it can only send reports. Each device gets a random id (kept in

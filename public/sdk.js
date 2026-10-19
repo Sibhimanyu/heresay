@@ -487,7 +487,9 @@
   var TRAIL_MAX = 50, TRAIL_AGE = 5 * 60000;
   // Pages visited and when someone last typed, for data-nudge ("offering help"). Here because the
   // page watcher below records the first page before that part of the script runs.
-  var visits = [], typedAt = 0;
+  // Also when they last clicked or pressed a key, and when the page last changed, to tell what
+  // they sent from what the app sent by itself.
+  var visits = [], typedAt = 0, actedAt = 0, pageAt = 0;
   // data-nudge, read here because the request watchers below serve both. See "offering help".
   var NUDGE_SIGNALS = ['clicks', 'errors', 'requests', 'stalled', 'circles', 'refused'];
   var NUDGE = (function () {
@@ -617,6 +619,7 @@
     var w = location.pathname + location.hash;
     if (w === lastWhere) return;
     lastWhere = w;
+    pageAt = Date.now();
     visited(w);
     if (first === true) { note('page', titled(w)); return; }
     // Single-page apps set the title just after the address: the entry goes in now, in order,
@@ -720,10 +723,10 @@
         var url = typeof input === 'string' ? input : input && (input.url || String(input));
         if (url && !ours(url)) {
           var method = String(init && init.method || input && input.method || 'GET').toUpperCase();
-          var t0 = Date.now();
+          var t0 = Date.now(), mine = byHand();
           p.then(function (res) {
             if (!res.ok && res.type !== 'opaque') { note('request', method + ' ' + shortUrl(url) + ' → ' + res.status + took(t0)); requestFailed(res.status); }
-            else { slow(method, url, res.status, t0); if (method !== 'GET' && method !== 'HEAD') sentSomething(); }
+            else { slow(method, url, res.status, t0); if (mine && method !== 'GET' && method !== 'HEAD') sentSomething(); }
           }, function (err) {
             if (err && err.name === 'AbortError') return;
             note('request', method + ' ' + shortUrl(url) + ' → failed (' + (navigator.onLine === false ? 'offline' : 'network error') + ')' + took(t0));
@@ -744,12 +747,12 @@
       var x = this, r = x.__heresay;
       try {
         if (r && !ours(r.u)) {
-          var aborted = false, t0 = Date.now();
+          var aborted = false, t0 = Date.now(), mine = byHand();
           x.addEventListener('abort', function () { aborted = true; });
           x.addEventListener('loadend', function () {
             if (x.status >= 400) { note('request', r.m + ' ' + shortUrl(r.u) + ' → ' + x.status + took(t0)); requestFailed(x.status); }
             else if (x.status === 0 && !aborted) { note('request', r.m + ' ' + shortUrl(r.u) + ' → failed (network error)' + took(t0)); requestFailed(0); }
-            else if (x.status) { slow(r.m, r.u, x.status, t0); if (r.m !== 'GET' && r.m !== 'HEAD') sentSomething(); }
+            else if (x.status) { slow(r.m, r.u, x.status, t0); if (mine && r.m !== 'GET' && r.m !== 'HEAD') sentSomething(); }
           });
         }
       } catch (e) { /* ignore */ }
@@ -854,7 +857,7 @@
    *   refused   the same field refused 3 times in 2 minutes (the browser's check, or the app
    *             setting aria-invalid)
    *
-   * At most once per tab, and not for 7 days after "Not now".
+   * At most once per tab. "Not now" only closes it.
    */
   var DEAD_WAIT = 1500, DEAD_SPAN = 10000, DEAD_COUNT = 3;
   var lastPress = 0;
@@ -930,11 +933,19 @@
   }
   function trouble(why) { if (NUDGE[why]) offerHelp(/^(stalled|circles|refused)$/.test(why) ? 'stuck' : 'broken'); }
 
-  // Unsure, not blocked. Anything sent (a form, a request that changes something) means they
+  // Unsure, not blocked. Anything they sent (a form, a request that changes something) means they
   // got there, so it starts these over.
   var sentAt = 0;
   function sentSomething() { sentAt = Date.now(); visits = []; typedAt = 0; }
   document.addEventListener('submit', function (e) { if (!host.contains(e.target)) sentSomething(); }, true);
+  // A request is theirs if it started within 2 s of a click or key press, with no page change in
+  // between. Apps send requests by themselves too: polling, analytics, and loading the new page's
+  // data after a page change (Firestore, for one, POSTs to listen). Those must not start "circles"
+  // over, or it would never be reached.
+  function acted(e) { if (!host.contains(e.target)) actedAt = Date.now(); }
+  document.addEventListener('pointerdown', acted, true);
+  document.addEventListener('keydown', acted, true);
+  function byHand() { return Date.now() - actedAt < 2000 && pageAt <= actedAt; }
 
   // Going in circles: a few pages, over and over, inside a minute.
   function visited(where) {
@@ -1598,8 +1609,8 @@
 
   // Someone seems stuck (data-nudge), or the app says so (nudge()). A note by the button, which
   // takes no focus and goes by itself after 15 s unless it is being read. "Tell the team" opens
-  // the form as Broken, with the trail. At most once per tab; "Not now" quiets it for 7 days.
-  var NUDGE_NO = 'fbsdk.nudge.no.' + KEY, NUDGE_TAB = 'fbsdk.nudged.' + KEY, NUDGE_REST = 7 * 864e5;
+  // the form as Broken, with the trail. At most once per tab; "Not now" only closes it.
+  var NUDGE_TAB = 'fbsdk.nudged.' + KEY;
   var nudgeEl = null;
   /** True if this tab was already offered help; otherwise marks it. */
   function offeredInTab() {
@@ -1617,28 +1628,26 @@
   function offerHelp(kind) {
     var stuck = kind === 'stuck';
     if (dead || scrim || bubble || nudgeEl || !host.isConnected || hiddenHere() || document.visibilityState === 'hidden') return false;
-    if (Date.now() - (+load(NUDGE_NO) || 0) < NUDGE_REST) return false;
     if (offeredInTab()) return false;
     var timer = null;
-    var done = function (no) {
+    var done = function () {
       clearTimeout(timer);
-      if (no) save(NUDGE_NO, String(Date.now()));
       if (nudgeEl) { nudgeEl.remove(); nudgeEl = null; }
     };
-    var later = function () { clearTimeout(timer); timer = setTimeout(function () { done(false); }, 15000); };
+    var later = function () { clearTimeout(timer); timer = setTimeout(done, 15000); };
     var stay = function () { clearTimeout(timer); };
     nudgeEl = el('div', {
       class: 'intro nudge ' + PLACE + ' st-' + STYLE + (fabShowing() ? '' : ' free'),
       role: 'status', 'aria-label': S.nudgeAria,
       onpointerenter: stay, onpointerleave: later, onfocusin: stay, onfocusout: later,
-      onkeydown: function (e) { if (e.key === 'Escape') done(true); },
+      onkeydown: function (e) { if (e.key === 'Escape') done(); },
     }, [
       el('b', { text: stuck ? S.nudgeStuckTitle : S.nudgeTitle }),
       el('p', { text: stuck ? S.nudgeStuckBody : S.nudgeBody }),
       el('div', { class: 'row' }, [
-        el('button', { class: 'link', type: 'button', text: S.nudgeNo, onclick: function () { done(true); } }),
+        el('button', { class: 'link', type: 'button', text: S.nudgeNo, onclick: function () { done(); } }),
         el('button', { class: 'send', type: 'button', text: S.nudgeYes, onclick: function () {
-          done(false);
+          done();
           var as = stuck ? 'confusing' : 'broken';
           if (!state.type && OFFERED.some(function (t) { return t.id === as; })) state.type = as;
           open('new');

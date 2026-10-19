@@ -674,7 +674,12 @@ try {
   await lost.goto(`${BASE}/demo.html?key=${key}&nudge=circles`);
   const lsdk = lost.locator('[data-feedback-sdk]');
   await lsdk.getByRole('button', { name: /Report a problem/ }).waitFor();
-  for (const h of ['#/plans', '#/faq', '#/plans', '#/faq', '#/plans']) await lost.evaluate((x) => { location.hash = x; }, h);
+  // Like Firestore, the app POSTs by itself on every page change. That is not the person sending
+  // something, so it must not start the count over.
+  await lost.route('**/listen-channel', (r) => r.fulfill({ status: 200, body: '{}' }));
+  for (const h of ['#/plans', '#/faq', '#/plans', '#/faq', '#/plans']) {
+    await lost.evaluate((x) => { location.hash = x; return fetch('/listen-channel', { method: 'POST', body: '{}' }); }, h);
+  }
   const unsure = lsdk.getByRole('status', { name: 'Offer to report a problem' });
   await unsure.getByText('Stuck on something?').waitFor({ timeout: 5000 });
   await lost.waitForTimeout(400); // past the fade-in
