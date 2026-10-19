@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="/theme.js"></script>
 <link rel="stylesheet" href="/dashboard.css">
 <link rel="stylesheet" href="/workspace.css">
 </head>
@@ -57,6 +58,7 @@
       <a href="#/notifications" data-nav="notifications"><span class="nav-icon" data-icon="bell"></span>Notifications</a>
     </nav>
     <div class="sidebar-bottom">
+      <button id="theme-toggle" class="theme-toggle" type="button">Theme<span class="theme-name"></span></button>
       <a class="help-link" href="/docs.html" target="_blank" rel="noopener"><span class="nav-icon" data-icon="help"></span>Help &amp; docs<span aria-hidden="true">↗</span></a>
       <div class="account"><span id="account-avatar" class="avatar" aria-hidden="true">H</span><span id="who" class="who"></span></div>
       <button id="signout" class="btn ghost signout">Sign out</button>
