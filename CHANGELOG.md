@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.34] - 2026-10-17
+
+### Fixed
+
+- Reports and chat documents containing bare URLs or URL-shaped link labels no longer crash the inbox with “Maximum call stack size exceeded”. Link labels retain formatting without recursively creating nested links.
+
 ## [0.2.33] - 2026-10-17
 
 ### Added

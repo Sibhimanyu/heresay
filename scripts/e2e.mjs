@@ -784,7 +784,7 @@ try {
 
   // Markdown from a chat app is shown formatted, and stays inert: no HTML, no script links.
   const mdDraft = await viaTokenCall('draft_request', { app: 'Acme Notes', type: 'idea',
-    text: 'Pin notes with a **keyboard shortcut**, see [the spec](https://example.com/spec) or https://example.com/notes.',
+    text: 'Pin notes with a **keyboard shortcut**, see [the spec](https://example.com/spec), https://example.com/raw and [https://example.com/label](https://example.com/label).',
     details: '## Why\n\n- reaching for the mouse breaks flow\n- `Cmd+K` was the favourite\n\n> keep it discoverable\n\n<img src=x onerror="window.__pwned=1">\n\n[click me](javascript:window.__pwned=2)',
     document: '# Pinning spec\n\n| Key | Action |\n| --- | --- |\n| Cmd+K | Pin |\n\n```js\nconst pinned = true;\n```\n\n1. First\n2. Second\n   - nested',
     document_title: 'Pinning spec' });
@@ -795,7 +795,9 @@ try {
   const mdCard = dash.locator('article.report', { hasText: 'Pin notes with a' });
   await mdCard.locator('.md strong', { hasText: 'keyboard shortcut' }).waitFor();
   assert.equal(await mdCard.locator('.md a[href="https://example.com/spec"]').count(), 1);
-  assert.equal(await mdCard.locator('.md a[href="https://example.com/notes"]', { hasText: 'https://example.com/notes' }).count(), 1, 'a bare address is a link');
+  assert.equal(await mdCard.locator('.md a[href="https://example.com/raw"]').count(), 1, 'bare URL renders once');
+  assert.equal(await mdCard.locator('.md a[href="https://example.com/label"]').count(), 1, 'URL label renders once');
+  assert.equal(await mdCard.locator('a a').count(), 0, 'no nested anchors');
   assert.equal(await mdCard.locator('.chat-details:not(.chat-doc) .md h4', { hasText: 'Why' }).count(), 1, '## becomes a small heading');
   assert.equal(await mdCard.locator('.chat-details:not(.chat-doc) .md li').count(), 2);
   assert.equal(await mdCard.locator('.chat-details:not(.chat-doc) .md code', { hasText: 'Cmd+K' }).count(), 1);

@@ -40,7 +40,7 @@ jobs:
         id: instance
         run: |
           want=$(node -p "require('fs').readFileSync('functions/src/core/version.ts','utf8').match(/'([^']+)'/)[1]")
-          have=$(curl -fsS "https://${{ vars.HERESAY_PROJECT }}.web.app/v1/health" | node -p "JSON.parse(require('fs').readFileSync(0)).version" || echo none)
+          have=$(curl -fsS "https://${{ vars.HERESAY_SITE || vars.HERESAY_PROJECT }}.web.app/v1/health" | node -p "JSON.parse(require('fs').readFileSync(0)).version" || echo none)
           echo "want=$want" >> "$GITHUB_OUTPUT"
           echo "Instance is on $have; this release is $want."
           [ "$have" != "$want" ] && echo "deploy=yes" >> "$GITHUB_OUTPUT" || true
@@ -55,6 +55,7 @@ jobs:
         if: steps.instance.outputs.deploy == 'yes'
         env:
           HERESAY_HOME: ${{ runner.temp }}/heresay
+          HERESAY_SITE: ${{ vars.HERESAY_SITE }}
         run: |
           mkdir -p "$HERESAY_HOME"
           # All `update` needs from the machine that set the instance up: its id, name and region.
