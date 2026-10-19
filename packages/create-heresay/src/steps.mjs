@@ -127,6 +127,9 @@ export async function database(ctx, say) {
   return ctx.region;
 }
 
+/** The hosting site id: the project id unless HERESAY_SITE names another site in the project. */
+export const siteOf = (ctx) => process.env.HERESAY_SITE || ctx.id;
+
 // ---- the release, laid out for `firebase deploy` ----------------------------------------
 
 /** Copy the bundled release into ~/.heresay/instances/<id>/ and write its config. */
@@ -143,6 +146,7 @@ export function prepareRelease(ctx) {
   const cfg = JSON.parse(readFileSync(join(RELEASE, 'firebase.json'), 'utf8'));
   delete cfg.emulators;
   for (const fn of cfg.functions) delete fn.predeploy;
+  if (siteOf(ctx) !== ctx.id) cfg.hosting.site = siteOf(ctx);
   for (const r of cfg.hosting.rewrites) if (r.function) r.function.region = ctx.region;
   writeFileSync(join(dir, 'firebase.json'), JSON.stringify(cfg, null, 2) + '\n');
   writeFileSync(join(dir, '.firebaserc'), JSON.stringify({ projects: { default: ctx.id } }, null, 2) + '\n');
@@ -189,7 +193,7 @@ export async function signIn(ctx, say) {
             // Google requires the signed-in account (or a group it manages) here.
             customerSupportEmail: ctx.account ?? ctx.owner,
             // The firebaseapp.com handler is added by Google itself; listing it again is an error.
-            oauthRedirectUris: [`https://${ctx.id}.web.app/__/auth/handler`],
+            oauthRedirectUris: [`https://${siteOf(ctx)}.web.app/__/auth/handler`],
           },
         },
       },
@@ -280,7 +284,7 @@ export async function deploy(ctx, say) {
 // ---- 8. verify --------------------------------------------------------------------------
 
 export async function verify(ctx, say) {
-  const base = `https://${ctx.id}.web.app`;
+  const base = `https://${siteOf(ctx)}.web.app`;
   say('Calling the API');
   const until = Date.now() + 3 * 60_000;
   for (;;) {

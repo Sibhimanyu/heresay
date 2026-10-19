@@ -17,7 +17,7 @@ import * as state from './state.mjs';
 import * as steps from './steps.mjs';
 
 const peacock = (s) => `\x1b[38;2;15;118;110m${s}\x1b[39m`;
-const url = (id) => `https://${id}.web.app`;
+const url = (id) => `https://${process.env.HERESAY_SITE || id}.web.app`;
 
 // ---- arguments --------------------------------------------------------------------------
 
