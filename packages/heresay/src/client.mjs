@@ -83,7 +83,12 @@ export function client(conn) {
     } catch (e) {
       throw new HeresayError(`Couldn't reach ${conn.url} (${e.cause?.code ?? e.name}).`, 0);
     }
-    const b = await res.json().catch(() => ({}));
+    const b = await res.json().catch(() => null);
+    // Not JSON: something other than a Heresay answered (a moved or removed site, a proxy).
+    // Never let that read as an empty list.
+    if (b === null) {
+      throw new HeresayError(`No Heresay answered at ${conn.url} (HTTP ${res.status}). It may have moved: ask whoever runs it for the address, then run \`npx heresay connect --url <address>\`. This is an error, not an empty result.`, res.status);
+    }
     if (!res.ok) throw new HeresayError(b.error ?? `HTTP ${res.status}`, res.status, b);
     return b;
   };
