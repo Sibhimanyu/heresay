@@ -127,7 +127,15 @@ export async function agent(
   if (!token.last_used_at || now - Date.parse(token.last_used_at) > 3600_000) {
     await deps.store.updateAgentToken(token.id, { last_used_at: at });
   }
-  const apps = (await Promise.all(token.app_ids.map((id) => deps.store.getProject(id)))).filter((x): x is Project => !!x);
+  // A repo can hold several tokens (one per app it was connected to), but a machine keeps only
+  // the latest. Each one works for every app connected to its repo, so none goes missing.
+  const ids = new Set(token.app_ids);
+  if (token.repo) {
+    for (const t of await deps.store.listAgentTokens()) {
+      if (!t.revoked_at && t.repo === token.repo) t.app_ids.forEach((id) => ids.add(id));
+    }
+  }
+  const apps = (await Promise.all([...ids].map((id) => deps.store.getProject(id)))).filter((x): x is Project => !!x);
 
   if (p[0] === 'me' && req.method === 'GET') {
     return json(200, { repo: token.repo, version: deps.version, apps: apps.map(appView) });

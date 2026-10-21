@@ -86,6 +86,23 @@ test('an agent never sees an open report, only accepted ones for its own apps', 
   assert.ok(!JSON.stringify(await w.briefs(tok)).includes('Export does nothing'));
 });
 
+test('a repo connected twice, one app each, sees both apps from either token', async () => {
+  const w = await world();
+  const mac = await w.token('github.com/acme/web', [w.web.id]);
+  const ios = await w.token('github.com/acme/web', [w.other.id]);  // the newer one a machine keeps
+  const elsewhere = await w.token('github.com/acme/api', []);
+  const a = await w.report(w.web), b = await w.report(w.other);
+  await w.accept(w.web, a);
+  await w.accept(w.other, b);
+  assert.deepEqual((await w.briefs(ios)).map((x) => x.id).sort(), [a, b].sort());
+  assert.deepEqual((await w.briefs(mac)).map((x) => x.id).sort(), [a, b].sort());
+  assert.deepEqual(await w.briefs(elsewhere), [], 'another repo gains nothing');
+  // A revoked token takes its apps with it.
+  const list = (await w.call({ path: '/v1/agent-tokens', headers: w.alice })).body as { tokens: { id: string; app_ids: string[] }[] };
+  await w.call({ method: 'DELETE', path: `/v1/agent-tokens/${list.tokens.find((t) => t.app_ids[0] === w.web.id)!.id}`, headers: w.alice });
+  assert.deepEqual((await w.briefs(ios)).map((x) => x.id), [b]);
+});
+
 test('routing: accept sends the fix to a repo; other repos of the same app do not see it', async () => {
   const w = await world();
   const fe = await w.token('github.com/acme/web', [w.web.id]);

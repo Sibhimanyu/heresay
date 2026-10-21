@@ -146,8 +146,10 @@ export function prepareRelease(ctx) {
   const cfg = JSON.parse(readFileSync(join(RELEASE, 'firebase.json'), 'utf8'));
   delete cfg.emulators;
   for (const fn of cfg.functions) delete fn.predeploy;
-  if (siteOf(ctx) !== ctx.id) cfg.hosting.site = siteOf(ctx);
   for (const r of cfg.hosting.rewrites) if (r.function) r.function.region = ctx.region;
+  // On a named site, keep serving the project's default site too: apps already shipped with its
+  // address, and repos already connected to it, must keep working.
+  if (siteOf(ctx) !== ctx.id) cfg.hosting = [{ ...cfg.hosting, site: siteOf(ctx) }, { ...cfg.hosting, site: ctx.id }];
   writeFileSync(join(dir, 'firebase.json'), JSON.stringify(cfg, null, 2) + '\n');
   writeFileSync(join(dir, '.firebaserc'), JSON.stringify({ projects: { default: ctx.id } }, null, 2) + '\n');
   writeFileSync(join(dir, 'functions', '.env'), `HERESAY_REGION=${ctx.region}\n`);
