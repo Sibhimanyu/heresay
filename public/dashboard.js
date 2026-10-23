@@ -1414,7 +1414,7 @@
         } }, [
           el('span', { class: 'type-symbol', 'aria-hidden': 'true', text: { broken: '!', confusing: '?', improvement: '↗', idea: '+' }[r.type] }),
           el('span', { class: 'preview-copy' }, [el('b', { text: title(r) }), el('span', { class: 'preview-app', text: productName(c.project) + ' · ' + platformOf(c.project.platform).label }),
-            el('span', { class: 'preview-meta', text: (count > 1 ? count + ' reports · ' : '') + (r.source === 'agent' ? 'Agent' : r.source === 'chat' ? r.via || 'Chat app' : 'In-app') + ' · ' + relative(r.created_at) })]),
+            el('span', { class: 'preview-meta' }, [sourceTag(r, 'src-label'), (count > 1 ? ' · ' + count + ' reports' : '') + ' · ' + relative(r.created_at)])]),
           el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
         ]);
         list.appendChild(button);
@@ -1443,7 +1443,7 @@
       card.querySelector('.meta').before(el('h2', { class: 'detail-title', text: title(r) }));
       var evidence = card.querySelector('.trail');
       if (evidence) evidence.open = true;
-      var device = deviceView(r.context);
+      var device = fromApp(r) ? deviceView(r.context) : null;
       if (device) { var actions = card.querySelector('.actions'); card.insertBefore(device, actions || null); }
       detail.appendChild(card);
     }
@@ -1499,6 +1499,11 @@
       load(true);
     });
   }
+
+  // Where a report came from, worded and coloured the same in the list and on the report.
+  function sourceLabel(r) { return r.source === 'agent' ? 'From an agent' : r.source === 'chat' ? 'From ' + (r.via || 'a chat app') : 'From the app'; }
+  function fromApp(r) { return (r.source || 'sdk') === 'sdk'; }
+  function sourceTag(r, cls) { return el('span', { class: cls + ' src-' + (r.source || 'sdk'), text: sourceLabel(r) }); }
 
   function deviceView(c) {
     var fields = [['Platform', c.platform], ['App version', c.app_version], ['Browser', c.browser], ['OS', c.os], ['Page', c.route], ['Network', c.network]];
@@ -1786,9 +1791,9 @@
     card = el('article', { class: 'report t-' + r.type }, [
       el('div', { class: 'meta' }, [
         el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
-        showPlatform ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
-        r.source === 'chat' ? el('span', { class: 'pill chat-pill', text: 'From ' + (r.via || 'a chat app') }) : null,
-        r.source === 'agent' ? el('span', { class: 'pill agent-pill', text: 'From an agent' }) : null,
+        sourceTag(r, 'pill src-pill'),
+        // Only a report sent from the app has a platform of its own; chat apps and agents have none.
+        showPlatform && fromApp(r) ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
         el('time', { datetime: r.created_at, text: new Date(r.created_at).toLocaleString() }),
         status,
       ]),

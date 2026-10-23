@@ -222,7 +222,8 @@ try {
   await dash.locator('#loader.on').waitFor();
   await dash.waitForTimeout(700);
   assert.equal(await dash.locator('#view h1').isVisible(), false, 'the header waits for the reports');
-  assert.equal(await dash.locator('.app-loader img').count(), 1, 'one loader, never a second');
+  assert.equal(await dash.locator('.app-loader').count(), 1, 'one loader, never a second');
+  assert.equal(await dash.locator('.app-loader img:visible').count(), 1, 'the loader for this theme only');
   await dash.screenshot({ path: `${SHOTS}e2e-3a-inbox-loading.png` });
   await dash.unroute('**/reports', slow);
   await dash.locator('.status-tabs button', { hasText: 'Open' }).click();

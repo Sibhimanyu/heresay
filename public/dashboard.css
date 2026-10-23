@@ -440,8 +440,15 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
   .top .who { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 }
 
+/* where a report came from: the app, a chat app, an agent */
+.pill.src-pill { background:var(--src-bg); color:var(--src-fg); }
+.src-sdk { --src-bg:var(--mist); --src-fg:var(--deep); }
+.src-chat { --src-bg:var(--chat-bg); --src-fg:var(--chat-fg); }
+.src-agent { --src-bg:var(--agent-bg); --src-fg:var(--agent-fg); }
+.src-label { color:var(--src-fg); font-weight:600; }
+.src-label::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:currentColor; margin-right:5px; vertical-align:1px; }
+
 /* chat apps */
-.pill.chat-pill { background:var(--chat-bg); color:var(--chat-fg); }
 .chat-details { margin-top:8px; font-size:14px; }
 .chat-details summary { cursor:pointer; color:var(--mute); font-size:13px; }
 .chat-details > .md { margin:6px 0 0; padding:10px 14px; border-radius:10px; background:var(--soft, #f5f6f7); }
@@ -473,7 +480,6 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .authorize .can { margin:6px 0 12px; padding-left:20px; line-height:1.6; }
 
 /* findings from agents */
-.pill.agent-pill { background:var(--agent-bg); color:var(--agent-fg); }
 .report .files { margin:4px 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:6px; font-size:12.5px; }
 .report .files a, .report .files code { font:12.5px var(--mono, ui-monospace, monospace); padding:2px 6px; border-radius:6px; background:rgba(127,127,127,.12); color:inherit; }
 
