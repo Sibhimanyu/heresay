@@ -15,11 +15,11 @@
 <body class="booting pending">
 
 <!-- The one loader: from first paint until a page has everything it needs -->
-<div id="loader" class="app-loader on" role="status" aria-label="Loading"><img src="/loader.svg" alt="" width="96" height="96"></div>
+<div id="loader" class="app-loader on" role="status" aria-label="Loading"><img class="light-only" src="/loader.svg" alt="" width="96" height="96"><img class="dark-only" src="/loader-dark.svg" alt="" width="96" height="96"></div>
 
 <!-- Signed out -->
 <div id="gate" class="gate" hidden>
-  <img src="/mark.svg" alt="" width="64" height="64">
+  <img class="light-only" src="/mark.svg" alt="" width="64" height="64"><img class="dark-only" src="/mark-dark.svg" alt="" width="64" height="64">
   <h1>Sign in to your Heresay</h1>
   <p class="mute">Use the account your team owner added.</p>
   <button id="google" class="btn primary wide"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#fff" d="M21.35 11.1H12v2.98h5.35c-.23 1.38-1.64 4.05-5.35 4.05a5.93 5.93 0 0 1 0-11.86c1.83 0 3.06.78 3.76 1.45l2.57-2.47C16.68 3.7 14.55 2.7 12 2.7a9.3 9.3 0 1 0 0 18.6c5.37 0 8.93-3.77 8.93-9.09 0-.61-.07-1.08-.16-1.54z"/></svg>Continue with Google</button>
@@ -34,7 +34,7 @@
 
 <!-- Signed in, but this Heresay can't let them in -->
 <div id="blocked" class="gate" hidden>
-  <img src="/mark.svg" alt="" width="64" height="64">
+  <img class="light-only" src="/mark.svg" alt="" width="64" height="64"><img class="dark-only" src="/mark-dark.svg" alt="" width="64" height="64">
   <h1 id="blocked-title"></h1>
   <p id="blocked-text" class="mute"></p>
   <button id="blocked-out" class="btn wide">Use another account</button>
@@ -44,7 +44,7 @@
   <a class="skip-link" href="#view">Skip to content</a>
   <aside class="sidebar" aria-label="Workspace navigation">
     <button id="nav-close" class="btn ghost nav-close" type="button" aria-label="Close navigation">×</button>
-    <a class="brand" href="#/inbox" aria-label="Heresay inbox"><img src="/logo.svg" alt="Heresay" height="30"></a>
+    <a class="brand" href="#/inbox" aria-label="Heresay inbox"><img class="light-only" src="/logo.svg" alt="Heresay" height="30"><img class="dark-only" src="/logo-dark.svg" alt="Heresay" height="30"></a>
     <div class="workspace-label"><span class="workspace-icon" aria-hidden="true">H</span><span>Your workspace</span><span class="workspace-role" id="workspace-role"></span></div>
     <nav class="tabs" aria-label="Main">
       <a href="#/inbox" data-nav="inbox"><span class="nav-icon" data-icon="inbox"></span>Inbox<span id="inbox-count" class="nav-count" hidden></span></a>

@@ -274,6 +274,10 @@ h3 { font-size:15px; margin:0 0 14px; font-weight:700; }
 .reporter-context a { margin-left:6px; }
 
 /* dark mode: follows the system, or data-theme on <html> */
+/* Logo, mark and loader come in pairs; the on-dark artwork shows in dark mode. */
+@media (prefers-color-scheme:light) { :root:not([data-theme=dark]) .dark-only { display:none !important; } }
+@media (prefers-color-scheme:dark) { :root:not([data-theme=light]) .light-only { display:none !important; } }
+:root[data-theme=light] .dark-only, :root[data-theme=dark] .light-only { display:none !important; }
 @media (prefers-color-scheme:dark) {
   :root:not([data-theme=light]) { color-scheme:dark;
     --bg:#14171b; --soft:#1b1f24; --fg:#e8ebef; --mute:#9aa4b2; --line:#2a3037; --acc:#2dd4bf; --deep:#5eead4; --mist:#173532;
