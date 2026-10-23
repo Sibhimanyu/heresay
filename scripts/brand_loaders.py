@@ -111,6 +111,7 @@ for suffix, (bf, ef) in variants.items():
 
 # The dashboard's loader.
 open('public/loader.svg', 'w').write(loaders(DEEP, W)['glance'][2])
+open('public/loader-dark.svg', 'w').write(loaders(ACC, DEEP)['glance'][2])
 
 # Preview page: every loader on white and on ink, at a hero size and at button size.
 def card(name, title, note):

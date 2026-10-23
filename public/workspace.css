@@ -135,6 +135,7 @@ h3 { font-size:15px; margin:0 0 14px; font-weight:700; }
 .detail-card .meta { gap:8px; font-size:11px; margin-bottom:14px; }
 .detail-card .meta > .status { position:absolute; right:30px; top:27px; padding:4px 10px; border-radius:5px; background:var(--mist); color:var(--deep); }
 .detail-card .meta .pill { font-size:11px; font-weight:500; border:0; background:none; padding:0; }
+.detail-card .meta .src-pill { background:var(--src-bg); padding:3px 8px; border-radius:5px; font-weight:600; }
 .detail-card .meta time { color:var(--mute); }
 .detail-card .detail-title { font-size:25px; line-height:1.25; margin:0 0 20px; overflow-wrap:anywhere; }
 .detail-card > .text, .detail-card > .md { padding:16px; background:var(--soft); border-radius:7px; font-size:15px; line-height:1.7; margin:0 0 18px; }
@@ -274,6 +275,10 @@ h3 { font-size:15px; margin:0 0 14px; font-weight:700; }
 .reporter-context a { margin-left:6px; }
 
 /* dark mode: follows the system, or data-theme on <html> */
+/* Logo, mark and loader come in pairs; the on-dark artwork shows in dark mode. */
+@media (prefers-color-scheme:light) { :root:not([data-theme=dark]) .dark-only { display:none !important; } }
+@media (prefers-color-scheme:dark) { :root:not([data-theme=light]) .light-only { display:none !important; } }
+:root[data-theme=light] .dark-only, :root[data-theme=dark] .light-only { display:none !important; }
 @media (prefers-color-scheme:dark) {
   :root:not([data-theme=light]) { color-scheme:dark;
     --bg:#14171b; --soft:#1b1f24; --fg:#e8ebef; --mute:#9aa4b2; --line:#2a3037; --acc:#2dd4bf; --deep:#5eead4; --mist:#173532;

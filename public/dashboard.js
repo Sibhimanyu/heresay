@@ -40,6 +40,13 @@
     (kids || []).forEach(function (c) { if (c) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return n;
   }
+  // The mark in both themes; CSS shows the one that matches (brand guidelines: the on-dark version in dark mode).
+  function markImg(size) {
+    var f = document.createDocumentFragment();
+    f.appendChild(el('img', { class: 'light-only', src: '/mark.svg', alt: '', width: size, height: size }));
+    f.appendChild(el('img', { class: 'dark-only', src: '/mark-dark.svg', alt: '', width: size, height: size }));
+    return f;
+  }
 
   // Reuse the dashboard's outline icon language throughout the workspace chrome.
   var NAV_ICONS = {
@@ -1397,7 +1404,7 @@
       if (!shown.some(function (r) { return key(r) === selected; })) selected = shown.length ? key(shown[0]) : null;
       list.textContent = '';
       if (!projects.length) {
-        list.appendChild(el('div', { class: 'inbox-empty' }, [el('img', { src: '/mark.svg', alt: '', width: '48', height: '48' }), el('h2', { text: 'Add your first app' }), el('p', { text: 'Connect your app to give every report a hearing.' }), el('a', { class: 'btn primary', href: '#/new', text: 'Add an app' })]));
+        list.appendChild(el('div', { class: 'inbox-empty' }, [markImg(48), el('h2', { text: 'Add your first app' }), el('p', { text: 'Connect your app to give every report a hearing.' }), el('a', { class: 'btn primary', href: '#/new', text: 'Add an app' })]));
       } else if (!shown.length) list.appendChild(el('div', { class: 'inbox-empty' }, [el('h2', { text: search || type !== 'all' || source !== 'all' ? 'No matching reports' : filter === 'open' ? 'All caught up' : 'Nothing here yet' }), el('p', { text: search || type !== 'all' || source !== 'all' ? 'Try another search or adjust your filters.' : 'New reports will appear here. Every report gets a hearing.' })]));
       shown.forEach(function (r) {
         var c = ctxs[r.project_id], count = (c.dups[r.id] || []).length + 1;
@@ -1407,7 +1414,7 @@
         } }, [
           el('span', { class: 'type-symbol', 'aria-hidden': 'true', text: { broken: '!', confusing: '?', improvement: '↗', idea: '+' }[r.type] }),
           el('span', { class: 'preview-copy' }, [el('b', { text: title(r) }), el('span', { class: 'preview-app', text: productName(c.project) + ' · ' + platformOf(c.project.platform).label }),
-            el('span', { class: 'preview-meta', text: (count > 1 ? count + ' reports · ' : '') + (r.source === 'agent' ? 'Agent' : r.source === 'chat' ? r.via || 'Chat app' : 'In-app') + ' · ' + relative(r.created_at) })]),
+            el('span', { class: 'preview-meta' }, [sourceTag(r, 'src-label'), (count > 1 ? ' · ' + count + ' reports' : '') + ' · ' + relative(r.created_at)])]),
           el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
         ]);
         list.appendChild(button);
@@ -1427,7 +1434,7 @@
       detail.textContent = '';
       detail.appendChild(el('button', { class: 'btn ghost detail-back', type: 'button', text: '← Back to reports', onclick: function () { view.classList.remove('detail-open'); var active = list.querySelector('[aria-current=true]'); if (active) active.focus(); } }));
       var r = shown.filter(function (x) { return key(x) === selected; })[0];
-      if (!r) { view.classList.remove('detail-open'); detail.appendChild(el('div', { class: 'detail-placeholder' }, [el('img', { src: '/mark.svg', width: '52', height: '52', alt: '' }), el('h2', { text: 'Every report gets a hearing.' }), el('p', { text: 'Select a report to read its story and decide what comes next.' })])); return; }
+      if (!r) { view.classList.remove('detail-open'); detail.appendChild(el('div', { class: 'detail-placeholder' }, [markImg(52), el('h2', { text: 'Every report gets a hearing.' }), el('p', { text: 'Select a report to read its story and decide what comes next.' })])); return; }
       var c = ctxs[r.project_id];
       var card = row(c.project, r, settled, c, true);
       card.classList.add('detail-card');
@@ -1436,7 +1443,7 @@
       card.querySelector('.meta').before(el('h2', { class: 'detail-title', text: title(r) }));
       var evidence = card.querySelector('.trail');
       if (evidence) evidence.open = true;
-      var device = deviceView(r.context);
+      var device = fromApp(r) ? deviceView(r.context) : null;
       if (device) { var actions = card.querySelector('.actions'); card.insertBefore(device, actions || null); }
       detail.appendChild(card);
     }
@@ -1492,6 +1499,11 @@
       load(true);
     });
   }
+
+  // Where a report came from, worded and coloured the same in the list and on the report.
+  function sourceLabel(r) { return r.source === 'agent' ? 'From an agent' : r.source === 'chat' ? 'From ' + (r.via || 'a chat app') : 'From the app'; }
+  function fromApp(r) { return (r.source || 'sdk') === 'sdk'; }
+  function sourceTag(r, cls) { return el('span', { class: cls + ' src-' + (r.source || 'sdk'), text: sourceLabel(r) }); }
 
   function deviceView(c) {
     var fields = [['Platform', c.platform], ['App version', c.app_version], ['Browser', c.browser], ['OS', c.os], ['Page', c.route], ['Network', c.network]];
@@ -1779,9 +1791,9 @@
     card = el('article', { class: 'report t-' + r.type }, [
       el('div', { class: 'meta' }, [
         el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
-        showPlatform ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
-        r.source === 'chat' ? el('span', { class: 'pill chat-pill', text: 'From ' + (r.via || 'a chat app') }) : null,
-        r.source === 'agent' ? el('span', { class: 'pill agent-pill', text: 'From an agent' }) : null,
+        sourceTag(r, 'pill src-pill'),
+        // Only a report sent from the app has a platform of its own; chat apps and agents have none.
+        showPlatform && fromApp(r) ? el('span', { class: 'pill platform-pill', text: platformOf(p.platform).label }) : null,
         el('time', { datetime: r.created_at, text: new Date(r.created_at).toLocaleString() }),
         status,
       ]),
@@ -2446,7 +2458,7 @@
           .catch(function (x) { err.textContent = x.message; });
       };
       view.appendChild(el('section', { class: 'card authorize' }, [
-        el('img', { src: '/mark.svg', alt: '', width: '48', height: '48' }),
+        markImg(48),
         el('h1', { text: 'Connect ' + b.client_name + ' to Heresay?' }),
         el('p', { class: 'mute', text: 'As ' + me.email + '. It will be able to:' }),
         el('ul', { class: 'can' }, [

@@ -25,5 +25,8 @@ open('public/favicon.svg', 'w').write(files['heresay-mark.svg'])
 open('public/mark.svg', 'w').write(files['heresay-mark.svg'])
 open('public/logo.svg', 'w').write(files['heresay-logo.svg'])
 open('public/logo-white.svg', 'w').write(files['heresay-logo-white.svg'])
+# Dark mode: the on-dark mark (Turquoise body, Deep Peacock eyes) with the white wordmark.
+lk, lw, lh = lockup(ACC, DEEP, W); open('public/logo-dark.svg', 'w').write(doc(lw, lh, lk))
+open('public/mark-dark.svg', 'w').write(files['heresay-mark-on-dark.svg'])
 open('public/app-icon.svg', 'w').write(files['heresay-app-icon.svg'])
 print(len(files), 'files')
