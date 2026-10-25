@@ -12,6 +12,8 @@ import {
   type Instance, type Member, type Project, type Report, type ReportContext, type ReporterPrefs, type Task,
 } from './types.js';
 
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
 export interface Req {
   method: string;
   path: string;
@@ -295,12 +297,29 @@ async function route(req: Req, deps: Deps): Promise<Res> {
     if (p[2] === 'reports' && p.length === 3 && req.method === 'GET') {
       // Alongside each accepted report: where its fix is going, and whether an agent has it.
       const now = deps.now();
-      const briefs: Record<string, unknown> = {};
-      for (const t of await deps.store.listTasks(project.id)) {
-        const live = t.claim && now - Date.parse(t.claim.at) < 24 * 3600_000;
-        briefs[t.id] = { repo: t.repo ?? null, claimed_by: live ? t.claim!.repo : null, notes: t.notes ?? [] };
+      const since = req.query?.since;
+      if (since !== undefined && !(typeof since === 'string' && ISO.test(since) && !Number.isNaN(Date.parse(since)))) {
+        return json(400, { error: 'since must be an ISO timestamp' });
       }
-      return json(200, { reports: sortForTriage(await deps.store.listReports(project.id)), briefs });
+      const brief = (t: Task) => {
+        const live = t.claim && now - Date.parse(t.claim.at) < 24 * 3600_000;
+        return { repo: t.repo ?? null, claimed_by: live ? t.claim!.repo : null, notes: t.notes ?? [] };
+      };
+      const briefs: Record<string, unknown> = {};
+      const nowIso = new Date(now).toISOString();
+      if (since !== undefined) {
+        // A delta: only what changed, and tasks only for those, so a poll costs a few reads.
+        const reports = await deps.store.listReportsSince(project.id, since);
+        for (const r of reports) {
+          if (r.status !== 'open' && r.status !== 'declined' && r.status !== 'withdrawn') {
+            const t = await deps.store.getTask(project.id, r.id);
+            if (t) briefs[t.id] = brief(t);
+          }
+        }
+        return json(200, { reports, briefs, now: nowIso });
+      }
+      for (const t of await deps.store.listTasks(project.id)) briefs[t.id] = brief(t);
+      return json(200, { reports: sortForTriage(await deps.store.listReports(project.id)), briefs, now: nowIso });
     }
     if (p[2] === 'repos' && p.length === 3 && req.method === 'GET') {
       return json(200, { repos: await reposFor(project.id, deps) });

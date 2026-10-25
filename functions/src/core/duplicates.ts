@@ -61,7 +61,7 @@ export async function merge(project: Project, id: string, body: Record<string, u
   const dup = { project_id: targetApp.id, report_id: target.id, by: me.email, at };
   const moving = [report, ...await duplicatesOf(project, id, deps)];
   for (const r of moving) {
-    await deps.store.updateReport(r.project_id, r.id, { duplicate_of: dup });
+    await deps.store.updateReport(r.project_id, r.id, { duplicate_of: dup, updated_at: at });
     // Into an accepted report: these are accepted too, and their words join the brief.
     if (target.status === 'accepted' && r.status === 'open') {
       await deps.store.move(r.project_id, r.id, 'open', 'accepted', { triaged_by: me.email, updated_at: at });
@@ -72,6 +72,7 @@ export async function merge(project: Project, id: string, body: Record<string, u
     await deps.store.updateTask(targetApp.id, target.id, (t) => ({
       ...t, also_reported: [...(t.also_reported ?? []).filter((a) => !add.some((x) => x.report_id === a.report_id)), ...add],
     }));
+    await deps.store.updateReport(targetApp.id, target.id, { updated_at: at });
   }
   deps.log('api.report_merged', { project_id: project.id, report_id: id, into: target.id, by: me.email, moved: moving.length });
   return json(200, { merged: moving.map((r) => r.id), into: { project_id: targetApp.id, report_id: target.id, status: target.status } });
@@ -83,7 +84,7 @@ export async function unmerge(project: Project, id: string, me: Member, deps: De
   if (!report) return json(404, { error: 'no such report' });
   if (!report.duplicate_of) return json(409, { error: 'this report isn\'t merged into another' });
   if (report.status !== 'open') return json(409, { error: `it has already followed that report to ${report.status}; it can't be separated now` });
-  await deps.store.updateReport(project.id, id, { duplicate_of: null });
+  await deps.store.updateReport(project.id, id, { duplicate_of: null, updated_at: new Date(deps.now()).toISOString() });
   deps.log('api.report_unmerged', { project_id: project.id, report_id: id, by: me.email });
   return json(200, { report_id: id });
 }

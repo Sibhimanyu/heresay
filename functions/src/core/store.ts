@@ -24,6 +24,8 @@ export interface Store {
   createReport(r: Report): Promise<void>;
   getReport(project_id: string, id: string): Promise<Report | null>;
   listReports(project_id: string): Promise<Report[]>;
+  /** Reports whose updated_at is strictly after `since` (ISO), at most 500, in no particular order. */
+  listReportsSince(project_id: string, since: string): Promise<Report[]>;
   listReportsForDevice(project_id: string, device_id: string): Promise<Report[]>;
   /** Change fields of a report that aren't its status (merging). Nothing if it doesn't exist. */
   updateReport(project_id: string, id: string, patch: Partial<Report>): Promise<void>;
@@ -100,6 +102,9 @@ export class MemoryStore implements Store {
   }
   async listReports(project_id: string) {
     return [...this.reports.values()].filter((r) => r.project_id === project_id);
+  }
+  async listReportsSince(project_id: string, since: string) {
+    return (await this.listReports(project_id)).filter((r) => r.updated_at > since).slice(0, 500);
   }
   async listReportsForDevice(project_id: string, device_id: string) {
     return (await this.listReports(project_id)).filter((r) => r.device_id === device_id);

@@ -27,9 +27,9 @@ export async function withdraw(project: Project, id: string, by: Omit<Withdrawal
   const t = await deps.store.move(project.id, id, 'open', 'withdrawn', { triaged_by: by.by, updated_at: at });
   if (!t.ok) return json(409, { error: 'it changed just now; look again' });
   const withdrawal: Withdrawal = { ...by, at, reason: why };
-  await deps.store.updateReport(project.id, id, { withdrawal });
+  await deps.store.updateReport(project.id, id, { withdrawal, updated_at: at });
   // Reports merged into it stand on their own again: their reporters still want an answer.
-  for (const d of await duplicatesOf(project, id, deps)) await deps.store.updateReport(d.project_id, d.id, { duplicate_of: null });
+  for (const d of await duplicatesOf(project, id, deps)) await deps.store.updateReport(d.project_id, d.id, { duplicate_of: null, updated_at: at });
   deps.log('api.report_withdrawn', { project_id: project.id, report_id: id, kind: by.kind });
   return json(200, { report: { ...t.report, withdrawal } });
 }
