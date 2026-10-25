@@ -436,3 +436,28 @@ test('an agent withdraws its own open finding; it stays, as withdrawn by the rep
   const userReport = await w.report(w.web, 'A user report');
   assert.equal((await w.call({ method: 'POST', path: `/v1/agent/findings/${userReport}/withdraw`, headers: w.as(tok), body: {} })).status, 404, 'not an agent\'s to take back');
 });
+
+test('delta polling: claims and notes surface the report again, with briefs for changed reports only', async () => {
+  const w = await world();
+  const fe = await w.token('github.com/acme/web', [w.web.id]);
+  const a = await w.report(w.web, 'First'), b = await w.report(w.web, 'Second');
+  await w.accept(w.web, a); await w.accept(w.web, b);
+  w.tick(60_000);
+  const delta = async (since: string) => (await w.call({ path: `/v1/projects/${w.web.id}/reports`, query: { since }, headers: w.alice })).body as
+    { reports: { id: string }[]; briefs: Record<string, { claimed_by: string | null; notes: unknown[] }>; now: string };
+  const first = await delta('2020-01-01T00:00:00.000Z');
+  assert.equal(first.reports.length, 2);
+  w.tick(5_000);
+  assert.deepEqual((await delta(first.now)).reports, []);
+  w.tick(5_000);
+  await w.call({ method: 'POST', path: `/v1/agent/briefs/${a}/claim`, headers: w.as(fe) });
+  const claimed = await delta(first.now);
+  assert.deepEqual(claimed.reports.map((r) => r.id), [a]);
+  assert.deepEqual(Object.keys(claimed.briefs), [a]);
+  assert.equal(claimed.briefs[a].claimed_by, 'github.com/acme/web');
+  w.tick(5_000);
+  await w.call({ method: 'POST', path: `/v1/agent/briefs/${a}/notes`, headers: w.as(fe), body: { note: 'looking' } });
+  const noted = await delta(claimed.now);
+  assert.deepEqual(noted.reports.map((r) => r.id), [a]);
+  assert.equal(noted.briefs[a].notes.length, 1);
+});

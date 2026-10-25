@@ -50,6 +50,21 @@ export function storeContract(name: string, make: () => Store | Promise<Store>) 
     assert.deepEqual((await s.listReportsForDevice(p.id, 'device_contract_000002')).map((r) => r.id), [r2.id]);
   });
 
+  test(`${name}: listReportsSince returns only reports updated strictly after the time`, async () => {
+    const s = await make(); const p = project(uid('u_')), q = project(uid('u_'));
+    await s.createProject(p); await s.createProject(q);
+    const old = report(p, { updated_at: '2026-01-01T00:00:00.000Z' });
+    const edge = report(p, { updated_at: '2026-01-02T00:00:00.000Z' });
+    const fresh = report(p, { updated_at: '2026-01-03T00:00:00.000Z' });
+    const other = report(q, { updated_at: '2026-01-03T00:00:00.000Z' });
+    for (const r of [old, edge, fresh, other]) await s.createReport(r);
+    assert.deepEqual((await s.listReportsSince(p.id, '2026-01-02T00:00:00.000Z')).map((r) => r.id), [fresh.id]);
+    assert.equal((await s.listReportsSince(p.id, '2025-01-01T00:00:00.000Z')).length, 3);
+    assert.equal((await s.listReportsSince(p.id, '2026-02-01T00:00:00.000Z')).length, 0);
+    await s.updateReport(p.id, old.id, { updated_at: '2026-01-04T00:00:00.000Z' });
+    assert.deepEqual((await s.listReportsSince(p.id, '2026-01-03T00:00:00.000Z')).map((r) => r.id), [old.id]);
+  });
+
   test(`${name}: a report's trail comes back as it went in, on the report and its task`, async () => {
     const s = await make(); const p = project(uid('u_')); await s.createProject(p);
     const trail = [

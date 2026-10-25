@@ -67,6 +67,10 @@ export class FirestoreStore implements Store {
     const q = await this.reports(project_id).orderBy('created_at', 'desc').limit(500).get();
     return q.docs.map((d) => d.data() as Report);
   }
+  async listReportsSince(project_id: string, since: string) {
+    const q = await this.reports(project_id).where('updated_at', '>', since).orderBy('updated_at').limit(500).get();
+    return q.docs.map((d) => d.data() as Report);
+  }
   async listReportsForDevice(project_id: string, device_id: string) {
     const q = await this.reports(project_id).where('device_id', '==', device_id).limit(50).get();
     return q.docs.map((d) => d.data() as Report);

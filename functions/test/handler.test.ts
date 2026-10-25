@@ -531,3 +531,26 @@ test('withdraw: a report others were merged into lets them go, so they still get
   assert.equal(store.reports.get(dup)!.duplicate_of, null);
   assert.equal(store.reports.get(dup)!.status, 'open');
 });
+
+test('delta polling: only reports changed strictly after since; bad since is 400; auth unchanged', async () => {
+  const { call, asOwner, project, submit, tick } = await withProject();
+  const url = `/v1/projects/${project.id}/reports`;
+  const r1 = (await submit({ type: 'broken', text: 'one' })).body as { report: { id: string } };
+  const full = (await call({ path: url, headers: asOwner() })).body as { reports: Report[]; now: string };
+  assert.equal(full.reports.length, 1);
+  assert.match(full.now, /^\d{4}-\d{2}-\d{2}T/);
+  const since = full.reports[0].updated_at;
+  const strict = (await call({ path: url, query: { since }, headers: asOwner() })).body as { reports: Report[]; now: string };
+  assert.equal(strict.reports.length, 0, 'strictly after: an equal timestamp is not returned');
+  tick(1000);
+  await submit({ type: 'broken', text: 'two, a different report' });
+  const d = (await call({ path: url, query: { since }, headers: asOwner() })).body as { reports: Report[]; briefs: object };
+  assert.equal(d.reports.length, 1);
+  assert.notEqual(d.reports[0].id, r1.report.id);
+  assert.deepEqual(d.briefs, {});
+  for (const bad of ['yesterday', '', '2026-13-45', '123']) {
+    assert.equal((await call({ path: url, query: { since: bad }, headers: asOwner() })).status, 400, bad);
+  }
+  assert.equal((await call({ path: url, query: { since } })).status, 401);
+  assert.equal((await call({ path: url, query: { since }, headers: { authorization: 'Bearer uid:mallory' } })).status, 403);
+});

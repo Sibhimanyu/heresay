@@ -259,6 +259,9 @@ export async function agent(
   const addNote = (t: Task, text: string, kind: TaskNote['kind']): Task =>
     ({ ...t, notes: [...(t.notes ?? []), { by: me, at, text, kind }] });
 
+  // The dashboard polls reports by updated_at, and shows claims and notes beside them.
+  const touch = () => deps.store.updateReport(app.id, found!.task.report_id, { updated_at: at });
+
   if (p[2] === 'claim') {
     let refused = '';
     const t = await deps.store.updateTask(app.id, found.task.id, (cur) => {
@@ -266,6 +269,7 @@ export async function agent(
       return { ...cur, claim: { repo: repoName, at } };
     });
     if (refused) return json(409, { error: `already in progress in ${refused}`, claimed_by: refused });
+    await touch();
     deps.log('api.brief_claimed', { repo: repoName, report_id: t!.id });
     return json(200, { brief: summary(t!, app, now) });
   }
@@ -278,6 +282,7 @@ export async function agent(
       // Working on it keeps the claim fresh.
       return cur.claim?.repo === repoName ? { ...next, claim: { repo: repoName, at } } : next;
     });
+    await touch();
     return json(200, { brief: summary(t!, app, now) });
   }
 
@@ -296,6 +301,7 @@ export async function agent(
       return { ...addNote(cur, `Handed to ${to}: ${text}`, 'handoff'), repo: to, claim: null };
     });
     if (refused) return json(409, { error: `in progress in ${refused}`, claimed_by: refused });
+    await touch();
     deps.log('api.brief_handed_off', { from: repoName, to, report_id: t!.id });
     await notify('handoff', app, t!.id, deps);
     return json(200, { brief: summary(t!, app, now) });
@@ -311,6 +317,7 @@ export async function agent(
     const res = await toReporter(app, found.task.id, note, me, fx.ref);
     if (res.status === 200) {
       await deps.store.updateTask(app.id, found.task.id, (cur) => ({ ...addNote(cur, `Fixed: ${note}`, 'note'), claim: null }));
+      await touch();
     }
     return res;
   }

@@ -1429,7 +1429,10 @@
     function drawDetail(shown, preserve) {
       var chosen = shown.filter(function (x) { return key(x) === selected; })[0];
       var signature = chosen ? JSON.stringify([chosen, ctxs[chosen.project_id].briefs[chosen.id], ctxs[chosen.project_id].dups[chosen.id], ctxs[chosen.project_id].repos]) : null;
-      if (preserve && signature === detailSignature && detail.querySelector('.detail-card, .detail-placeholder')) return;
+      var drawn = detail.querySelector('.detail-card, .detail-placeholder');
+      // 'hold': a person is mid-reply, so the open report stays as it is until they ask for the refresh.
+      if (preserve === 'hold' && drawn) return;
+      if (preserve && signature === detailSignature && drawn) return;
       detailSignature = signature;
       detail.textContent = '';
       detail.appendChild(el('button', { class: 'btn ghost detail-back', type: 'button', text: '← Back to reports', onclick: function () { view.classList.remove('detail-open'); var active = list.querySelector('[aria-current=true]'); if (active) active.focus(); } }));
@@ -1460,31 +1463,38 @@
       return (detail.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) || detail.querySelector('.busy, .settled')
         || Array.prototype.some.call(detail.querySelectorAll('textarea, input'), function (n) { return n.value.trim(); });
     }
-    function load(background) {
-      var serial = ++loadSerial, nextProjects, nextContexts = {};
+    /** Everything derived from the per-project reports: duplicate groups, counts, the sorted inbox. */
+    function derive() {
+      var everything = [].concat.apply([], projects.map(function (x) { return ctxs[x.id].reports; }));
+      var dups = {}, counts = {};
+      everything.forEach(function (r) { if (r.duplicate_of) (dups[r.duplicate_of.report_id] = dups[r.duplicate_of.report_id] || []).push(r); });
+      Object.keys(dups).forEach(function (id) { counts[id] = dups[id].length; });
+      projects.forEach(function (x) { var c = ctxs[x.id]; c.dups = dups; c.all = everything.filter(function (r) { return productOf(ctxs[r.project_id].project) === productOf(x); }); c.siblings = ctxs; c.reload = load; });
+      reports = triageSort(everything.filter(function (r) { return !r.duplicate_of; }), counts);
+    }
+    function fetchAll() {
+      var nextProjects, nextContexts = {};
       return api('GET', '/projects').then(function (b) {
-        if (!shell.isConnected) return;
         nextProjects = b.projects;
         return Promise.all(nextProjects.map(function (x) {
           return Promise.all([api('GET', '/projects/' + x.id + '/reports'), api('GET', '/projects/' + x.id + '/repos')]).then(function (r) {
-            nextContexts[x.id] = { project: x, reports: r[0].reports, briefs: r[0].briefs || {}, repos: r[1].repos || [] };
+            nextContexts[x.id] = { project: x, reports: r[0].reports, briefs: r[0].briefs || {}, repos: r[1].repos || [], now: r[0].now || null };
           });
         }));
-      }).then(function () {
+      }).then(function () { return { projects: nextProjects, contexts: nextContexts }; });
+    }
+    function load(background) {
+      var serial = ++loadSerial;
+      return fetchAll().then(function (next) {
         if (!shell.isConnected || serial !== loadSerial || (background && readingReport())) return;
         // Commit a complete snapshot together; failed refreshes leave the old one intact.
         // Retained details close over their context; update it in place after success.
-        Object.keys(nextContexts).forEach(function (id) {
-          if (ctxs[id]) nextContexts[id] = Object.assign(ctxs[id], nextContexts[id]);
+        Object.keys(next.contexts).forEach(function (id) {
+          if (ctxs[id]) next.contexts[id] = Object.assign(ctxs[id], next.contexts[id]);
         });
-        projects = nextProjects; ctxs = nextContexts;
-        var everything = [].concat.apply([], projects.map(function (x) { return ctxs[x.id].reports; }));
-        var dups = {}, counts = {};
-        everything.forEach(function (r) { if (r.duplicate_of) (dups[r.duplicate_of.report_id] = dups[r.duplicate_of.report_id] || []).push(r); });
-        Object.keys(dups).forEach(function (id) { counts[id] = dups[id].length; });
-        projects.forEach(function (x) { var c = ctxs[x.id]; c.dups = dups; c.all = everything.filter(function (r) { return productOf(ctxs[r.project_id].project) === productOf(x); }); c.siblings = ctxs; c.reload = load; });
-        reports = triageSort(everything.filter(function (r) { return !r.duplicate_of; }), counts);
-        loaded = true; drawProducts(); render(background === true);
+        projects = next.projects; ctxs = next.contexts;
+        derive();
+        loaded = true; hideCue(); noteChange(); drawProducts(); render(background === true);
       }).catch(function (x) {
         if (!shell.isConnected) return;
         if (loaded) { toast('Could not refresh reports. ' + x.message, null, true); return; }
@@ -1492,12 +1502,73 @@
         list.appendChild(el('div', { class: 'inbox-empty' }, [el('h2', { text: 'Could not load reports' }), el('p', { class: 'err', role: 'alert', text: x.message }), el('button', { class: 'btn', text: 'Retry', onclick: load })]));
       });
     }
+
+    // Background polls fetch only what changed since the server's last `now`, so keeping the
+    // inbox live costs a few reads. A person mid-reply keeps their detail pane; a cue offers the refresh.
+    var FAST = 8000, SLOW = 30000, QUIET = 5 * 60000;
+    var polling = false, lastChange = Date.now(), lastPoll = 0, pending = {}, failing = false;
+    var cue = el('button', { class: 'btn ghost new-cue', type: 'button', hidden: true, onclick: function () { hideCue(); render(); } });
+    listHead.after(cue);
+    function noteChange() { lastChange = Date.now(); }
+    function hideCue() { pending = {}; cue.hidden = true; }
+    function showCue() {
+      var n = Object.keys(pending).length;
+      cue.hidden = !n;
+      cue.textContent = n === 1 ? '1 new update. Show' : n + ' new updates. Show';
+    }
+    /** `since` is the server's clock, minus a short overlap so a write in the same instant is never missed. */
+    function sinceOf(c) { return new Date(Date.parse(c.now) - 2000).toISOString(); }
+    function poll(force) {
+      if (!loaded || polling || !shell.isConnected) return;
+      var quiet = Date.now() - lastChange > QUIET;
+      if (!force && quiet && Date.now() - lastPoll < SLOW - 1000) return;
+      polling = true; lastPoll = Date.now();
+      var serial = loadSerial;
+      Promise.all(projects.map(function (x) {
+        var c = ctxs[x.id];
+        if (!c || !c.now) return null;
+        return api('GET', '/projects/' + x.id + '/reports?since=' + encodeURIComponent(sinceOf(c))).then(function (b) { return { id: x.id, body: b }; });
+      })).then(function (deltas) {
+        failing = false;
+        if (!shell.isConnected || serial !== loadSerial) return;
+        var changed = [];
+        deltas.forEach(function (d) {
+          if (!d) return;
+          var c = ctxs[d.id], have = {};
+          c.reports.forEach(function (r) { have[r.id] = r; });
+          (d.body.reports || []).forEach(function (r) {
+            var cur = have[r.id], brief = (d.body.briefs || {})[r.id];
+            if (cur && JSON.stringify(cur) === JSON.stringify(r) && (brief === undefined || JSON.stringify(c.briefs[r.id]) === JSON.stringify(brief))) return;
+            if (cur) Object.assign(cur, r); else c.reports.push(r);
+            if (brief !== undefined) c.briefs[r.id] = brief;
+            changed.push(d.id + '/' + r.id);
+          });
+          c.now = d.body.now || c.now;
+        });
+        if (!changed.length) return;
+        noteChange();
+        derive(); drawProducts();
+        if (readingReport()) {
+          changed.forEach(function (k) { pending[k] = true; });
+          render('hold'); showCue();
+        } else { hideCue(); render(true); }
+      }).catch(function (x) {
+        if (!shell.isConnected) return;
+        if (x.status === 404) { load(true); return; }
+        if (!failing) toast('Could not refresh reports. ' + x.message, null, true);
+        failing = true;
+      }).then(function () { polling = false; });
+    }
+    function resume() {
+      if (!shell.isConnected) { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', resume); return; }
+      if (document.hidden) return;
+      noteChange(); poll(true);
+    }
+    function onVisible() { resume(); }
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', resume);
     load();
-    every(30000, function () {
-      // Keep a person's form, selection and reading position steady while they work.
-      if (readingReport()) return;
-      load(true);
-    });
+    every(FAST, function () { poll(false); });
   }
 
   // Where a report came from, worded and coloured the same in the list and on the report.
