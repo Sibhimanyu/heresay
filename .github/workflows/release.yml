@@ -56,6 +56,7 @@ jobs:
         env:
           HERESAY_HOME: ${{ runner.temp }}/heresay
           HERESAY_SITE: ${{ vars.HERESAY_SITE }}
+          HERESAY_ONLY_SITE: ${{ vars.HERESAY_ONLY_SITE }}
         run: |
           mkdir -p "$HERESAY_HOME"
           # All `update` needs from the machine that set the instance up: its id, name and region.
