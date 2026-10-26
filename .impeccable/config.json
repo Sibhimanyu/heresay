@@ -10,6 +10,36 @@
           "public/app/index.html"
         ],
         "createdAt": "2026-09-29T09:49:32.896Z"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.34, 1.7, .5, 1)",
+        "createdAt": "2026-10-24T13:25:48.057Z",
+        "reason": "assistant decided: spring overshoot on the jelly character's 'Heard.' speech bubble is deliberate character motion in the approved squishy-toy concept"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "site/home.css"
+        ],
+        "createdAt": "2026-10-24T13:25:48.156Z",
+        "reason": "assistant decided: L249 .k-r is a quote marker on the reporter's quoted text inside a terminal brief, not a card accent"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.2, 1.4, .4, 1)",
+        "createdAt": "2026-10-24T13:36:41.871Z",
+        "reason": "assistant decided: mild overshoot on crowd face speech bubbles is character motion in the approved squishy-face concept"
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "site/extras.css"
+        ],
+        "createdAt": "2026-10-24T13:36:41.981Z",
+        "reason": "assistant decided: the cursor follower is a tiny position:fixed out-of-flow element morphing dot->labelled pill; scale would distort its text and relayout cost is negligible"
       }
     ]
   }
