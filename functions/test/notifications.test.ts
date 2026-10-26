@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handle, type Deps, type Req } from '../src/core/handler.js';
 import { MemoryStore } from '../src/core/store.js';
-import { defaultNotifications, notificationSender, notify, patchNotifications, telegramLookup, validCliqEndpoint } from '../src/core/notifications.js';
+import { defaultNotifications, notificationSender, notify, patchNotifications, telegramLookup, telegramPhoto, validCliqEndpoint } from '../src/core/notifications.js';
 import type { Project, Report } from '../src/core/types.js';
 
 const TOKEN = '123456:abcdefghijklmnopqrstuvwxyz_123456';
@@ -280,4 +280,76 @@ test('telegram lookup transport: lists recent chats, explains a bad token and a 
   assert.equal(found.chats.find((c) => c.id === '42')!.title, 'Asha R');
   await assert.rejects(telegramLookup((async () => reply(401, { ok: false })) as unknown as typeof fetch)(TOKEN), /doesn’t recognise/);
   await assert.rejects(telegramLookup(fake(reply(409, { ok: false })))(TOKEN), /webhook/);
+});
+
+/** A fake Telegram: records every call; `photos` is how many pictures the bot already has. */
+function fakeTelegram(opts: { photos?: number; failSet?: boolean; failPhotos?: boolean } = {}) {
+  const calls: { method: string; body: unknown }[] = [];
+  const http = (async (url: string, init: RequestInit) => {
+    const method = String(url).split('/').pop()!;
+    calls.push({ method, body: init.body });
+    const reply = (ok: boolean, result?: unknown) => new Response(JSON.stringify({ ok, result }), { status: ok ? 200 : 400 });
+    if (method === 'getMe') return reply(true, { id: 777, username: 'acme_bot' });
+    if (method === 'getUserProfilePhotos') return opts.failPhotos ? reply(false) : reply(true, { total_count: opts.photos ?? 0, photos: [] });
+    if (method === 'setMyProfilePhoto') return reply(!opts.failSet, true);
+    return reply(false);
+  }) as unknown as typeof fetch;
+  return { http, calls };
+}
+
+test('bot photo: sets the logo only when the bot has none; the upload is the documented multipart', async () => {
+  const none = fakeTelegram();
+  assert.equal(await telegramPhoto(none.http)(TOKEN, 'if-none'), 'set');
+  assert.deepEqual(none.calls.map((c) => c.method), ['getMe', 'getUserProfilePhotos', 'setMyProfilePhoto']);
+  const form = none.calls[2].body as FormData;
+  assert.deepEqual(JSON.parse(String(form.get('photo'))), { type: 'static', photo: 'attach://logo' });
+  const logo = form.get('logo') as File;
+  assert.equal(logo.type, 'image/jpeg');
+  assert.ok(logo.size > 1000 && logo.size < 60_000);
+  const has = fakeTelegram({ photos: 2 });
+  assert.equal(await telegramPhoto(has.http)(TOKEN, 'if-none'), 'has-photo');
+  assert.ok(!has.calls.some((c) => c.method === 'setMyProfilePhoto'));
+  const unknown = fakeTelegram({ failPhotos: true });
+  await assert.rejects(telegramPhoto(unknown.http)(TOKEN, 'if-none'));
+  assert.ok(!unknown.calls.some((c) => c.method === 'setMyProfilePhoto'), 'never overwrites a picture it could not see');
+  const always = fakeTelegram({ photos: 2 });
+  assert.equal(await telegramPhoto(always.http)(TOKEN, 'always'), 'set');
+  assert.deepEqual(always.calls.map((c) => c.method), ['setMyProfilePhoto']);
+});
+
+test('connecting a bot sets the logo once, and a failure never breaks the save', async () => {
+  const s = setup();
+  const asked: string[] = [];
+  s.deps.telegramPhoto = async (token, mode) => { asked.push(mode); if (asked.length === 1) throw new Error(`boom ${token}`); return 'set'; };
+  const patch = { telegram: { enabled: true, token: TOKEN, chat_id: '-1001234567890' } };
+  const first = await s.save(patch);
+  assert.equal(first.status, 200, 'a failing photo does not fail the connect');
+  assert.ok(!JSON.stringify(first.body).includes(TOKEN));
+  await s.save({ telegram: { enabled: true, token: '', chat_id: '-1001234567890' } });
+  await s.save(patch);
+  assert.deepEqual(asked, ['if-none'], 'only on connect, not on every save');
+  await s.save({ telegram: { token: '654321:zyxwvutsrqponmlkjihgfedcba_654321' } });
+  assert.deepEqual(asked, ['if-none', 'if-none'], 'a new token is a new connect');
+  assert.ok(!JSON.stringify(s.logs).includes('boom') && !JSON.stringify(s.logs).includes(TOKEN));
+});
+
+test('bot photo endpoint: owner only, uses the saved token, never echoes it', async () => {
+  const s = setup();
+  const modes: string[] = [];
+  let fail = false;
+  s.deps.telegramPhoto = async (token, mode) => { modes.push(`${mode}:${token}`); if (fail) throw new Error(token); return 'set'; };
+  const post = (headers: Record<string, string> = owner) => s.call({ method: 'POST', path: '/v1/notifications/telegram/photo', body: {}, headers });
+  assert.equal((await post({})).status, 401);
+  assert.equal((await post({ authorization: 'Bearer member' })).status, 403);
+  assert.equal((await post()).status, 400, 'no saved token');
+  await s.enable();
+  modes.length = 0;
+  const ok = await post();
+  assert.deepEqual([ok.status, ok.body], [200, { ok: true }]);
+  assert.deepEqual(modes, [`always:${TOKEN}`]);
+  fail = true;
+  const bad = await post();
+  assert.equal(bad.status, 502);
+  assert.ok(!JSON.stringify(bad.body).includes(TOKEN));
+  assert.ok(!JSON.stringify(s.logs).includes(TOKEN));
 });
