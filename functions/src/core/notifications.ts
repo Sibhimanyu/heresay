@@ -1,4 +1,5 @@
 import type { Deps, Req, Res } from './handler.js';
+import { BOT_LOGO_JPEG_BASE64 } from './bot-logo.js';
 import type { NotificationEvent, NotificationSettings, Project } from './types.js';
 
 export const NOTIFICATION_EVENTS: NotificationEvent[] = ['new_report', 'accepted', 'fixed', 'handoff'];
@@ -8,6 +9,9 @@ export interface TelegramChat { id: string; title: string; kind: 'private' | 'gr
 /** Who a bot token belongs to, and the chats that have messaged it lately, so nobody hunts for an ID. */
 export type TelegramLookup = (token: string) => Promise<{ bot: { username: string; name: string }; chats: TelegramChat[] }>;
 export class TelegramLookupError extends Error {}
+/** Sets the Heresay logo as a bot's profile picture. 'if-none' leaves an existing picture alone. */
+export type TelegramPhoto = (token: string, mode: 'if-none' | 'always') => Promise<'set' | 'has-photo'>;
+export class TelegramPhotoError extends Error {}
 
 export const defaultNotifications = (): NotificationSettings => ({
   events: { new_report: true, accepted: false, fixed: true, handoff: true },
@@ -103,9 +107,16 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
   }
   if (p.length === 1 && req.method === 'PATCH') {
     try {
+      const before = (await deps.store.getInstance())?.notifications?.telegram.token ?? null;
       const instance = await deps.store.updateInstance((cur) => ({
         ...cur!, notifications: patchNotifications(cur!.notifications ?? defaultNotifications(), body),
       }));
+      // A newly connected bot gets the Heresay logo if it has no picture. Once per connect, never fatal.
+      const after = instance.notifications!.telegram.token;
+      if (after && after !== before && deps.telegramPhoto) {
+        try { await deps.telegramPhoto(after, 'if-none'); deps.log('api.telegram_photo', { ok: true }); }
+        catch { deps.log('api.telegram_photo', { ok: false }); }  // never log the error: it may carry the token URL
+      }
       return json(200, { notifications: notificationView(instance.notifications!) });
     } catch (error) {
       // Validation messages are ours; never expose backend exceptions or credentials.
@@ -130,6 +141,22 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
       return json(200, await deps.telegramLookup(token));
     } catch (error) {
       return json(502, { error: error instanceof TelegramLookupError ? error.message : 'Could not reach Telegram. Try again in a moment.' });
+    }
+  }
+  if (p.length === 3 && p[1] === 'telegram' && p[2] === 'photo' && req.method === 'POST') {
+    // Owner-only like the rest. Uses the saved token, which never comes back.
+    const token = ((await deps.store.getInstance())!.notifications ?? defaultNotifications()).telegram.token;
+    if (!token) return json(400, { error: 'Save your bot token first.' });
+    const now = deps.now(), start = Math.floor(now / 60_000) * 60_000;
+    if (!await deps.store.hit(`notification-photo:telegram:${start}`, 5, start + 60_000)) {
+      return json(429, { error: 'Wait a minute before trying again.' });
+    }
+    if (!deps.telegramPhoto) return json(503, { error: 'Setting the bot’s picture is unavailable.' });
+    try {
+      await deps.telegramPhoto(token, 'always');
+      return json(200, { ok: true });
+    } catch {
+      return json(502, { error: 'Telegram didn’t accept the picture. Try again in a moment.' });
     }
   }
   if (p.length === 2 && p[1] === 'test' && req.method === 'POST') {
@@ -248,5 +275,40 @@ export function telegramLookup(http: typeof fetch = fetch): TelegramLookup {
       bot: { username: typeof bot?.username === 'string' ? bot.username : '', name: typeof bot?.first_name === 'string' ? bot.first_name.slice(0, 120) : '' },
       chats: [...seen.values()].reverse(),  // the latest first
     };
+  };
+}
+
+/**
+ * Puts the Heresay logo on a team's own bot (setMyProfilePhoto, Bot API 9.4+). Telegram takes static
+ * profile photos as JPEG, uploaded as a new file. "Already has a picture" is read with
+ * getUserProfilePhotos on the bot's own id; if Telegram won't answer that, we throw and the caller
+ * leaves the bot alone rather than overwrite a picture we couldn't see. The token only goes to Telegram.
+ */
+export function telegramPhoto(http: typeof fetch = fetch): TelegramPhoto {
+  const call = async (token: string, method: string, body: BodyInit, headers?: Record<string, string>) => {
+    const response = await http(`https://api.telegram.org/bot${token}/${method}`, {
+      method: 'POST', headers, body, signal: AbortSignal.timeout(5000), redirect: 'error',
+    });
+    const result = await response.json().catch(() => ({})) as { ok?: boolean; result?: unknown };
+    return { ok: response.ok && result.ok === true, result: result.result };
+  };
+  const json = (body: unknown) => JSON.stringify(body);
+  const JSON_HEADERS = { 'content-type': 'application/json' };
+  return async (token, mode) => {
+    if (mode === 'if-none') {
+      const me = await call(token, 'getMe', json({}), JSON_HEADERS);
+      const id = (me.result as { id?: unknown } | undefined)?.id;
+      if (!me.ok || typeof id !== 'number') throw new TelegramPhotoError('Telegram didn’t answer.');
+      const photos = await call(token, 'getUserProfilePhotos', json({ user_id: id, limit: 1 }), JSON_HEADERS);
+      const total = (photos.result as { total_count?: unknown } | undefined)?.total_count;
+      if (!photos.ok || typeof total !== 'number') throw new TelegramPhotoError('Could not tell whether the bot has a picture.');
+      if (total > 0) return 'has-photo';
+    }
+    const form = new FormData();
+    form.set('photo', json({ type: 'static', photo: 'attach://logo' }));
+    form.set('logo', new Blob([Buffer.from(BOT_LOGO_JPEG_BASE64, 'base64')], { type: 'image/jpeg' }), 'logo.jpg');
+    const set = await call(token, 'setMyProfilePhoto', form);
+    if (!set.ok) throw new TelegramPhotoError('Telegram didn’t accept the picture. Try again in a moment.');
+    return 'set';
   };
 }

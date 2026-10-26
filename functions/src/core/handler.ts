@@ -6,7 +6,7 @@ import { OPEN_CORS, approve, authorizationServer, authorize, connections, descri
 import { mcp } from './chat.js';
 import { withdraw } from './withdraw.js';
 import { alsoReported, duplicatesOf, follow, merge, parseFixRef, stampFix, unmerge } from './duplicates.js';
-import { notificationSettings, notify, type NotificationSender, type TelegramLookup } from './notifications.js';
+import { notificationSettings, notify, type NotificationSender, type TelegramLookup, type TelegramPhoto } from './notifications.js';
 import {
   LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, isSignIn, toReporterView,
   type Instance, type Member, type Project, type Report, type ReportContext, type ReporterPrefs, type Task,
@@ -46,6 +46,8 @@ export interface Deps {
   sendNotification?: NotificationSender;
   /** Reads a Telegram bot's name and recent chats, so owners pick a chat instead of finding its ID. */
   telegramLookup?: TelegramLookup;
+  /** Sets the Heresay logo as a team's Telegram bot picture. */
+  telegramPhoto?: TelegramPhoto;
 }
 
 /**

@@ -2097,6 +2097,7 @@
         var save = el('button', { class: 'btn primary', type: 'submit', text: 'Save ' + title });
         var test = el('button', { class: 'btn', type: 'button', text: 'Send test notification' });
         var remove = el('button', { class: 'btn ghost', type: 'button', text: 'Disconnect' });
+        var photo = el('button', { class: 'btn ghost', type: 'button', text: 'Use the Heresay logo as the bot’s picture' });
         var tg = telegram ? telegramGuide() : null;
         var form = el('form', { class: 'form notification-form' }, telegram ? [
           el('label', { class: 'notification-choice' }, [enabled, el('b', { text: 'Enable ' + title + ' notifications' })]),
@@ -2112,6 +2113,7 @@
           setupStep(3, 'Save and test', [
             el('p', { class: 'hint', text: 'Save, then send a test. It arrives from your bot in a few seconds.' }),
             el('div', { class: 'row tight' }, [save, test, remove]), message,
+            el('div', { class: 'row tight' }, [photo, el('span', { class: 'hint', text: 'Replaces the bot’s current picture.' })]),
           ]),
         ] : [
           el('label', { class: 'notification-choice' }, [enabled, el('b', { text: 'Enable ' + title + ' notifications' })]),
@@ -2245,6 +2247,7 @@
           tokenHint.textContent = saved.configured ? 'A token is saved. Paste a new one to replace it.' : 'Your token is saved on the server and is never displayed here.';
           test.disabled = dirty || !saved.enabled;
           remove.disabled = !saved.configured;
+          photo.disabled = !saved.configured;
         }
         function busy(on) {
           form.querySelectorAll('input, button').forEach(function (control) { control.disabled = on; });
@@ -2268,6 +2271,14 @@
           api('POST', '/notifications/test', { provider: provider }).then(function () {
             feedback('Test notification sent. Check ' + title + '.');
           }).catch(function (x) { feedback(x.message, true); }).finally(function () { busy(false); });
+        };
+        photo.onclick = function () {
+          busy(true); photo.textContent = 'Setting the picture…';
+          api('POST', '/notifications/telegram/photo', {}).then(function () {
+            toast('The bot now uses the Heresay logo. Telegram may take a moment to show it.');
+          }).catch(function (x) { toast(x.message, null, true); }).finally(function () {
+            photo.textContent = 'Use the Heresay logo as the bot’s picture'; busy(false);
+          });
         };
         remove.onclick = function () {
           var body = {}, patch = { enabled: false, token: null };
