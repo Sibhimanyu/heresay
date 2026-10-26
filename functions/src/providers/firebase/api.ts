@@ -9,6 +9,7 @@ import { FirestoreStore } from './firestore-store.js';
 import { handle, type Deps } from '../../core/handler.js';
 import { VERSION } from '../../core/version.js';
 import { notificationSender, telegramLookup, telegramPhoto } from '../../core/notifications.js';
+import { telegramApi } from '../../core/telegram.js';
 
 const deps: Deps = {
   store: new FirestoreStore(db),
@@ -25,6 +26,7 @@ const deps: Deps = {
   sendNotification: notificationSender(),
   telegramLookup: telegramLookup(),
   telegramPhoto: telegramPhoto(),
+  telegramApi: telegramApi(),
 };
 
 function selfOrigins(): string[] {

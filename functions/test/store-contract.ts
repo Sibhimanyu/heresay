@@ -195,6 +195,20 @@ export function storeContract(name: string, make: () => Store | Promise<Store>) 
     assert.equal(await s.getAuth('client', id), null);
   });
 
+  test(`${name}: Telegram link codes and pending declines are auth records too`, async () => {
+    const s = await make();
+    const code = uid('hash_'), pending = `-100${Date.now()}:${Math.floor(Math.random() * 1e6)}`;
+    await s.putAuth({ kind: 'link', id: code, data: { email: 'a@example.com' }, expires_at: AT });
+    await s.putAuth({ kind: 'decline', id: pending, data: { user: 42, project: 'p_1', report: 'r_1' }, expires_at: AT });
+    assert.equal((await s.getAuth('decline', pending))?.data.user, 42, 'ids with a minus and a colon round-trip');
+    assert.equal((await s.getAuth('link', pending)), null, 'kinds are separate');
+    assert.ok((await s.listAuth('link')).some((r) => r.id === code));
+    const [a, b] = await Promise.all([s.takeAuth('link', code), s.takeAuth('link', code)]);
+    assert.equal([a, b].filter(Boolean).length, 1, 'a link code works once');
+    await s.deleteAuth('decline', pending);
+    assert.equal(await s.getAuth('decline', pending), null);
+  });
+
   test(`${name}: a report's fields change without touching its status; a missing one is a no-op`, async () => {
     const s = await make(); const p = project(uid('u_')); await s.createProject(p);
     const r = report(p); await s.createReport(r);

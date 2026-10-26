@@ -65,7 +65,12 @@ Telegram walks you through it. Make a bot with BotFather and paste its token; th
 checks it. Then choose who gets alerts (**Just me**, **A group** or **A channel**) and follow
 the two or three taps shown. The page watches the bot and picks the chat as soon as it appears,
 so nobody has to find a chat ID. You can still enter a chat ID or `@channel` username yourself.
-Bots already connected to a webhook can't be looked up; enter the chat ID for those.
+Bots already connected to a webhook (including Heresay's own, below) can't be looked up; enter
+the chat ID for those.
+On a public https address, new-report alerts in Telegram get **Accept**, **Decline** and **Show
+full text** buttons. Each member links their Telegram once (Notifications > Act from Telegram:
+make a code, send `/start CODE` to the bot); a tap only counts for a linked member who is still
+on the team. See `docs/decisions/0016-telegram-actions.md`.
 Cliq takes a **Webhook Token** from Bots & Tools and a bot or channel **message endpoint**
 using your region's Cliq domain. Paste the endpoint without the `?zapikey=...` query string;
 enter the token separately. See [Cliq webhook setup](https://www.zoho.com/cliq/help/platform/webhook-tokens.html).

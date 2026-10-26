@@ -2050,6 +2050,7 @@
     view.appendChild(el('p', { class: 'mute', text: 'Know when a report needs a hearing, or when work moves forward. These settings apply to every app in this Heresay.' }));
     if (me.role !== 'owner') {
       view.appendChild(el('section', { class: 'card' }, [el('p', { text: 'An owner can connect Telegram or Zoho Cliq and choose which events your team receives.' }), el('a', { href: '#/team', text: 'See team owners' })]));
+      telegramActions(view);
       return;
     }
     var content = el('div', {}, [loading()]);
@@ -2085,6 +2086,7 @@
       content.appendChild(el('section', { class: 'card' }, [el('h2', { text: 'When to notify' }), eventsForm]));
       content.appendChild(el('p', { class: 'hint', text: 'Alerts include the app name, event, report ID, and a link to the dashboard. Reporter text and contact details stay in Heresay.' }));
       destination('telegram', 'Telegram', settings.telegram);
+      telegramActions(content);
       destination('cliq', 'Zoho Cliq', settings.cliq);
 
       function destination(provider, title, saved) {
@@ -2129,7 +2131,7 @@
          */
         function telegramGuide() {
           var g = { botLine: el('div', { class: 'bot-line', 'aria-live': 'polite' }), step2: el('div', { class: 'tg-step2' }) };
-          var bot = null, kind = 'private', chats = [], timer = null, until = 0, checking = null;
+          var bot = null, kind = 'private', chats = [], timer = null, until = 0, checking = null, connected = false;
           var KIND = { private: 'Private chat', group: 'Group', supergroup: 'Group', channel: 'Channel' };
           var wait = el('div', { class: 'wait', role: 'status' });
           var list = el('div', { class: 'chat-list', role: 'radiogroup', 'aria-label': 'Send alerts to' });
@@ -2198,7 +2200,7 @@
             else if (state === 'idle') { wait.appendChild(document.createTextNode('Nothing yet. Follow the steps above, then')); wait.appendChild(again); }
             wait.hidden = state === 'none';
           }
-          function stop() { clearTimeout(timer); timer = null; if (bot) drawWait(address.value ? 'none' : 'idle'); }
+          function stop() { clearTimeout(timer); timer = null; if (bot && !connected) drawWait(address.value ? 'none' : 'idle'); }
           function watch() {
             clearTimeout(timer);
             until = Date.now() + 5 * 60 * 1000;
@@ -2218,11 +2220,12 @@
           function lookup(quiet) {
             return api('POST', '/notifications/telegram/lookup', { token: token.value.trim() }).then(function (b) {
               var fresh = !bot || bot.username !== b.bot.username;
-              bot = b.bot; chats = b.chats;
+              bot = b.bot; chats = b.chats; connected = !!b.connected;
               g.botLine.textContent = '';
               g.botLine.appendChild(el('p', { class: 'ok-msg' }, [el('b', { text: '✓ Token works. ' }), document.createTextNode('Your bot is ' + (bot.name || 'ready') + ' (@' + bot.username + ').')]));
               if (fresh) { g.step2.textContent = ''; drawTabs(); drawHow(); [el('p', { class: 'hint', text: 'Who should get the alerts?' }), tabs, how, wait, list, chosen, manual].forEach(function (n) { g.step2.appendChild(n); }); }
               drawChats();
+              if (b.note) g.botLine.appendChild(el('p', { class: 'hint', text: b.note }));
             }).catch(function (x) {
               if (quiet && bot) return;
               g.botLine.textContent = '';
@@ -2233,7 +2236,7 @@
           function check() {
             clearTimeout(checking);
             checking = setTimeout(function () {
-              lookup().then(function () { if (!address.value) watch(); else stop(); }).catch(function () {});
+              lookup().then(function () { if (!address.value && !connected) watch(); else stop(); }).catch(function () {});
             }, 400);
           }
           g.step2.appendChild(el('p', { class: 'hint', text: 'Paste your bot token above first. Then this step shows exactly what to tap.' }));
@@ -2297,6 +2300,56 @@
       content.appendChild(el('p', { class: 'err', role: 'alert', text: x.message }));
       content.appendChild(el('button', { class: 'btn', text: 'Retry', onclick: function () { route(); } }));
     });
+  }
+
+  /**
+   * Tapping Accept or Decline in Telegram only counts for someone who linked their Telegram to their
+   * own sign-in: a one-time code, sent to the bot. Any member can do this; it isn't owner-only.
+   */
+  function telegramActions(host) {
+    var body = el('div', {}, [loading()]);
+    host.appendChild(el('section', { class: 'card' }, [el('h2', { text: 'Act from Telegram' }), body]));
+    draw();
+    function draw() {
+      api('GET', '/telegram/link').then(function (b) {
+        body.textContent = '';
+        if (!b.connected) {
+          body.appendChild(el('p', { class: 'hint', text: 'Not connected. Once an owner connects a Telegram bot above and this Heresay has a public https address, new-report alerts get Accept and Decline buttons and you can use them after linking your Telegram here.' }));
+          return;
+        }
+        var msg = el('p', { role: 'status' }), shown = el('div', {});
+        var make = el('button', { class: 'btn' + (b.linked ? '' : ' primary'), type: 'button', text: b.linked ? 'Make a new code' : 'Link my Telegram' });
+        make.onclick = function () {
+          var done = busyButton(make, 'Making a code…');
+          api('POST', '/telegram/link-code', {}).then(function (c) {
+            var at = c.bot_username ? '@' + c.bot_username : 'your Heresay bot';
+            shown.textContent = '';
+            shown.appendChild(codeBlock('/start ' + c.code));
+            shown.appendChild(el('p', {}, ['Send ', el('code', { text: '/start ' + c.code }), ' to ' + at + ', in a private chat or in the alerts group. This code works once and expires ',
+              el('b', { text: 'at ' + new Date(c.expires_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }), '.']));
+            if (c.bot_username) shown.appendChild(el('a', { class: 'btn', href: 'https://t.me/' + encodeURIComponent(c.bot_username) + '?start=' + encodeURIComponent(c.code), target: '_blank', rel: 'noopener noreferrer', text: 'Open ' + at + ' in Telegram ↗' }));
+            msg.textContent = '';
+          }).catch(function (x) { msg.className = 'err'; msg.textContent = x.message; }).finally(done);
+        };
+        var kids = [
+          el('p', { class: b.linked ? 'ok-msg' : 'hint', text: b.linked
+            ? '✓ Your Telegram is linked. You can accept or decline reports from the alerts. Decline asks you for the reason, which the reporter reads.'
+            : 'Link your Telegram to accept or decline reports from the alerts. Only linked team members can; anyone else’s tap is refused.' }),
+          el('div', { class: 'row' }, [make]),
+        ];
+        if (b.linked) {
+          var unlink = el('button', { class: 'btn ghost', type: 'button', text: 'Unlink' });
+          unlink.onclick = function () {
+            var done = busyButton(unlink, 'Unlinking…');
+            api('DELETE', '/telegram/link').then(function () { toast('Your Telegram is unlinked.'); draw(); })
+              .catch(function (x) { msg.className = 'err'; msg.textContent = x.message; done(); });
+          };
+          kids[1].appendChild(unlink);
+        }
+        kids.push(shown, msg);
+        kids.forEach(function (k) { body.appendChild(k); });
+      }).catch(function (x) { body.textContent = ''; body.appendChild(el('p', { class: 'err', role: 'alert', text: x.message })); });
+    }
   }
 
   // ---- team ------------------------------------------------------------------------------
