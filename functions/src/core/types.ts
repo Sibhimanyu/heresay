@@ -202,7 +202,15 @@ export interface Member { email: string; role: Role; added_at: string; added_by:
 export type NotificationEvent = 'new_report' | 'accepted' | 'fixed' | 'handoff';
 export interface NotificationSettings {
   events: Record<NotificationEvent, boolean>;
-  telegram: { enabled: boolean; token: string | null; chat_id: string };
+  telegram: {
+    enabled: boolean; token: string | null; chat_id: string;
+    /** Acting from Telegram (telegram.ts). Server-side only: never in notificationView. */
+    webhook_secret?: string;
+    /** The URL we last registered with Telegram, or null/absent when none is. */
+    webhook_url?: string | null;
+    /** Telegram user id -> member email. Membership is re-checked at every tap. */
+    links?: Record<string, string>;
+  };
   cliq: { enabled: boolean; token: string | null; endpoint: string };
 }
 export interface Instance { members: Member[]; created_at: string; notifications?: NotificationSettings }
@@ -298,9 +306,10 @@ export const toReporterView = (r: Report): ReporterView => ({
 
 /**
  * OAuth for chat apps (oauth.ts): a registered client, a one-time code, a member's connection
- * (grant), an access token; and a chat request not sent yet (draft, chat.ts). Secrets are stored hashed. `expires_at` lets a backend clean up.
+ * (grant), an access token; a chat request not sent yet (draft, chat.ts); a Telegram link code (link) and a
+ * decline waiting for its reason (decline), both telegram.ts. Secrets are stored hashed. `expires_at` lets a backend clean up.
  */
-export type AuthKind = 'client' | 'code' | 'grant' | 'access' | 'draft';
+export type AuthKind = 'client' | 'code' | 'grant' | 'access' | 'draft' | 'link' | 'decline';
 export interface AuthRecord {
   kind: AuthKind;
   id: string;

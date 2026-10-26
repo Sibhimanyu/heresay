@@ -7,6 +7,7 @@ import { mcp } from './chat.js';
 import { withdraw } from './withdraw.js';
 import { alsoReported, duplicatesOf, follow, merge, parseFixRef, stampFix, unmerge } from './duplicates.js';
 import { notificationSettings, notify, type NotificationSender, type TelegramLookup, type TelegramPhoto } from './notifications.js';
+import { linkRoutes, telegramWebhook, type TelegramApi } from './telegram.js';
 import {
   LIMITS, PLATFORMS, REPORT_ORDER, REPORT_TYPES, isFramework, isPlatform, isReportType, isSignIn, toReporterView,
   type Instance, type Member, type Project, type Report, type ReportContext, type ReporterPrefs, type Task,
@@ -48,6 +49,8 @@ export interface Deps {
   telegramLookup?: TelegramLookup;
   /** Sets the Heresay logo as a team's Telegram bot picture. */
   telegramPhoto?: TelegramPhoto;
+  /** Calls the Telegram Bot API for the webhook: replies, button taps, setWebhook. */
+  telegramApi?: TelegramApi;
 }
 
 /**
@@ -237,6 +240,9 @@ async function route(req: Req, deps: Deps): Promise<Res> {
   if (p[0] === 'reports' && p[1] === 'withdraw' && req.method === 'POST') return withdrawMine(req, deps);
   if (p[0] === 'reports' && req.method === 'OPTIONS') return preflight(req);
 
+  // Telegram calls this itself, from its servers: no Origin, no sign-in (ADR 0016).
+  if (p[0] === 'telegram' && p[1] === 'webhook' && p.length === 3 && req.method === 'POST') return telegramWebhook(p[2], req, deps, triage);
+
   // Chat apps (ChatGPT and other MCP clients): OAuth with the member's own sign-in, then MCP.
   if (p[0] === 'mcp' && p.length === 1) return mcp(req, deps);
   if (p[0] === 'oauth' && req.method === 'OPTIONS') return json(204, null, OPEN_CORS);
@@ -280,6 +286,7 @@ async function route(req: Req, deps: Deps): Promise<Res> {
     if (member.role !== 'owner') return json(403, { error: 'Only an owner can manage notifications.' });
     return notificationSettings(p, req, deps, parseBody(req.body));
   }
+  if (p[0] === 'telegram' && p[1] === 'link-code' || p[0] === 'telegram' && p[1] === 'link') return linkRoutes(p, member, req, deps);
   if (p[0] === 'agent-tokens') return tokens(p, member, req, deps, parseBody(req.body));
   // The dashboard's "Allow this chat app?" page, and the chat apps a member has connected.
   if (p[0] === 'oauth' && p[1] === 'ask' && req.method === 'GET') return describeAsk(req.query, deps);
@@ -647,7 +654,7 @@ function transitionRes(t: Transition): Res {
   return json(409, { error: `this report is already ${t.status}`, status: t.status });
 }
 
-async function triage(
+export async function triage(
   project: Project, report_id: string, action: string | undefined, uid: string,
   req: Req, deps: Deps,  // uid: the team member's email
 ): Promise<Res> {

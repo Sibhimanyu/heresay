@@ -1,10 +1,12 @@
 import type { Deps, Req, Res } from './handler.js';
 import { BOT_LOGO_JPEG_BASE64 } from './bot-logo.js';
+import { reportKeyboard, syncWebhook } from './telegram.js';
 import type { NotificationEvent, NotificationSettings, Project } from './types.js';
 
 export const NOTIFICATION_EVENTS: NotificationEvent[] = ['new_report', 'accepted', 'fixed', 'handoff'];
 export type Destination = NotificationSettings['telegram'] | NotificationSettings['cliq'];
-export type NotificationSender = (provider: 'telegram' | 'cliq', destination: Destination, text: string) => Promise<void>;
+/** `telegram_markup`: buttons under a Telegram message (an inline keyboard). Cliq ignores it. */
+export type NotificationSender = (provider: 'telegram' | 'cliq', destination: Destination, text: string, extra?: { telegram_markup?: unknown }) => Promise<void>;
 export interface TelegramChat { id: string; title: string; kind: 'private' | 'group' | 'supergroup' | 'channel' }
 /** Who a bot token belongs to, and the chats that have messaged it lately, so nobody hunts for an ID. */
 export type TelegramLookup = (token: string) => Promise<{ bot: { username: string; name: string }; chats: TelegramChat[] }>;
@@ -27,6 +29,9 @@ export function notificationView(settings: NotificationSettings) {
     cliq: { enabled: settings.cliq.enabled, configured: !!settings.cliq.token, endpoint: settings.cliq.endpoint },
   };
 }
+
+const telegramChanged = (a: NotificationSettings['telegram'] | undefined, b: NotificationSettings['telegram']) =>
+  (a?.token ?? null) !== b.token || (a?.enabled ?? false) !== b.enabled;
 
 class SettingsError extends Error {}
 const TELEGRAM_TOKEN = /^\d+:[A-Za-z0-9_-]{20,}$/;
@@ -107,7 +112,8 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
   }
   if (p.length === 1 && req.method === 'PATCH') {
     try {
-      const before = (await deps.store.getInstance())?.notifications?.telegram.token ?? null;
+      const beforeTelegram = (await deps.store.getInstance())?.notifications?.telegram;
+      const before = beforeTelegram?.token ?? null;
       const instance = await deps.store.updateInstance((cur) => ({
         ...cur!, notifications: patchNotifications(cur!.notifications ?? defaultNotifications(), body),
       }));
@@ -117,7 +123,9 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
         try { await deps.telegramPhoto(after, 'if-none'); deps.log('api.telegram_photo', { ok: true }); }
         catch { deps.log('api.telegram_photo', { ok: false }); }  // never log the error: it may carry the token URL
       }
-      return json(200, { notifications: notificationView(instance.notifications!) });
+      // Buttons in Telegram need our webhook on the bot (or off it). Never fatal either.
+      if (telegramChanged(beforeTelegram, instance.notifications!.telegram)) await syncWebhook(beforeTelegram, req, deps);
+      return json(200, { notifications: notificationView((await deps.store.getInstance())!.notifications!) });
     } catch (error) {
       // Validation messages are ours; never expose backend exceptions or credentials.
       if (error instanceof SettingsError) {
@@ -135,6 +143,19 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
     const now = deps.now(), start = Math.floor(now / 60_000) * 60_000;
     if (!await deps.store.hit(`notification-lookup:telegram:${start}`, 30, start + 60_000)) {
       return json(429, { error: 'Wait a minute before looking again.' });
+    }
+    // Telegram refuses getUpdates once a webhook is set, and ours is. Say so instead of failing.
+    const saved = (await deps.store.getInstance())!.notifications?.telegram;
+    if (saved?.token === token && saved.webhook_url && deps.telegramApi) {
+      const me = await deps.telegramApi(token, 'getMe', {});
+      const bot = me.result as { username?: unknown; first_name?: unknown } | undefined;
+      if (me.ok) {
+        return json(200, {
+          bot: { username: typeof bot?.username === 'string' ? bot.username : '', name: typeof bot?.first_name === 'string' ? bot.first_name.slice(0, 120) : '' },
+          chats: [], connected: true,
+          note: 'Telegram is connected; to pick a different chat, enter its chat ID.',
+        });
+      }
     }
     if (!deps.telegramLookup) return json(503, { error: 'Telegram lookup is unavailable.' });
     try {
@@ -180,6 +201,8 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
   return json(404, { error: 'not found' });
 }
 
+const actionsReady = (tg: NotificationSettings['telegram']) => !!(tg.webhook_secret && tg.webhook_url);
+
 /** Metadata only: open reports and reporter details must never flow into an integration. */
 export async function notify(event: NotificationEvent, project: Project, reportId: string, deps: Deps): Promise<void> {
   try {
@@ -195,7 +218,9 @@ export async function notify(event: NotificationEvent, project: Project, reportI
     await Promise.all((['telegram', 'cliq'] as const).map(async (provider) => {
       if (!settings[provider].enabled) return;
       try {
-        await deps.sendNotification!(provider, settings[provider], text);
+        const markup = provider === 'telegram' && event === 'new_report' && actionsReady(settings.telegram)
+          ? reportKeyboard(project.id, reportId) : null;
+        await deps.sendNotification!(provider, settings[provider], text, markup ? { telegram_markup: markup } : undefined);
         deps.log('api.notification_sent', { provider, notification_event: event, project_id: project.id, report_id: reportId });
       } catch {
         // Transport errors may contain credential-bearing URLs. Never log those errors.
@@ -210,12 +235,12 @@ export async function notify(event: NotificationEvent, project: Project, reportI
 
 /** Shared HTTP transport; a backend adapter supplies this to the portable core. */
 export function notificationSender(http: typeof fetch = fetch): NotificationSender {
-  return async (provider, destination, text) => {
+  return async (provider, destination, text, extra) => {
     let url: string, body: Record<string, unknown>;
     if (!destination.token) throw new Error('Notification token missing.');
     if (provider === 'telegram' && 'chat_id' in destination) {
       url = `https://api.telegram.org/bot${destination.token}/sendMessage`;
-      body = { chat_id: destination.chat_id, text, link_preview_options: { is_disabled: true } };
+      body = { chat_id: destination.chat_id, text, link_preview_options: { is_disabled: true }, ...(extra?.telegram_markup ? { reply_markup: extra.telegram_markup } : {}) };
     } else if (provider === 'cliq' && 'endpoint' in destination && validCliqEndpoint(destination.endpoint)) {
       const u = new URL(destination.endpoint);
       u.searchParams.set('zapikey', destination.token);
