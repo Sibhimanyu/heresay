@@ -209,7 +209,7 @@ test('the new-report notification gets Accept, Decline and Show full text; other
   await w.submit();
   const first = w.sent.at(-1)!;
   const row = first.extra.telegram_markup.inline_keyboard[0];
-  assert.deepEqual(row.map((b: any) => b.text), ['Accept', 'Decline', 'Show full text']);
+  assert.deepEqual(row.map((b: any) => b.text), ['✅ Accept', '✖️ Decline', '📄 Full text']);
   for (const b of row) assert.ok(Buffer.byteLength(b.callback_data) <= 64, b.callback_data);
   assert.ok(!first.text.includes('save button'), 'the message itself still carries no reporter text');
   const r = (await w.store.listReports(w.project.id))[0];
@@ -218,7 +218,18 @@ test('the new-report notification gets Accept, Decline and Show full text; other
   const sentBefore = w.sent.length;
   await w.call({ method: 'POST', path: `/v1/projects/${w.project.id}/reports/${r.id}/fixed`, body: {} });
   assert.ok(w.sent.length > sentBefore);
-  assert.equal(w.sent.at(-1)!.extra, undefined);
+  assert.deepEqual(w.sent.at(-1)!.extra, { telegram_html: true }, 'formatted, but no buttons');
+});
+
+test('the alert is formatted HTML with the app name escaped and the type as a word, never the reporter\'s text', async () => {
+  const w = await world();
+  await w.deps.store.updateProject(w.project.id, { name: 'Acme <b>&</b> "Notes"' });
+  await w.submit();
+  const m = w.sent.at(-1)!;
+  assert.equal(m.extra.telegram_html, true);
+  assert.match(m.text, /^🔔 <b>New report<\/b> · Acme &lt;b&gt;&amp;&lt;\/b&gt; &quot;Notes&quot;\n/);
+  assert.match(m.text, /\n🐞 Broken · <code>r_[\w-]+<\/code>\n<a href="https:\/\/heresay\.example\/app\/#\/apps\/[^"]+">Open in Heresay →<\/a>$/);
+  assert.ok(!/<b>&<\/b>/.test(m.text), 'a team-chosen name cannot add markup');
 });
 
 test('a tap from an unlinked Telegram user is refused with an alert and changes nothing', async () => {
@@ -252,7 +263,7 @@ test('a linked accept creates the task through the dashboard path, edits the mes
   let n = w.calls.length;
   await w.tap(7, w.data('a', r));
   const edit = w.after(n).find((c) => c.method === 'editMessageText')!;
-  assert.match(edit.body.text, /Accepted by member@example\.com$/);
+  assert.match(edit.body.text, /✅ Accepted by member@example\.com$/);
   assert.deepEqual(edit.body.reply_markup, { inline_keyboard: [] });
   assert.equal(edit.body.parse_mode, undefined);
   const report = (await w.store.getReport(w.project.id, r.id))!;
@@ -301,7 +312,7 @@ test('decline asks for a reason; an empty or oversize reply is refused and keeps
   assert.equal(done.decline_reason, 'We do not support this browser');
   assert.equal(done.triaged_by, 'member@example.com');
   const edit = w.after(n).find((c) => c.method === 'editMessageText')!;
-  assert.match(edit.body.text, /Declined by member@example\.com: We do not support this browser$/);
+  assert.match(edit.body.text, /✖️ Declined by member@example\.com: We do not support this browser$/);
   assert.deepEqual(edit.body.reply_markup, { inline_keyboard: [] });
   assert.equal(edit.body.message_id, 55);
   assert.equal(await w.store.getAuth('decline', `${CHAT}:${promptId}`), null, 'the pending decline is spent');

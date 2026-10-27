@@ -44,9 +44,9 @@ export function reportKeyboard(project_id: string, report_id: string) {
   const data = (a: string) => `${a}|${project_id}|${report_id}`;
   if (Buffer.byteLength(data('a')) > 64) return null;
   return { inline_keyboard: [[
-    { text: 'Accept', callback_data: data('a') },
-    { text: 'Decline', callback_data: data('d') },
-    { text: 'Show full text', callback_data: data('t') },
+    { text: '✅ Accept', callback_data: data('a') },
+    { text: '✖️ Decline', callback_data: data('d') },
+    { text: '📄 Full text', callback_data: data('t') },
   ]] };
 }
 
@@ -162,7 +162,7 @@ export async function linkRoutes(p: string[], me: Member, req: Req, deps: Deps):
 
 interface TgUser { id: number; is_bot?: boolean }
 interface TgChat { id: number | string; type?: string; username?: string }
-interface TgMessage { message_id: number; chat: TgChat; from?: TgUser; text?: string; reply_to_message?: { message_id: number } }
+interface TgMessage { message_id: number; chat: TgChat; from?: TgUser; text?: string; entities?: unknown[]; reply_to_message?: { message_id: number } }
 interface TgCallback { id: string; from: TgUser; message?: TgMessage; data?: string }
 interface TgUpdate { message?: TgMessage; callback_query?: TgCallback }
 
@@ -249,7 +249,7 @@ async function handleUpdate(u: TgUpdate, members: Member[], tg: Telegram, deps: 
       const res = await triage(project, report.id, 'accept', email, fakeReq(), deps);
       if (res.status === 200) {
         await answer('Accepted');
-        await finish(api, token, cb.message, `Accepted by ${email}`);
+        await finish(api, token, cb.message, `✅ Accepted by ${email}`);
         return;
       }
       await alreadyOrFail(res, project, report.id, answer, cb.message);
@@ -319,7 +319,7 @@ async function handleUpdate(u: TgUpdate, members: Member[], tg: Telegram, deps: 
   const original = { message_id: Number(pending.data.message_id), chat: msg.chat, text: String(pending.data.text ?? '') };
   if (res.status === 200) {
     await deps.store.deleteAuth('decline', key);
-    await finish(api, token, original, `Declined by ${email}: ${text}`);
+    await finish(api, token, original, `✖️ Declined by ${email}: ${text}`);
     await reply('Declined. The reporter will see your reason.');
     return;
   }
@@ -346,10 +346,12 @@ function decided(r: Report): string | null {
 const fakeReq = (body: unknown = {}): Req => ({ method: 'POST', path: '', query: {}, headers: {}, ip: '', body });
 
 /** Append the outcome to the notification and take the buttons away. */
-async function finish(api: TelegramApi, token: string, message: { message_id: number; chat: TgChat; text?: string }, line: string) {
+async function finish(api: TelegramApi, token: string, message: { message_id: number; chat: TgChat; text?: string; entities?: unknown[] }, line: string) {
   await api(token, 'editMessageText', {
     chat_id: message.chat.id, message_id: message.message_id,
-    text: capText(`${(message.text ?? '').replace(/\n\n(Accepted|Declined) by [\s\S]*$/, '')}\n\n${line}`.trim()),
+    text: capText(`${(message.text ?? '').replace(/\n\n(✅ Accepted|✖️ Declined|Accepted|Declined) by [\s\S]*$/, '')}\n\n${line}`.trim()),
+    // The alert's bold and link, kept: the outcome is added after them, so their positions still hold.
+    ...(message.entities?.length ? { entities: message.entities } : {}),
     link_preview_options: { is_disabled: true }, reply_markup: { inline_keyboard: [] },
   });
 }
