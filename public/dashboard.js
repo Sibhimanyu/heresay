@@ -1320,6 +1320,8 @@
     view.classList.add('inbox-view');
     var reports = [], ctxs = {}, selected = null, loaded = false, detailSignature = null, loadSerial = 0;
     var product = p ? productOf(p) : 'all', platform = 'all', search = '', type = 'all', source = 'all';
+    // Choosing several open reports to accept together: the keys picked, a confirm step, the last one ticked (for shift-click).
+    var picking = false, picked = {}, confirming = false, bulkBusy = false, lastPick = null;
     var shell = el('div', { class: 'inbox-shell' });
     var list = el('div', { class: 'report-list', 'aria-label': 'Reports' });
     var detail = el('section', { class: 'report-detail', 'aria-label': 'Report details', tabindex: '-1' });
@@ -1339,10 +1341,11 @@
     var controls = el('div', { class: 'inbox-controls' }, [productSelect, platformSelect, filterButton]);
     var productTools = el('details', { class: 'inbox-app-tools', hidden: !p }, [el('summary', { text: 'Manage app' })]);
     var listHead = el('div', { class: 'list-heading' }, [el('b', { text: 'Needs review' }), el('span', { text: 'Type, then most reported' })]);
+    var bulkBar = el('div', { class: 'bulk-bar', hidden: true });
     var master = el('section', { class: 'inbox-master', 'aria-label': 'Report inbox' }, [
       el('div', { class: 'inbox-heading' }, [heading, el('p', { class: 'mute', text: 'A hearing for every report.' })]),
       el('div', { class: 'inbox-search' }, [searchInput, el('kbd', { text: '⌘ K', 'aria-hidden': 'true' })]),
-      controls, advanced, productTools, filters, listHead, list,
+      controls, advanced, productTools, filters, listHead, bulkBar, list,
     ]);
     shell.appendChild(master); shell.appendChild(detail); view.appendChild(shell);
     detail.appendChild(loading());
@@ -1402,6 +1405,12 @@
       var shown = here.filter(function (r) { return filter === 'all' || r.status === filter; });
       listHead.firstChild.textContent = filter === 'open' ? 'Needs review' : filter === 'all' ? 'All reports' : STATUS_LABEL[filter] + ' reports';
       if (!shown.some(function (r) { return key(r) === selected; })) selected = shown.length ? key(shown[0]) : null;
+      // Only open reports can be accepted, so choosing is for that tab; whatever left the list drops out of the choice.
+      if (filter !== 'open' || !shown.length) { picking = false; confirming = false; picked = {}; lastPick = null; }
+      Object.keys(picked).forEach(function (k) { if (!shown.some(function (r) { return key(r) === k; })) delete picked[k]; });
+      if (!Object.keys(picked).length) confirming = false;
+      drawBulk(shown);
+      list.classList.toggle('picking', picking);
       list.textContent = '';
       if (!projects.length) {
         list.appendChild(el('div', { class: 'inbox-empty' }, [markImg(48), el('h2', { text: 'Add your first app' }), el('p', { text: 'Connect your app to give every report a hearing.' }), el('a', { class: 'btn primary', href: '#/new', text: 'Add an app' })]));
@@ -1417,13 +1426,74 @@
             el('span', { class: 'preview-meta' }, [sourceTag(r, 'src-label'), (count > 1 ? ' · ' + count + ' reports' : '') + ' · ' + relative(r.created_at)])]),
           el('span', { class: 'pill ' + r.type, text: TYPE_LABEL[r.type] }),
         ]);
-        list.appendChild(button);
+        var line = el('div', { class: 'report-row' }, [button]);
+        if (picking) {
+          var box = el('input', { type: 'checkbox', 'aria-label': 'Select: ' + title(r), disabled: bulkBusy });
+          box.checked = !!picked[key(r)];
+          box.addEventListener('click', function (e) {
+            var on = box.checked, at = shown.indexOf(r);
+            // Shift-click ticks everything between this one and the last.
+            var from = e.shiftKey && lastPick !== null ? Math.min(at, lastPick) : at, to = e.shiftKey && lastPick !== null ? Math.max(at, lastPick) : at;
+            shown.slice(from, to + 1).forEach(function (x) { if (on) picked[key(x)] = true; else delete picked[key(x)]; });
+            lastPick = at; confirming = false; render();
+          });
+          line.insertBefore(el('label', { class: 'pick' }, [box]), button);
+        }
+        list.appendChild(line);
       });
       drawDetail(shown, preserveDetail);
       var candidates = focusedReport ? list.querySelectorAll('[data-report]') : focusedStatus ? filters.querySelectorAll('[data-status]') : [];
       Array.prototype.some.call(candidates, function (n) {
         if ((focusedReport && n.dataset.report === focusedReport) || (focusedStatus && n.dataset.status === focusedStatus)) { n.focus({ preventScroll: true }); return true; }
         return false;
+      });
+    }
+    /** The bar over the list: start choosing, select all, how many, and the two-step accept. */
+    function drawBulk(shown) {
+      bulkBar.textContent = '';
+      bulkBar.hidden = filter !== 'open' || !shown.length;
+      if (bulkBar.hidden) return;
+      if (!picking) {
+        bulkBar.appendChild(el('button', { class: 'btn ghost', type: 'button', text: 'Select reports…', onclick: function () { picking = true; render(); } }));
+        return;
+      }
+      var n = Object.keys(picked).length;
+      var all = el('input', { type: 'checkbox', 'aria-label': 'Select all ' + shown.length + ' open reports', disabled: bulkBusy });
+      all.checked = n === shown.length; all.indeterminate = n > 0 && n < shown.length;
+      all.addEventListener('click', function () {
+        shown.forEach(function (r) { if (all.checked) picked[key(r)] = true; else delete picked[key(r)]; });
+        confirming = false; render();
+      });
+      bulkBar.appendChild(el('label', { class: 'pick-all' }, [all, ' All ' + shown.length]));
+      bulkBar.appendChild(el('span', { class: 'count', role: 'status', text: bulkBusy ? 'Accepting…' : n ? n + ' selected' : 'None selected' }));
+      bulkBar.appendChild(el('span', { class: 'spacer' }));
+      if (confirming && n) {
+        bulkBar.appendChild(el('span', { class: 'confirm-q', text: 'Make ' + n + (n === 1 ? ' report' : ' reports') + ' available to a coding agent?' }));
+        bulkBar.appendChild(el('button', { class: 'btn primary', type: 'button', disabled: bulkBusy, text: 'Yes, accept ' + n, onclick: function () { acceptPicked(shown); } }));
+        bulkBar.appendChild(el('button', { class: 'btn', type: 'button', disabled: bulkBusy, text: 'Back', onclick: function () { confirming = false; render(); } }));
+      } else {
+        bulkBar.appendChild(el('button', { class: 'btn primary', type: 'button', disabled: !n || bulkBusy, text: n ? 'Accept ' + n + '…' : 'Accept…', onclick: function () { confirming = true; render(); } }));
+        bulkBar.appendChild(el('button', { class: 'btn ghost', type: 'button', disabled: bulkBusy, text: 'Cancel', onclick: function () { picking = false; picked = {}; lastPick = null; render(); } }));
+      }
+    }
+    /** One after another through the same accept a person does on a single report: the default repo, no note. A 409 or an error leaves that one open and the rest go on. */
+    function acceptPicked(shown) {
+      var todo = shown.filter(function (r) { return picked[key(r)]; }), ok = 0, failed = [];
+      bulkBusy = true; confirming = false; render();
+      var step = function (i) {
+        if (i >= todo.length) return Promise.resolve();
+        var r = todo[i];
+        return api('POST', '/projects/' + r.project_id + '/reports/' + r.id + '/accept', {})
+          .then(function (x) { Object.assign(r, x.report || {}); ok++; delete picked[key(r)]; })
+          .catch(function (x) { failed.push(x.message); })
+          .then(function () { return step(i + 1); });
+      };
+      step(0).then(function () {
+        bulkBusy = false;
+        if (!failed.length) { picking = false; lastPick = null; }
+        toast('Accepted ' + ok + (ok === 1 ? ' report' : ' reports') + '. They are waiting for a coding agent.'
+          + (failed.length ? ' ' + failed.length + ' could not be accepted: ' + failed[0] : ''), null, failed.length > 0);
+        selected = null; load(true);
       });
     }
     function drawDetail(shown, preserve) {
