@@ -30,8 +30,10 @@ export function notificationView(settings: NotificationSettings) {
   };
 }
 
+// Also when it's on but the bot has no webhook yet (saved before buttons existed, or a failed attempt),
+// so saving again fixes it without turning Telegram off and on.
 const telegramChanged = (a: NotificationSettings['telegram'] | undefined, b: NotificationSettings['telegram']) =>
-  (a?.token ?? null) !== b.token || (a?.enabled ?? false) !== b.enabled;
+  (a?.token ?? null) !== b.token || (a?.enabled ?? false) !== b.enabled || (b.enabled && !!b.token && !b.webhook_url);
 
 class SettingsError extends Error {}
 const TELEGRAM_TOKEN = /^\d+:[A-Za-z0-9_-]{20,}$/;
