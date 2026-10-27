@@ -6,7 +6,7 @@ import type { NotificationEvent, NotificationSettings, Project } from './types.j
 export const NOTIFICATION_EVENTS: NotificationEvent[] = ['new_report', 'accepted', 'fixed', 'handoff'];
 export type Destination = NotificationSettings['telegram'] | NotificationSettings['cliq'];
 /** `telegram_markup`: buttons under a Telegram message (an inline keyboard). Cliq ignores it. */
-export type NotificationSender = (provider: 'telegram' | 'cliq', destination: Destination, text: string, extra?: { telegram_markup?: unknown }) => Promise<void>;
+export type NotificationSender = (provider: 'telegram' | 'cliq', destination: Destination, text: string, extra?: { telegram_markup?: unknown; telegram_html?: boolean }) => Promise<void>;
 export interface TelegramChat { id: string; title: string; kind: 'private' | 'group' | 'supergroup' | 'channel' }
 /** Who a bot token belongs to, and the chats that have messaged it lately, so nobody hunts for an ID. */
 export type TelegramLookup = (token: string) => Promise<{ bot: { username: string; name: string }; chats: TelegramChat[] }>;
@@ -194,7 +194,7 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
     }
     if (!deps.sendNotification) return json(503, { error: 'Notification delivery is unavailable.' });
     try {
-      await deps.sendNotification(provider, target, 'Heresay notifications are connected. You will receive the events selected in Notifications.');
+      await deps.sendNotification(provider, target, '✅ Heresay is connected. You will get the alerts you chose in Notifications.');
       return json(200, { ok: true });
     } catch {
       return json(502, { error: 'Test could not be delivered. Check the token, destination, and bot permissions, then try again.' });
@@ -202,6 +202,12 @@ export async function notificationSettings(p: string[], req: Req, deps: Deps, bo
   }
   return json(404, { error: 'not found' });
 }
+
+const HEADLINE: Record<NotificationEvent, [string, string]> = {
+  new_report: ['🔔', 'New report'], accepted: ['✅', 'Accepted'], fixed: ['🛠️', 'Fixed'], handoff: ['🔁', 'Handed off'],
+};
+const TYPE: Record<string, [string, string]> = { broken: ['🐞', 'Broken'], confusing: ['🤔', 'Confusing'], improvement: ['✨', 'Improvement'], idea: ['💡', 'Idea'] };
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const actionsReady = (tg: NotificationSettings['telegram']) => !!(tg.webhook_secret && tg.webhook_url);
 
@@ -214,15 +220,24 @@ export async function notify(event: NotificationEvent, project: Project, reportI
       new_report: 'A new report needs your review', accepted: 'A report was accepted for a coding agent',
       fixed: 'A report was marked fixed', handoff: 'A coding agent handed off a report',
     };
+    const [emoji, head] = HEADLINE[event];
+    // The type is one of four fixed words, never the reporter's text.
+    const found = await deps.store.getReport(project.id, reportId).catch(() => null);
+    const type = (found && TYPE[found.type]) || null;
     const origin = deps.selfOrigins?.[0];
-    const text = `Heresay: ${labels[event]}.\nApp: ${project.name}\nReport: ${reportId}`
-      + (origin ? `\n${origin}/app/#/apps/${encodeURIComponent(project.id)}` : '');
+    const link = origin ? `${origin}/app/#/apps/${encodeURIComponent(project.id)}` : null;
+    const meta = [type ? `${type[0]} ${type[1]}` : null, reportId];
+    const text = [`${emoji} ${head} · ${project.name}`, `${labels[event]}.`, meta.filter(Boolean).join(' · ')].join('\n') + (link ? `\n${link}` : '');
+    // Telegram gets bold and a link; the app name is the team's own, escaped, and nothing from a reporter is in it.
+    const html = `${emoji} <b>${esc(head)}</b> · ${esc(project.name)}\n${esc(labels[event])}.\n${type ? `${type[0]} ${type[1]} · ` : ''}<code>${esc(reportId)}</code>`
+      + (link ? `\n<a href="${esc(link)}">Open in Heresay →</a>` : '');
     await Promise.all((['telegram', 'cliq'] as const).map(async (provider) => {
       if (!settings[provider].enabled) return;
       try {
         const markup = provider === 'telegram' && event === 'new_report' && actionsReady(settings.telegram)
           ? reportKeyboard(project.id, reportId) : null;
-        await deps.sendNotification!(provider, settings[provider], text, markup ? { telegram_markup: markup } : undefined);
+        await deps.sendNotification!(provider, settings[provider], provider === 'telegram' ? html : text,
+          provider === 'telegram' ? { telegram_html: true, ...(markup ? { telegram_markup: markup } : {}) } : undefined);
         deps.log('api.notification_sent', { provider, notification_event: event, project_id: project.id, report_id: reportId });
       } catch {
         // Transport errors may contain credential-bearing URLs. Never log those errors.
@@ -242,7 +257,7 @@ export function notificationSender(http: typeof fetch = fetch): NotificationSend
     if (!destination.token) throw new Error('Notification token missing.');
     if (provider === 'telegram' && 'chat_id' in destination) {
       url = `https://api.telegram.org/bot${destination.token}/sendMessage`;
-      body = { chat_id: destination.chat_id, text, link_preview_options: { is_disabled: true }, ...(extra?.telegram_markup ? { reply_markup: extra.telegram_markup } : {}) };
+      body = { chat_id: destination.chat_id, text, ...(extra?.telegram_html ? { parse_mode: 'HTML' } : {}), link_preview_options: { is_disabled: true }, ...(extra?.telegram_markup ? { reply_markup: extra.telegram_markup } : {}) };
     } else if (provider === 'cliq' && 'endpoint' in destination && validCliqEndpoint(destination.endpoint)) {
       const u = new URL(destination.endpoint);
       u.searchParams.set('zapikey', destination.token);
