@@ -97,7 +97,7 @@ test('connect, then send an idea with the conversation\'s context: it waits in t
   assert.match(init.result.instructions, /draft_request prepares one and returns a preview/);
   assert.equal((await s.call({ method: 'POST', path: '/v1/mcp', headers: { authorization: `Bearer ${access_token}` }, body: { jsonrpc: '2.0', method: 'notifications/initialized' } })).status, 202);
   const tools = ((await rpc(s, access_token, 'tools/list')).body as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
-  assert.deepEqual(tools, ['list_apps', 'draft_request', 'send_draft', 'withdraw_request', 'my_requests'], 'nothing that reads others\' reports, accepts, declines or fixes');
+  assert.deepEqual(tools, ['list_apps', 'draft_request', 'append_to_draft', 'send_draft', 'withdraw_request', 'my_requests'], 'nothing that reads others\' reports, accepts, declines or fixes');
 
   const raw = await rpc(s, access_token, 'tools/call', { name: 'list_apps', arguments: {} });
   const listed = (raw.body as { result: { structuredContent: { apps: { name: string }[] } } }).result;
@@ -306,6 +306,44 @@ test('a Markdown document goes with a request: previewed by size, kept whole, fe
 
   const big = await call('draft_request', { app: 'Greenroom', type: 'idea', text: 'Big', document: 'x'.repeat(100_001) });
   assert.match(big.content[0]!.text, /the limit is 100000/);
+});
+
+test('a long file goes in pieces on one draft and arrives as one request, whole', async () => {
+  const s = setup();
+  await addApp(s);
+  let { access_token } = await connect(s);
+  const call = async (name: string, args: Record<string, unknown>) => ((await rpc(s, access_token, 'tools/call', { name, arguments: args })).body as { result: { isError?: boolean; content: { text: string }[]; structuredContent: Record<string, unknown> } }).result;
+  const piece = (n: number) => `## Part ${n}\r\n\r\n${'line\n'.repeat(18_000)}`;
+  const d = await call('draft_request', { app: 'Greenroom', type: 'improvement', text: 'Implement the spec', details: 'Rules: once, here.' });
+  const id = d.structuredContent.draft_id as string;
+  for (let n = 1; n <= 8; n++) {
+    const r = await call('append_to_draft', { draft_id: id, document: piece(n), document_title: n === 1 ? 'Spec.md' : 'ignored' });
+    assert.equal(r.structuredContent.pieces, n);
+  }
+  // A piece that would pass the cap is refused and leaves the draft as it was.
+  const over = await call('append_to_draft', { draft_id: id, document: 'x'.repeat(100_000) });
+  assert.equal(over.isError, true);
+  assert.match(over.content[0]!.text, /draft is unchanged/);
+  s.tick(90 * 60_000);
+  access_token = (await connect(s)).access_token; // sign-in lasts an hour, the draft two
+  await call('append_to_draft', { draft_id: id, document: '\nEnd.\n' });
+  s.tick(90 * 60_000);
+  access_token = (await connect(s)).access_token;
+  const sent = await call('send_draft', { draft_id: id });
+  assert.equal(sent.isError, undefined, 'each piece kept the draft alive past the first two hours');
+  assert.equal(s.store.reports.size, 1, 'one request, however many pieces');
+  const r = s.store.reports.get(sent.structuredContent.id as string)!;
+  assert.equal(r.document!.title, 'Spec.md');
+  assert.ok(r.document!.markdown.startsWith('## Part 1\n\nline\n'), 'CRLF fixed, pieces in order');
+  assert.ok(r.document!.markdown.endsWith('## Part 8\n\n' + 'line\n'.repeat(18_000) + '\nEnd.'), 'joined exactly, trimmed once at the end');
+  assert.equal(r.document!.markdown.match(/^## Part \d$/gm)!.length, 8);
+
+  const other = await connect(s, 'bob');
+  const mine = await call('draft_request', { app: 'Greenroom', type: 'idea', text: 'Mine' });
+  const theirs = ((await rpc(s, other.access_token, 'tools/call', { name: 'append_to_draft', arguments: { draft_id: mine.structuredContent.draft_id, document: 'x' } })).body as { result: { isError?: boolean } }).result;
+  assert.equal(theirs.isError, true, 'only to your own draft');
+  const gone = await call('append_to_draft', { draft_id: id, document: 'more' });
+  assert.equal(gone.isError, true, 'not after it was sent');
 });
 
 test('apps that default to a client secret (Perplexity, some others) still connect, as public clients', async () => {

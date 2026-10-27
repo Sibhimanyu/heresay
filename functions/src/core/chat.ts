@@ -28,6 +28,9 @@ export const CHAT_LIMITS = [
   { limit: 300, windowMs: 24 * 3600_000 },
 ] as const;
 
+/** Chunks added to drafts: each one is a write, so they're limited too. A whole bundle still sends as one request. */
+const APPEND_LIMIT = { limit: 600, windowMs: 3600_000 } as const;
+
 // Descriptive, not prescriptive: chat apps flag tool text that tells the model when to ask for
 // approval or what counts as sensitive ("Suspicious Instruction"). Their own rules cover that.
 const INSTRUCTIONS = [
@@ -36,7 +39,10 @@ const INSTRUCTIONS = [
   'apps); nothing is sent. send_draft sends a draft, to the app in the preview or to another one. `text` is the request as',
   'a teammate would read it; `details` is what the conversation worked out (why it matters, what was considered or ruled',
   'out, examples, constraints, open questions); both may be Markdown. `document` attaches a Markdown (.md) file, its full',
-  'contents as text (a spec, a research handoff, a summary of the whole conversation), up to 100,000 characters. A sent request stays open until someone on the team accepts it; sending',
+  'contents as text (a spec, a research handoff, a summary of the whole conversation), up to 100,000 characters. A longer file',
+  'goes in pieces: append_to_draft adds the next piece to the draft, one call at a time, and the whole thing is sent once as one request;',
+  'never send a file as several requests. Rules that apply to the whole request go once in `details`, not in every piece.',
+  'A sent request stays open until someone on the team accepts it; sending',
   'does not start any work. my_requests says what happened to the ones this member sent.',
 ].join(' ');
 
@@ -56,7 +62,7 @@ const TOOLS = [
     title: 'Draft a Heresay request',
     description: 'Prepares a bug, a confusing part, an improvement or an idea for one app\'s Heresay inbox and returns a preview: '
       + 'the app it would go to, its type and text, and the other apps. Nothing is sent. Without an app it returns the list of apps. '
-      + 'A Markdown (.md) file can be attached with `document` (its full contents).',
+      + 'A Markdown (.md) file can be attached with `document` (its full contents); a file over 100,000 characters is attached in pieces with append_to_draft.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -68,6 +74,24 @@ const TOOLS = [
         document_title: { type: 'string', maxLength: LIMITS.documentTitleMax, description: 'The attached file\'s name or title, e.g. "RasanAI_Creative_Research_Handoff.md".' },
       },
       required: ['type', 'text'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'append_to_draft',
+    title: 'Add the next piece of a file to a Heresay draft',
+    description: 'Adds the next piece of the attached Markdown file to a draft from draft_request, for a file too long for one `document`. '
+      + 'Pieces are joined exactly as given, in the order of the calls, so call it once per piece and wait for each answer; split at any point. '
+      + 'Nothing is sent: send_draft sends the draft, with the whole file, as one request.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        draft_id: { type: 'string', description: 'From draft_request' },
+        document: { type: 'string', maxLength: LIMITS.documentMax, description: 'The next piece of the file, up to 100,000 characters.' },
+        document_title: { type: 'string', maxLength: LIMITS.documentTitleMax, description: 'The file\'s name or title, if the draft has none yet.' },
+      },
+      required: ['draft_id', 'document'],
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
@@ -170,6 +194,7 @@ async function one(m: unknown, member: Member, via: string, req: Req, deps: Deps
         if (name === 'list_apps') return rpcResult(msg.id, await listApps(deps));
         // send_request is what older bridges call; it drafts too, so nothing is sent unseen.
         if (name === 'draft_request' || name === 'send_request') return rpcResult(msg.id, await draftRequest(args, member, via, deps));
+        if (name === 'append_to_draft') return rpcResult(msg.id, await appendToDraft(args, member, deps));
         if (name === 'send_draft') return rpcResult(msg.id, await sendDraft(args, member, req, deps));
         if (name === 'withdraw_request') return rpcResult(msg.id, await withdrawRequest(args, member, deps));
         if (name === 'my_requests') return rpcResult(msg.id, await myRequests(args, member, req, deps));
@@ -218,7 +243,7 @@ async function draftRequest(a: Record<string, unknown>, member: Member, via: str
   if (typeof a.document === 'string' && a.document.length > LIMITS.documentMax) {
     throw new ToolError(`The document is ${a.document.length} characters; the limit is ${LIMITS.documentMax}. Shorten it or split it across requests.`);
   }
-  const markdown = typeof a.document === 'string' && a.document.trim() ? a.document.replace(/\r\n/g, '\n').trim() : null;
+  const markdown = typeof a.document === 'string' && a.document.trim() ? a.document.replace(/\r\n/g, '\n') : null;
   const document = markdown ? { title: str(a.document_title, LIMITS.documentTitleMax), markdown } : null;
   const all = (await deps.store.listProjects()).sort((x, y) => x.created_at.localeCompare(y.created_at));
   if (!str(a.app, 100)) {
@@ -229,14 +254,14 @@ async function draftRequest(a: Record<string, unknown>, member: Member, via: str
   const id = createHash('sha256').update(`${member.email}${deps.now()}${Math.random()}`).digest('hex').slice(0, 24);
   await deps.store.putAuth({
     kind: 'draft', id, expires_at: new Date(deps.now() + DRAFT_TTL_MS).toISOString(),
-    data: { email: member.email, project_id: project.id, type: a.type, text, details, document, via },
+    data: { email: member.email, project_id: project.id, type: a.type, text, details, document, via, pieces: document ? 1 : 0 },
   });
   const others = all.filter((p) => p.id !== project.id);
   return result([
     `Draft, not sent yet. App: ${project.name} (${project.platform}). Type: ${a.type}.`,
     `Text: ${text}`,
     details ? `Details: ${details}` : null,
-    document ? `Attached document: ${document.title ? `"${document.title}", ` : ''}${document.markdown.length} characters of Markdown.` : null,
+    document ? `Attached document: ${document.title ? `"${document.title}", ` : ''}${document.markdown.length} characters of Markdown. A longer file goes on with append_to_draft.` : null,
     others.length ? `Other apps it could go to instead: ${appNames(others)}.` : null,
     `send_draft with draft_id ${id} sends it${others.length ? ' (with app set to send it elsewhere)' : ''}. Drafts last two hours.`,
   ].filter(Boolean).join('\n'), {
@@ -244,6 +269,42 @@ async function draftRequest(a: Record<string, unknown>, member: Member, via: str
     document: document ? { title: document.title, characters: document.markdown.length } : null,
     other_apps: others.map((p) => ({ id: p.id, name: p.name, platform: p.platform })),
   });
+}
+
+const trimmed = (d: ChatDocument | null): ChatDocument | null => (d ? { ...d, markdown: d.markdown.trim() } : null);
+
+/** The next piece of a draft's document. Refused, with the draft unchanged, if the whole would pass the cap. */
+async function appendToDraft(a: Record<string, unknown>, member: Member, deps: Deps) {
+  const id = str(a.draft_id, 64);
+  const d = id ? await deps.store.getAuth('draft', id) : null;
+  if (!d || String(d.data.email).toLowerCase() !== member.email.toLowerCase() || Date.parse(d.expires_at ?? '') < deps.now()) {
+    throw new ToolError('That draft doesn\'t exist, has expired or was already sent. Make a new one with draft_request.');
+  }
+  if (typeof a.document !== 'string' || !a.document.trim()) throw new ToolError('Give the next piece of the file in document.');
+  if (a.document.length > LIMITS.documentMax) {
+    throw new ToolError(`That piece is ${a.document.length} characters; a piece can be up to ${LIMITS.documentMax}. Split it and add the parts one by one.`);
+  }
+  const now = deps.now();
+  const start = Math.floor(now / APPEND_LIMIT.windowMs) * APPEND_LIMIT.windowMs;
+  if (!(await deps.store.hit(`chatappend:${APPEND_LIMIT.windowMs}:${member.email.toLowerCase()}:${start}`, APPEND_LIMIT.limit, start + APPEND_LIMIT.windowMs))) {
+    throw new ToolError('That\'s a lot of pieces in a short time. Try again later.');
+  }
+  const had = (d.data.document as ChatDocument | null) ?? null;
+  const markdown = (had?.markdown ?? '') + a.document.replace(/\r\n/g, '\n');
+  const bytes = Buffer.byteLength(markdown, 'utf8');
+  // Refused rather than cut, so the end of a long file isn't silently missing.
+  if (bytes > LIMITS.documentBundleBytes) {
+    throw new ToolError(`With that piece the file would be ${bytes} bytes; the limit is ${LIMITS.documentBundleBytes}. The draft is unchanged: send it as it is, or start a new one with a shorter file.`);
+  }
+  const document = { title: had?.title ?? str(a.document_title, LIMITS.documentTitleMax), markdown };
+  const pieces = Number(d.data.pieces ?? 0) + 1;
+  // Each piece keeps the draft alive, so a long file isn't lost half-built.
+  await deps.store.putAuth({ ...d, expires_at: new Date(now + DRAFT_TTL_MS).toISOString(), data: { ...d.data, document, pieces } });
+  return result(
+    `Added piece ${pieces}. The draft's document is now ${markdown.length} characters (${bytes} of ${LIMITS.documentBundleBytes} bytes allowed). `
+    + `Add the next piece, or send_draft with draft_id ${id} to send the whole file as one request.`,
+    { draft_id: id, sent: false, pieces, document: { title: document.title, characters: markdown.length, bytes } },
+  );
 }
 
 async function sendDraft(a: Record<string, unknown>, member: Member, req: Req, deps: Deps) {
@@ -257,7 +318,7 @@ async function sendDraft(a: Record<string, unknown>, member: Member, req: Req, d
   // Once only, however many times it's called.
   if (!(await deps.store.takeAuth('draft', id!))) throw new ToolError('That draft was already sent.');
   return createChatReport(project, d.data.type as Report['type'], String(d.data.text), (d.data.details as string | null) ?? null,
-    (d.data.document as ChatDocument | null) ?? null, member, String(d.data.via ?? 'a chat app'), req, deps);
+    trimmed(d.data.document as ChatDocument | null), member, String(d.data.via ?? 'a chat app'), req, deps);
 }
 
 async function createChatReport(project: Project, type: Report['type'], text: string, details: string | null,
