@@ -321,6 +321,8 @@ export const LIMITS = {
   textMax: 2000,
   detailsMax: 8000,
   documentMax: 100_000,
+  /** A document built up over several append_to_draft calls, in UTF-8 bytes: under Firestore's 1 MiB per document, with room for the rest of the report. */
+  documentBundleBytes: 800_000,
   documentTitleMax: 120,
   filesMax: 20,
   pathMax: 300,

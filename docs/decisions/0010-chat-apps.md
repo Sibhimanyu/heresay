@@ -65,6 +65,24 @@ Date: 2026-10-16
   than cut, so its end isn't silently lost. The preview gives its size, not its text. Stored on
   the report and copied to the task; the agent prompt has it inside the fence.
 
+## Long files go in pieces, on one draft (2026-10-27)
+
+- **In use, ChatGPT split specs across requests:** RasanAI got 4-, 7- and 15-part handoffs as
+  separate inbox items, each repeating the same rules, each to be accepted on its own.
+- **`append_to_draft(draft_id, document, document_title?)`** adds the next piece to a draft's
+  document; `send_draft` still sends once, so a whole file is one report, one accept, one task.
+  Pieces join exactly as given, in call order, and are trimmed once at send. The whole is capped at
+  800,000 UTF-8 bytes (Firestore's 1 MiB per document, with room for the rest of the report);
+  a piece that would pass it is refused and the draft is unchanged, never cut. A piece is up to
+  100,000 characters, the old `document` limit.
+- **A bundle is one request for the rate limit:** only `send_draft` counts toward the 60 an hour
+  and 300 a day. Pieces have their own 600 an hour, since each is a write. Each piece keeps the
+  draft alive another two hours.
+- **Shared rules go once in `details`,** which the agent prompt already fences apart from the
+  text and the document. No new field.
+- Pieces must be added one call at a time: a draft is rewritten whole on each, so parallel calls
+  could lose one. The tool says so, and the answer gives the running size to check.
+
 ## The exception to "origin-checked"
 
 CLAUDE.md says public endpoints are rate-limited and origin-checked. The OAuth endpoints and
