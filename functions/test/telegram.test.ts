@@ -97,6 +97,20 @@ test('saving a bot registers our webhook once with a secret, and keeps every sec
   assert.equal(s.tg().webhook_url, null);
 });
 
+test('a bot saved before buttons existed gets its webhook on the next save, even with nothing changed', async () => {
+  const s = setup();
+  await s.connect();
+  await s.deps.store.updateInstance((cur) => {
+    const n = structuredClone(cur!.notifications!); n.telegram.webhook_url = null;
+    return { ...cur!, notifications: n };
+  });
+  const before = s.calls.filter((c) => c.method === 'setWebhook').length;
+  const res = await s.call({ method: 'PATCH', body: { telegram: { enabled: true, token: '', chat_id: s.tg().chat_id } } });
+  assert.equal(res.status, 200);
+  assert.equal(s.calls.filter((c) => c.method === 'setWebhook').length, before + 1);
+  assert.ok(s.tg().webhook_url, 'recorded, so the next save leaves it alone');
+});
+
 test('no webhook is registered on an address that is not https, and a failure never fails the save', async () => {
   const s = setup();
   s.deps.selfOrigins = ['http://127.0.0.1:5055'];

@@ -32,7 +32,7 @@ async function signIn(page, email) {
   await page.goto(`${BASE}/app/?mode=signIn&oobCode=${code.oobCode}&apiKey=fake&lang=en`);
   await page.locator('#app').waitFor({ state: 'visible' });
 }
-const browser = await chromium.launch();
+const browser = await chromium.launch({ headless: process.env.E2E_HEADLESS === '1' });
 try {
   const context = await browser.newContext({ viewport: { width: 1100, height: 850 } });
   const page = await context.newPage(), errors = [];
@@ -40,21 +40,24 @@ try {
   await page.route('https://registry.npmjs.org/create-heresay/latest', (route) => route.fulfill({ json: { version: '0.0.0' } }));
   await signIn(page, OWNER);
   await page.getByRole('link', { name: 'Notifications', exact: true }).click();
-  await page.getByRole('heading', { name: 'When to notify' }).waitFor();
+  await page.getByRole('heading', { name: 'What to send' }).waitFor();
   assert.equal(await page.locator('[data-nav=notifications]').getAttribute('aria-current'), 'page');
   assert.equal(await page.locator('[data-nav=apps]').getAttribute('aria-current'), null);
-  const events = page.locator('section').filter({ has: page.getByRole('heading', { name: 'When to notify' }) });
+  const events = page.locator('section').filter({ has: page.getByRole('heading', { name: 'What to send' }) });
   const telegram = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Telegram', exact: true }) });
   const cliq = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Zoho Cliq', exact: true }) });
-  assert.equal(await telegram.getByRole('button', { name: 'Send test notification' }).isDisabled(), true);
+  const pill = (box) => box.locator('.pill-state');
+  assert.equal(await pill(telegram).textContent(), 'Not set up');
+  assert.equal(await pill(cliq).textContent(), 'Not set up');
+  assert.equal(await telegram.getByRole('button', { name: 'Send test' }).isHidden(), true, 'nothing to test before it is set up');
+  assert.equal(await telegram.locator('form').isHidden(), true, 'the form stays closed until asked for');
   assert.equal(await events.locator('[name=new_report]').isChecked(), true);
   assert.equal(await events.locator('[name=accepted]').isChecked(), false);
   await events.locator('[name=accepted]').check();
-  await events.getByRole('button', { name: 'Save events' }).click();
-  await events.getByText('Notification events saved.').waitFor();
+  await events.getByText('✓ Saved').waitFor();
 
-  await telegram.getByRole('checkbox').check();
-  await telegram.getByRole('button', { name: 'Save Telegram' }).click();
+  await telegram.getByRole('button', { name: 'Set up' }).click();
+  await telegram.getByRole('button', { name: 'Save', exact: true }).click();
   await telegram.getByText('Telegram needs a bot token and a chat ID.').waitFor();
   // Guided: pasting the token checks it, says what to tap, then watches the bot until the chat shows up.
   let lookupBody = null, chats = [];
@@ -72,83 +75,97 @@ try {
   chats = [{ id: '-1001234567890', title: 'Acme team', kind: 'supergroup' }, { id: '42', title: 'Asha R', kind: 'private' }];
   await telegram.getByText('Alerts will go to Asha R (private chat).').waitFor({ timeout: 15000 });
   assert.equal(await telegram.locator('[name=chat_id]').inputValue(), '42');
-  assert.equal(await telegram.getByRole('checkbox').isChecked(), true, 'choosing a chat turns Telegram on');
   await telegram.getByRole('tab', { name: 'A group' }).click();
   await telegram.getByRole('link', { name: 'Add @acme_alerts_bot to a group ↗' }).waitFor();
   await telegram.getByRole('radio', { name: /Acme team/ }).check();
   assert.equal(await telegram.locator('[name=chat_id]').inputValue(), '-1001234567890');
   await telegram.screenshot({ path: SHOTS + 'notifications-telegram-guide.png' });
-  await telegram.getByRole('button', { name: 'Save Telegram' }).click();
-  await telegram.getByText('Telegram settings saved. Send a test to check delivery.').waitFor();
+  await telegram.getByRole('button', { name: 'Save', exact: true }).click();
+  await telegram.getByText('Saved. Send a test to check it.').waitFor();
   assert.equal(await telegram.locator('[name=telegram_token]').inputValue(), '');
-  assert.equal(await telegram.getByRole('button', { name: 'Send test notification' }).isEnabled(), true);
+  assert.equal(await pill(telegram).textContent(), 'On', 'saving turns it on');
+  assert.equal(await telegram.getByRole('button', { name: 'Send test' }).isEnabled(), true);
   await page.reload();
-  await page.getByRole('heading', { name: 'When to notify' }).waitFor();
-  assert.equal(await telegram.getByRole('checkbox').isChecked(), true);
-  assert.equal(await events.locator('[name=accepted]').isChecked(), true);
+  await page.getByRole('heading', { name: 'What to send' }).waitFor();
+  assert.equal(await pill(telegram).textContent(), 'On');
+  assert.equal(await telegram.getByLabel('Telegram alerts on').isChecked(), true);
+  assert.equal(await events.locator('[name=accepted]').isChecked(), true, 'the switch was saved');
+  assert.equal(await telegram.locator('form').isHidden(), true);
+  // Saved before the buttons existed, so the bot has no webhook: one tap puts it on, with the saved token kept.
+  const turnOn = page.waitForRequest((r) => r.url().endsWith('/v1/notifications') && r.method() === 'PATCH');
+  await telegram.getByRole('button', { name: 'Turn on' }).click();
+  const turnOnBody = (await turnOn).postDataJSON();
+  assert.deepEqual(turnOnBody.telegram, { enabled: true, token: '', chat_id: '-1001234567890' });
+  await telegram.getByRole('button', { name: 'Edit' }).click();
   assert.equal(await telegram.locator('[name=chat_id]').inputValue(), '-1001234567890');
   assert.equal(await telegram.locator('[name=telegram_token]').inputValue(), '');
   await telegram.locator('[name=chat_id]').fill('@teamchannel');
-  assert.equal(await telegram.getByRole('button', { name: 'Send test notification' }).isDisabled(), true);
+  assert.equal(await telegram.getByRole('button', { name: 'Send test' }).isDisabled(), true);
   const saveResponse = page.waitForResponse((r) => r.url().endsWith('/v1/notifications') && r.request().method() === 'PATCH');
-  await telegram.getByRole('button', { name: 'Save Telegram' }).click();
+  await telegram.getByRole('button', { name: 'Save', exact: true }).click();
   const response = await saveResponse;
   const saved = await response.json();
   assert.equal(saved.notifications.telegram.configured, true, 'blank token retains saved credential');
   assert.ok(!JSON.stringify(saved).includes(TOKEN));
-  await telegram.getByText('Telegram settings saved. Send a test to check delivery.').waitFor();
+  await telegram.getByText('Saved. Send a test to check it.').waitFor();
 
   let testBody;
   await page.route('**/v1/notifications/test', async (route) => {
     testBody = route.request().postDataJSON();
     await route.fulfill({ json: { ok: true } });
   });
-  await telegram.getByRole('button', { name: 'Send test notification' }).click();
-  await telegram.getByText('Test notification sent. Check Telegram.').waitFor();
+  await telegram.getByRole('button', { name: 'Send test' }).click();
+  await telegram.getByText('Test sent. Check Telegram.').waitFor();
   assert.deepEqual(testBody, { provider: 'telegram' });
   await page.unroute('**/v1/notifications/test');
   await page.route('**/v1/notifications/test', (route) => route.fulfill({ status: 502, json: { error: 'Test could not be delivered. Check the token, destination, and bot permissions, then try again.' } }));
-  await telegram.getByRole('button', { name: 'Send test notification' }).click();
+  await telegram.getByRole('button', { name: 'Send test' }).click();
   await telegram.getByText('Test could not be delivered.', { exact: false }).waitFor();
-  assert.equal(await telegram.getByRole('button', { name: 'Send test notification' }).isEnabled(), true);
+  assert.equal(await telegram.getByRole('button', { name: 'Send test' }).isEnabled(), true);
 
-  await cliq.getByRole('checkbox').check();
+  await cliq.getByRole('button', { name: 'Set up' }).click();
   await cliq.locator('[name=cliq_token]').fill('cliq-test-token');
   await cliq.locator('[name=endpoint]').fill('https://example.com/webhook');
-  await cliq.getByRole('button', { name: 'Save Zoho Cliq' }).click();
+  await cliq.getByRole('button', { name: 'Save', exact: true }).click();
   await cliq.getByText('Use a Zoho Cliq bot or channel message endpoint, without a query string.').waitFor();
   await cliq.locator('[name=endpoint]').fill('https://cliq.zoho.in/api/v2/channelsbyname/team/message');
-  await cliq.getByRole('button', { name: 'Save Zoho Cliq' }).click();
-  await cliq.getByText('Zoho Cliq settings saved. Send a test to check delivery.').waitFor();
+  await cliq.getByRole('button', { name: 'Save', exact: true }).click();
+  await cliq.getByText('Saved. Send a test to check it.').waitFor();
   await page.unroute('**/v1/notifications/test');
   await page.route('**/v1/notifications/test', (route) => {
     testBody = route.request().postDataJSON();
     return route.fulfill({ json: { ok: true } });
   });
-  await cliq.getByRole('button', { name: 'Send test notification' }).click();
-  await cliq.getByText('Test notification sent. Check Zoho Cliq.').waitFor();
+  await cliq.getByRole('button', { name: 'Send test' }).click();
+  await cliq.getByText('Test sent. Check Zoho Cliq.').waitFor();
   assert.deepEqual(testBody, { provider: 'cliq' });
+  await cliq.getByRole('button', { name: 'Close' }).click();
+  await telegram.getByRole('button', { name: 'Close' }).click();
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: SHOTS + 'notifications-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'mobile has no horizontal overflow');
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: SHOTS + 'notifications-mobile.png', fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
 
-  // A disabled destination keeps its credential so it can be re-enabled without re-entry.
-  await telegram.getByRole('checkbox').uncheck();
-  await telegram.getByRole('button', { name: 'Save Telegram' }).click();
-  await telegram.getByText('Telegram settings saved. Send a test to check delivery.').waitFor();
-  assert.equal(await telegram.getByRole('button', { name: 'Send test notification' }).isDisabled(), true);
+  // A paused destination keeps its credential so it can be resumed without re-entry.
+  await telegram.getByLabel('Telegram alerts on').uncheck();
+  await page.getByText('Telegram alerts are paused.').waitFor();
+  assert.equal(await pill(telegram).textContent(), 'Paused');
+  assert.equal(await telegram.getByRole('button', { name: 'Send test' }).isDisabled(), true);
+  await cliq.getByRole('button', { name: 'Edit' }).click();
   await cliq.getByRole('button', { name: 'Disconnect' }).click();
-  await cliq.getByText('Zoho Cliq disconnected. The saved token was removed.').waitFor();
-  assert.equal(await cliq.locator('[name=endpoint]').inputValue(), '');
+  await page.getByText('Zoho Cliq disconnected.').waitFor();
+  assert.equal(await pill(cliq).textContent(), 'Not set up');
+  await telegram.getByRole('button', { name: 'Edit' }).click();
   await telegram.getByRole('button', { name: 'Disconnect' }).click();
-  await telegram.getByText('Telegram disconnected. The saved token was removed.').waitFor();
+  await page.getByText('Telegram disconnected.').waitFor();
   await page.reload();
-  await page.getByRole('heading', { name: 'When to notify' }).waitFor();
-  assert.equal(await telegram.getByRole('button', { name: 'Disconnect' }).isDisabled(), true);
-  assert.equal(await cliq.getByRole('button', { name: 'Disconnect' }).isDisabled(), true);
+  await page.getByRole('heading', { name: 'What to send' }).waitFor();
+  assert.equal(await pill(telegram).textContent(), 'Not set up');
+  assert.equal(await pill(cliq).textContent(), 'Not set up');
+  assert.equal(await telegram.getByLabel('Telegram alerts on').count(), 0, 'no switch for what is not set up');
 
   let fail = true;
   await page.route('**/v1/notifications', async (route) => {
@@ -159,16 +176,16 @@ try {
   await page.getByText('Settings temporarily unavailable').waitFor();
   fail = false;
   await page.getByRole('button', { name: 'Retry' }).click();
-  await page.getByRole('heading', { name: 'When to notify' }).waitFor();
+  await page.getByRole('heading', { name: 'What to send' }).waitFor();
   assert.deepEqual(errors, []);
 
   const memberContext = await browser.newContext();
   const member = await memberContext.newPage();
   await signIn(member, MEMBER);
   await member.getByRole('link', { name: 'Notifications', exact: true }).click();
-  await member.getByText('An owner can connect Telegram or Zoho Cliq').waitFor();
-  assert.equal(await member.getByRole('button', { name: 'Save Telegram' }).count(), 0);
+  await member.getByText('Owners choose where alerts go.').waitFor();
+  assert.equal(await member.getByRole('button', { name: 'Set up' }).count(), 0);
   await memberContext.close();
   await context.close();
-  console.log('Notification UI: settings persistence, validation, tests, disconnection, retry, member access, and mobile layout passed.');
+  console.log('Notification UI: modules, auto-saved events, setup, pause, disconnect, retry, member view and mobile layout passed.');
 } finally { await browser.close(); }
