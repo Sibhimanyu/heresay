@@ -10,7 +10,8 @@
     "e2e:workspace": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-workspace.mjs'",
     "e2e:agent": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-agent.mjs'",
     "e2e:notifications": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-notifications.mjs'",
-    "e2e:apple": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-apple.mjs'"
+    "e2e:apple": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-apple.mjs'",
+    "e2e:bulk": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions,hosting 'node scripts/e2e-bulk.mjs'"
   },
   "devDependencies": {
     "firebase-tools": "^15.31.0",
