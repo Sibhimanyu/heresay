@@ -4,7 +4,7 @@
  *
  * ctx: { id, name, region, billing, owner, version }. `say(text)` updates the spinner line.
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { g, op, patiently, GoogleError } from './google.mjs';
@@ -305,6 +305,115 @@ export async function verify(ctx, say) {
     }
     await new Promise((r) => setTimeout(r, 5000));
   }
+}
+
+// ---- Lite: Spark plan, the API on a host you choose -------------------------------------
+//
+// No billing account and no Cloud Functions. Firestore and Auth stay on Firebase; the same API
+// runs from functions/lib/providers/firebase/node-server.js on any Node host. See docs/lite.md.
+
+const LITE_SERVICES = ['firestore.googleapis.com', 'identitytoolkit.googleapis.com', 'firebaserules.googleapis.com', 'iam.googleapis.com'];
+const IAM = 'https://iam.googleapis.com/v1';
+
+export async function liteServices(ctx, say) {
+  say('Switching on Firestore and Auth');
+  const o = await patiently(() => g('POST', `${SU}/projects/${ctx.id}/services:batchEnable`, { body: { serviceIds: LITE_SERVICES } }), { forMs: 90_000 });
+  await op(SU, o, { timeoutMs: 6 * 60_000 });
+  return 'Firestore, Auth';
+}
+
+/** Email-link sign-in, and the host's address allowed to use it. */
+export async function liteSignIn(ctx, say) {
+  await webApp(ctx, say);
+  say('Switching on email links');
+  await g('POST', `https://identitytoolkit.googleapis.com/v2/projects/${ctx.id}/identityPlatform:initializeAuth`, { project: ctx.id, body: {} })
+    .catch((x) => { if (x.status !== 409 && !/already/i.test(x.message)) throw x; });
+  await patiently(() => g('PATCH', `${IDT}/projects/${ctx.id}/config?updateMask=signIn.email.enabled,signIn.email.passwordRequired`, {
+    project: ctx.id, body: { signIn: { email: { enabled: true, passwordRequired: false } } },
+  }), { forMs: 90_000 }).catch((e) => {
+    throw new StepError(`Sign-in couldn’t be switched on (${e.message}).`,
+      `Open https://console.firebase.google.com/project/${ctx.id}/authentication, click Get started, then run this again.`);
+  });
+  say('Allowing ' + new URL(ctx.origin).hostname);
+  const cfg = await patiently(() => g('GET', `${IDT}/projects/${ctx.id}/config`, { project: ctx.id }), { forMs: 90_000 });
+  const domains = new Set(cfg.authorizedDomains ?? []);
+  domains.add(new URL(ctx.origin).hostname);
+  await g('PATCH', `${IDT}/projects/${ctx.id}/config?updateMask=authorizedDomains`, { project: ctx.id, body: { authorizedDomains: [...domains] } });
+  return 'email links, ' + new URL(ctx.origin).hostname;
+}
+
+/** What the host needs: the runtime files, and one env file with everything it reads. */
+export async function liteDeploy(ctx, say) {
+  const dir = workDir(ctx.id);
+  mkdirSync(dir, { recursive: true });
+  for (const f of readdirSync(dir)) if (!['service-account.json', 'lite.env'].includes(f)) rmSync(join(dir, f), { recursive: true, force: true });
+  cpSync(RELEASE, dir, { recursive: true });
+  writeFileSync(join(dir, 'firebase.json'), JSON.stringify({ firestore: { rules: 'firestore.rules', indexes: 'firestore.indexes.json' } }, null, 2) + '\n');
+  writeFileSync(join(dir, '.firebaserc'), JSON.stringify({ projects: { default: ctx.id } }, null, 2) + '\n');
+  writeFileSync(join(dir, 'Dockerfile'), [
+    'FROM node:22-slim',
+    'ENV NODE_ENV=production PORT=8080 HERESAY_TRUST_PROXY=1',
+    'WORKDIR /app',
+    'COPY functions/package.json functions/package-lock.json ./functions/',
+    'RUN npm --prefix functions ci --omit=dev',
+    'COPY functions/lib ./functions/lib',
+    'COPY public ./public',
+    'USER node',
+    'EXPOSE 8080',
+    'CMD ["node", "functions/lib/providers/firebase/node-server.js"]',
+    '',
+  ].join('\n'));
+
+  for (let attempt = 1; ; attempt++) {
+    say(attempt === 1 ? 'Locking the database' : `Trying again (${attempt} of 3)`);
+    const r = await firebase(['deploy', '--only', 'firestore', '--project', ctx.id, '--non-interactive', '--force'], { cwd: dir });
+    if (r.code === 0) break;
+    if (attempt < 3 && /permission|403|429|RESOURCE_EXHAUSTED|Internal error|retry|unavailable/i.test(r.out)) {
+      say('Google is still setting up the project; waiting a minute');
+      await new Promise((res) => setTimeout(res, 60_000));
+      continue;
+    }
+    throw new StepError(`Deploy failed: ${deployError(r.out)}`, 'Your project is fine. Run the same command to try again.');
+  }
+
+  const keyPath = join(dir, 'service-account.json');
+  if (!existsSync(keyPath)) {
+    say('Creating the server’s key');
+    const list = await patiently(() => g('GET', `${IAM}/projects/${ctx.id}/serviceAccounts`, { project: ctx.id }), { forMs: 120_000 });
+    const sa = (list.accounts ?? []).find((a) => a.email.startsWith('firebase-adminsdk'));
+    if (!sa) throw new StepError('The Firebase service account isn’t there yet.', 'Give it a minute and run this again.');
+    let key;
+    try {
+      key = await g('POST', `${IAM}/${sa.name}/keys`, { project: ctx.id, body: {} });
+    } catch (e) {
+      throw new StepError(`Google wouldn’t create a key for the server (${e.message}).`,
+        'An organisation policy may block service-account keys. Create the key by hand in the Firebase console (Project settings, Service accounts), save it as service-account.json in ' + dir + ', and run this again.');
+    }
+    writeFileSync(keyPath, Buffer.from(key.privateKeyData, 'base64'), { mode: 0o600 });
+  }
+  chmodSync(keyPath, 0o600);
+
+  say('Reading the web config');
+  const appId = await webApp(ctx, () => {});
+  const web = await patiently(() => g('GET', `${FB}/projects/${ctx.id}/webApps/${appId}/config`, { project: ctx.id }), { forMs: 90_000 });
+  const config = { apiKey: web.apiKey, authDomain: web.authDomain, projectId: web.projectId, appId: web.appId, messagingSenderId: web.messagingSenderId };
+  const oneLine = (v) => JSON.stringify(v);
+  writeFileSync(join(dir, 'lite.env'), [
+    `HERESAY_ORIGIN=${ctx.origin}`,
+    `GCLOUD_PROJECT=${ctx.id}`,
+    `HERESAY_FIREBASE_CONFIG=${oneLine(config)}`,
+    `GOOGLE_APPLICATION_CREDENTIALS_JSON=${oneLine(JSON.parse(readFileSync(keyPath, 'utf8')))}`,
+    '',
+  ].join('\n'), { mode: 0o600 });
+  return dir;
+}
+
+export async function liteVerify(ctx) {
+  try {
+    const h = await (await fetch(`${ctx.origin}/v1/health`, { signal: AbortSignal.timeout(8000) })).json();
+    if (h.ok) return `running, version ${h.version}`;
+  } catch { /* not started yet, which is expected on first setup */ }
+  return 'ready for your host';
 }
 
 // ---- remove -----------------------------------------------------------------------------
