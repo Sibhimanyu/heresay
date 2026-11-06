@@ -22,8 +22,16 @@ import * as state from './state.mjs';
 import * as steps from './steps.mjs';
 
 const peacock = (s) => `\x1b[38;2;15;118;110m${s}\x1b[39m`;
-// A Lite Heresay lives wherever its owner runs it; the address is kept when it is set up.
-const url = (id) => state.load().instances[id]?.origin || `https://${process.env.HERESAY_SITE || id}.web.app`;
+/**
+ * Where a Heresay answers. HERESAY_SITE (a named Hosting site) wins when set; otherwise the address
+ * saved at setup or the last deploy (a Lite host, or a named site deployed from CI), and only then
+ * the project's default site. Without the saved one, status checks an address that may be retired.
+ */
+const url = (id) => {
+  if (process.env.HERESAY_SITE) return `https://${process.env.HERESAY_SITE}.web.app`;
+  const rec = state.load().instances[id];
+  return rec?.origin || rec?.url || `https://${id}.web.app`;
+};
 
 // ---- arguments --------------------------------------------------------------------------
 
@@ -47,9 +55,9 @@ const HELP = `
   npx create-heresay update      Deploy this version to a Heresay you set up
   npx create-heresay status      See what's deployed, and where
   npx create-heresay open        Open your dashboard
+  npx create-heresay backup      Save all of a Heresay's data to a file
+  npx create-heresay restore     Put a backup file into a Heresay: restore <file>
   npx create-heresay remove      Delete a Heresay and its Google Cloud project
-  npx create-heresay backup      Save all of a Heresay's data to a file     [--out <file>]
-  npx create-heresay restore <file>   Put a backup into a Heresay           [--force]
 
   Setup flags, to skip questions:
     --name <name>          --project-id <id>     --region us-central1|asia-south1|europe-west1
@@ -57,9 +65,20 @@ const HELP = `
 
   Free plan, no billing (Spark): the API runs on a host you choose instead of Cloud Functions.
     --lite --origin https://your-host.example      see docs/lite.md
+
+  Backup and restore:
+    --out <file>           where backup writes     --project-id <id>   a Heresay set up elsewhere
+    --force                restore into a Heresay that already has data
 `;
 
 // ---- small helpers ----------------------------------------------------------------------
+
+/** A prompt with no terminal to answer it hangs, and Node exits with a confusing warning. Say what to do instead. */
+function needsTerminal(what, flags) {
+  if (process.stdin.isTTY) return;
+  p.log.error(`${what} asks questions, and there's no terminal to answer them here. Run it in a terminal, or pass ${flags}.`);
+  process.exit(2);
+}
 
 function bail(v) {
   if (p.isCancel(v)) { p.cancel('Stopped. Nothing else was changed; run this again to carry on.'); process.exit(0); }
@@ -71,6 +90,11 @@ function openInBrowser(target) {
   const args = process.platform === 'win32' ? ['/c', 'start', '', target] : [target];
   try { spawn(cmd, args, { stdio: 'ignore', detached: true }).unref(); } catch { /* the URL is printed anyway */ }
 }
+
+/** The named Hosting site a saved Heresay lives on, from its saved address. */
+const savedSite = (rec) => /^https:\/\/([a-z0-9-]+)\.web\.app$/.exec(rec?.url ?? '')?.[1];
+const savedCtx = (id, rec) => ({ id, name: rec.name, region: rec.region, billing: rec.billing, owner: rec.owner,
+  lite: rec.lite, origin: rec.origin, site: savedSite(rec), onlySite: rec.only_site });
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 function suggestId(name) {
@@ -124,6 +148,8 @@ async function ensureLogin(args) {
 async function setup(args) {
   const version = steps.releaseVersion();
   p.intro(`${peacock(pc.bold('heresay'))}  ${pc.dim('·  every report gets a hearing')}`);
+  if (!args.yes) needsTerminal('Setup', '--yes (it takes every default; see --help for the rest)');
+  if (args.lite && args.yes && !args.origin) { p.log.error('Lite needs --origin https://your-host.example (the address your host will serve).'); process.exit(1); }
 
   const [major] = process.versions.node.split('.').map(Number);
   if (major < 20) {
@@ -138,7 +164,7 @@ async function setup(args) {
   if (unfinished.length && !args['project-id']) {
     const [id, rec] = unfinished[0];
     const resume = args.yes ? true : bail(await p.confirm({ message: `Found an unfinished setup for ${pc.bold(id)}. Pick up where it stopped?` }));
-    if (resume) ctx = { id, name: rec.name, region: rec.region, billing: rec.billing, owner: rec.owner, version, lite: rec.lite, origin: rec.origin };
+    if (resume) ctx = { ...savedCtx(id, rec), version };
     else if (!args.yes) {
       const drop = bail(await p.confirm({ message: 'Forget it and start a new one? (The Google project stays; remove it with npx create-heresay remove.)', initialValue: false }));
       if (!drop) { p.outro('Nothing changed.'); return; }
@@ -338,7 +364,7 @@ async function build(ctx, only) {
       if (key === 'signin' && ctx.googleError) {
         p.log.warn(`Google sign-in couldn’t be switched on (${ctx.googleError}). Email links work. To add Google later: https://console.firebase.google.com/project/${ctx.id}/authentication/providers`);
       }
-      if (key === 'deploy') state.update(ctx.id, { version: ctx.version, url: ctx.lite ? ctx.origin : url(ctx.id) });
+      if (key === 'deploy') state.update(ctx.id, { version: ctx.version, url: ctx.lite ? ctx.origin : `https://${steps.siteOf(ctx)}.web.app`, ...(steps.onlySite(ctx) ? { only_site: true } : {}) });
     } catch (e) {
       s.error(`${doing}: stopped`);
       fail(e, ctx.id);
@@ -348,14 +374,26 @@ async function build(ctx, only) {
 
 // ---- other commands ---------------------------------------------------------------------
 
-async function pickInstance(verb, args) {
+/**
+ * Which Heresay a command is about. `anywhere`: the command only needs the project id (backup,
+ * restore), so a Heresay set up from another computer, or by a teammate, works with --project-id.
+ */
+async function pickInstance(verb, args, { anywhere = false } = {}) {
   const all = state.load().instances;
   const ids = Object.keys(all);
   if (args['project-id']) {
-    if (!all[args['project-id']]) { p.log.error(`This computer didn’t set up ${args['project-id']}.`); process.exit(1); }
+    if (!all[args['project-id']] && !anywhere) {
+      p.log.error(`${args['project-id']} wasn’t set up from this computer, so its settings aren’t here. Run this on the computer that set it up.`);
+      process.exit(1);
+    }
     return args['project-id'];
   }
-  if (!ids.length) { p.log.error('This computer hasn’t set up a Heresay yet. Run npx create-heresay first.'); process.exit(1); }
+  if (!ids.length) {
+    p.log.error(anywhere
+      ? 'No Heresay was set up from this computer. Name yours with --project-id <id> (its Firebase project ID, listed at console.firebase.google.com), or run npx create-heresay to make one.'
+      : 'No Heresay was set up from this computer. Run this on the computer that set it up, or npx create-heresay to make a new one.');
+    process.exit(1);
+  }
   if (ids.length === 1) return ids[0];
   return bail(await p.select({ message: `Which Heresay do you want to ${verb}?`, options: ids.map((id) => ({ value: id, label: id, hint: all[id].url })) }));
 }
@@ -379,7 +417,7 @@ async function update(args) {
     if (!go) { p.outro('Nothing changed.'); return; }
   }
   const signedIn = await account();
-  await build({ id, name: rec.name, region: rec.region, billing: rec.billing, owner: rec.owner, version, account: signedIn, lite: rec.lite, origin: rec.origin }, ['deploy', 'verify']);
+  await build({ ...savedCtx(id, rec), version, account: signedIn }, ['deploy', 'verify']);
   if (rec.lite) { p.outro(`Rebuild your host from ${state.workDir(id)} to run ${version}.`); return; }
   p.outro(`${url(id)} is on ${version}.`);
 }
@@ -417,6 +455,7 @@ async function removeCmd(args) {
     `This deletes the Google Cloud project ${pc.bold(id)}: its dashboard, every app and every report.`,
     'Google keeps it recoverable for 30 days, then it is gone. Billing is unlinked straight away.',
   ].join('\n'));
+  needsTerminal('Remove', 'nothing: deleting a Heresay always needs a person to type its id');
   const typed = bail(await p.text({ message: `Type ${id} to confirm` }));
   if (typed !== id) { p.outro('That didn’t match. Nothing was deleted.'); return; }
   await account();
@@ -432,7 +471,7 @@ const FS = 'https://firestore.googleapis.com/v1';
 
 async function backupCmd(args) {
   p.intro(`${peacock(pc.bold('heresay'))} backup`);
-  const id = await pickInstance('back up', args);
+  const id = await pickInstance('back up', args, { anywhere: true });
   await account();
   const s = progress(false);
   s.start(`Reading ${id}`);
@@ -460,8 +499,11 @@ async function restoreCmd(args) {
   const path = args._[1];
   if (!path) { p.log.error('Which file? npx create-heresay restore <file>'); process.exit(1); }
   let b;
-  try { b = backup.check(JSON.parse(readFileSync(path, 'utf8'))); } catch (e) { p.log.error(e.message); process.exit(1); }
-  const id = await pickInstance('restore into', args);
+  try { b = backup.check(JSON.parse(readFileSync(path, 'utf8'))); } catch (e) {
+    p.log.error(e.code === 'ENOENT' ? `There’s no file at ${path}.` : e instanceof SyntaxError ? `${path} isn’t a Heresay backup (it isn’t JSON).` : e.message);
+    process.exit(1);
+  }
+  const id = await pickInstance('restore into', args, { anywhere: true });
   await account();
   p.log.info(`${b.documents.length} documents from ${b.project} (${b.created_at.slice(0, 10)}) → ${id}`);
   if (await backup.hasData(g, { base: FS, project: id }) && !args.force) {
@@ -469,6 +511,7 @@ async function restoreCmd(args) {
     process.exit(1);
   }
   if (!args.yes) {
+    needsTerminal('Restore', '--yes to restore without typing the id');
     const typed = bail(await p.text({ message: `Type ${id} to restore into it` }));
     if (typed !== id) { p.outro('That didn’t match. Nothing was written.'); return; }
   }

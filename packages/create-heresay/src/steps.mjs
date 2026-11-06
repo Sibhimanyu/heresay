@@ -128,7 +128,14 @@ export async function database(ctx, say) {
 }
 
 /** The hosting site id: the project id unless HERESAY_SITE names another site in the project. */
-export const siteOf = (ctx) => process.env.HERESAY_SITE || ctx.id;
+/**
+ * The hosting site: HERESAY_SITE if set, else the one this Heresay was last deployed to (saved in
+ * ~/.heresay), else the project's default site. So `update` from a laptop reaches the same site
+ * CI deploys to, instead of the default one.
+ */
+export const siteOf = (ctx) => process.env.HERESAY_SITE || ctx.site || ctx.id;
+/** Serve only the named site (the default one retired): HERESAY_ONLY_SITE=1, or saved from a deploy that set it. */
+export const onlySite = (ctx) => process.env.HERESAY_ONLY_SITE === '1' || !!ctx.onlySite;
 
 // ---- the release, laid out for `firebase deploy` ----------------------------------------
 
@@ -151,13 +158,14 @@ export function prepareRelease(ctx) {
   // address, and repos already connected to it, must keep working. HERESAY_ONLY_SITE=1 opts out
   // for an instance that has retired the default address.
   if (siteOf(ctx) !== ctx.id) {
-    cfg.hosting = process.env.HERESAY_ONLY_SITE === '1'
+    cfg.hosting = onlySite(ctx)
       ? { ...cfg.hosting, site: siteOf(ctx) }
       : [{ ...cfg.hosting, site: siteOf(ctx) }, { ...cfg.hosting, site: ctx.id }];
   }
   writeFileSync(join(dir, 'firebase.json'), JSON.stringify(cfg, null, 2) + '\n');
   writeFileSync(join(dir, '.firebaserc'), JSON.stringify({ projects: { default: ctx.id } }, null, 2) + '\n');
-  writeFileSync(join(dir, 'functions', '.env'), `HERESAY_REGION=${ctx.region}\n`);
+  // HERESAY_SITE: the API names this site (not the default one) in OAuth discovery and alert links.
+  writeFileSync(join(dir, 'functions', '.env'), `HERESAY_REGION=${ctx.region}\n${siteOf(ctx) !== ctx.id ? `HERESAY_SITE=${siteOf(ctx)}\n` : ''}`);
   return dir;
 }
 

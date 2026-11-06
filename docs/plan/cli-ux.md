@@ -85,12 +85,14 @@ $ npx create-heresay
 | Project limit reached | "Your Google account can't create more projects. Delete one at console.cloud.google.com, or ask for more quota." |
 | API not ready yet (fresh project) | Retries quietly for up to 2 minutes; the user sees the step still running. |
 | Deploy fails | "Deploy failed at: <step>. Your project is fine. Run the same command to try again." Log path shown. |
+| No terminal (an agent, a pipe) | "Setup asks questions, and there's no terminal to answer them here. Run it in a terminal, or pass --yes." |
+| Command needs this computer's saved settings | Says to run it where the Heresay was set up; `backup` and `restore` take `--project-id` instead. |
 | Interrupted anywhere | Rerun: "Found an unfinished setup for heresay-acme-7k2q. Pick up where it stopped?" |
 
 ## Saved state
 
 `~/.heresay/config.json` holds each instance the user has set up: project id, URL, region,
-version, and which steps are done. `heresay update`, `heresay status` and later `heresay connect`
+version, the hosting site it was last deployed to, and which steps are done. `heresay update`, `heresay status` and later `heresay connect`
 read it, so no command asks for the project id twice.
 
 ## Flags, for CI and for testing
@@ -107,6 +109,11 @@ Subcommands of the same package until a separate `heresay` package exists:
 - `create-heresay status`  version, URL, and whether setup finished
 - `create-heresay open`    open the dashboard
 - `create-heresay remove`  unlink billing and delete the project, after typing its id
+- `create-heresay backup`  every Firestore document to an owner-only file (`--out`, `--project-id`
+  for a Heresay set up elsewhere)
+- `create-heresay restore <file>`  write a backup into a Heresay; refuses one with data unless `--force`
+- `create-heresay --lite --origin <https url>`  no billing: Firestore and Auth on Spark, the API on
+  a host you choose (`docs/lite.md`)
 - `heresay connect` (next milestone) link a repo to an app for agents
 
 ## Sign-in
