@@ -1046,6 +1046,20 @@
     }).then(body);
   }
 
+  /**
+   * A device with no reports has nothing to hear back about, so loading the app need not ask
+   * the server more than once a day (that call is also what tells the dashboard the SDK is live).
+   * A device with reports asks on every load, as before.
+   */
+  var MINE_KEY = 'fbsdk.mine.' + KEY;
+  function rememberMine() { save(MINE_KEY, JSON.stringify({ at: Date.now(), n: state.reports.length })); }
+  function mineIsEmptyAndFresh() {
+    try {
+      var m = JSON.parse(load(MINE_KEY) || 'null');
+      return !!m && m.n === 0 && Date.now() - m.at < 24 * 3600 * 1000;
+    } catch (e) { return false; }
+  }
+
   function refresh() {
     if (PREVIEW) return Promise.resolve();
     return fetch(API + '/reports/mine', {
@@ -1055,6 +1069,7 @@
       body: JSON.stringify({ key: KEY, device_id: deviceId(), sdk: 'web' }),
     }).then(body).then(function (b) {
       state.reports = b.reports || [];
+      rememberMine();
       renderBadge();
       renderList();
     }).catch(function () { /* offline or blocked: the button still works */ });
@@ -1382,6 +1397,7 @@
           state.type = null;
           state.draft = '';
           state.reports = [b.report].concat(state.reports);
+          rememberMine();
           markSeen();
           state.justSent = true;
           view = 'mine';
@@ -1665,7 +1681,7 @@
     versionSeen(state.version);
     if (!host.isConnected) document.body.appendChild(host);
     placeFab();
-    refresh();
+    if (!mineIsEmptyAndFresh()) refresh();
     if (attr('intro') === 'auto') setTimeout(introduce, 3000);
   }
   if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);

@@ -17,7 +17,8 @@ import * as state from './state.mjs';
 import * as steps from './steps.mjs';
 
 const peacock = (s) => `\x1b[38;2;15;118;110m${s}\x1b[39m`;
-const url = (id) => `https://${process.env.HERESAY_SITE || id}.web.app`;
+// A Lite Heresay lives wherever its owner runs it; the address is kept when it is set up.
+const url = (id) => state.load().instances[id]?.origin || `https://${process.env.HERESAY_SITE || id}.web.app`;
 
 // ---- arguments --------------------------------------------------------------------------
 
@@ -46,6 +47,9 @@ const HELP = `
   Setup flags, to skip questions:
     --name <name>          --project-id <id>     --region us-central1|asia-south1|europe-west1
     --billing <account>    --owner <email>       --yes  (take every default, never ask)
+
+  Free plan, no billing (Spark): the API runs on a host you choose instead of Cloud Functions.
+    --lite --origin https://your-host.example      see docs/lite.md
 `;
 
 // ---- small helpers ----------------------------------------------------------------------
@@ -127,7 +131,7 @@ async function setup(args) {
   if (unfinished.length && !args['project-id']) {
     const [id, rec] = unfinished[0];
     const resume = args.yes ? true : bail(await p.confirm({ message: `Found an unfinished setup for ${pc.bold(id)}. Pick up where it stopped?` }));
-    if (resume) ctx = { id, name: rec.name, region: rec.region, billing: rec.billing, owner: rec.owner, version };
+    if (resume) ctx = { id, name: rec.name, region: rec.region, billing: rec.billing, owner: rec.owner, version, lite: rec.lite, origin: rec.origin };
     else if (!args.yes) {
       const drop = bail(await p.confirm({ message: 'Forget it and start a new one? (The Google project stays; remove it with npx create-heresay remove.)', initialValue: false }));
       if (!drop) { p.outro('Nothing changed.'); return; }
@@ -135,8 +139,18 @@ async function setup(args) {
     }
   }
 
+  const lite = ctx ? !!ctx.lite : !!args.lite;
   if (!ctx) {
-    p.note([
+    if (lite) p.note([
+      'This sets up your own Heresay in your Google account, on the free Spark plan:',
+      '',
+      `  ${peacock('•')} A new Firebase project: its database and sign-in`,
+      `  ${peacock('•')} A key and a settings file for the server`,
+      '',
+      'No billing account. The API, dashboard and SDK run as one Node server on a',
+      'host you choose (any host that runs Docker or Node), at the address you give.',
+    ].join('\n'), 'About 3 minutes');
+    else p.note([
       'This sets up your own Heresay in your Google account:',
       '',
       `  ${peacock('•')} A new Firebase project, owned by you`,
@@ -177,7 +191,17 @@ async function setup(args) {
     })));
     if (!steps.REGIONS.some((r) => r.value === region)) { p.log.error(`Unknown region ${region}.`); process.exit(1); }
 
-    const billing = await pickBilling(args);
+    const billing = lite ? null : await pickBilling(args);
+    let origin = null;
+    if (lite) {
+      origin = args.origin ?? (args.yes ? null : bail(await p.text({
+        message: 'Where will your Heresay run? (its public https address)',
+        placeholder: 'https://heresay.example.com',
+        validate: (v) => (/^https:\/\/[^\s/]+$/.test((v ?? '').replace(/\/$/, '')) ? undefined : 'An https address like https://heresay.example.com'),
+      })));
+      origin = origin && String(origin).replace(/\/$/, '');
+      if (!origin || !/^https:\/\/[^\s/]+$/.test(origin)) { p.log.error('Lite needs --origin https://your-host.example (the address your host will serve).'); process.exit(1); }
+    }
 
     const owner = args.owner ?? (args.yes ? email : bail(await p.text({
       message: 'Who can sign in to the dashboard?',
@@ -185,12 +209,31 @@ async function setup(args) {
       validate: (v) => (!v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'That isn’t an email address'),
     })));
 
-    ctx = { id, name, region, billing, owner, version, account: email };
-    state.update(id, { name, region, billing, owner, url: url(id), created_at: new Date().toISOString(), done: {} });
+    ctx = { id, name, region, billing, owner, version, account: email, lite, origin };
+    state.update(id, { name, region, billing, owner, lite, origin, url: lite ? origin : url(id), created_at: new Date().toISOString(), done: {} });
     if (!args.yes) p.log.message(pc.dim('You can add teammates in the dashboard later.'));
   }
 
   await build(ctx);
+
+  if (ctx.lite) {
+    const dir = state.workDir(ctx.id);
+    p.note([
+      `Everything your host needs is in ${pc.bold(dir)}:`,
+      '',
+      `  ${peacock('•')} Dockerfile    builds the server`,
+      `  ${peacock('•')} lite.env      its settings and key (secret: keep it out of git)`,
+      '',
+      'Try it on this computer:',
+      pc.dim(`  cd ${dir}`),
+      pc.dim('  docker build -t heresay-lite . && docker run --rm -p 8080:8080 --env-file lite.env heresay-lite'),
+      '',
+      `On a host, build that folder as a Docker service and add each line of lite.env as an environment variable. It must answer at ${pc.bold(ctx.origin)}.`,
+      `Then open ${ctx.origin}/app/ and sign in as ${ctx.owner}. Check with: npx create-heresay status`,
+    ].join('\n'), 'Your Heresay is ready for a host');
+    p.outro('Every report gets a hearing.');
+    return;
+  }
 
   p.note([
     pc.bold(peacock(url(ctx.id))),
@@ -236,6 +279,16 @@ async function pickBilling(args) {
   }
 }
 
+const BUILD_LITE = [
+  ['project', 'Creating the project', 'Project created', steps.project],
+  ['services', 'Switching on services', 'Services switched on', steps.liteServices],
+  ['database', 'Creating the database', 'Database created', steps.database],
+  ['signin', 'Setting up sign-in', 'Sign-in set up', steps.liteSignIn],
+  ['owner', 'Adding you as owner', 'Owner added', steps.owner],
+  ['deploy', 'Preparing the server', 'Server prepared', steps.liteDeploy],
+  ['verify', 'Checking for your host', 'Checked', steps.liteVerify],
+];
+
 const BUILD = [
   ['project', 'Creating the project', 'Project created', steps.project],
   ['billing', 'Linking billing', 'Billing linked', steps.billing],
@@ -261,7 +314,7 @@ async function build(ctx, only) {
   (await import('./firebase.mjs')).log(`\n==== ${new Date().toISOString()} ${only ? 'update' : 'setup'} ${ctx.id} (Heresay ${ctx.version})`);
   p.log.step(pc.bold(only ? `Updating ${ctx.id}` : 'Building your Heresay'));
   const rec = state.load().instances[ctx.id] ?? {};
-  for (const [key, doing, title, run] of BUILD) {
+  for (const [key, doing, title, run] of (ctx.lite ? BUILD_LITE : BUILD)) {
     if (only && !only.includes(key)) continue;
     if (!only && rec.done?.[key] && key !== 'deploy' && key !== 'verify') {
       p.log.success(`${title}  ${pc.dim('(done before)')}`);
@@ -278,7 +331,7 @@ async function build(ctx, only) {
       if (key === 'signin' && ctx.googleError) {
         p.log.warn(`Google sign-in couldn’t be switched on (${ctx.googleError}). Email links work. To add Google later: https://console.firebase.google.com/project/${ctx.id}/authentication/providers`);
       }
-      if (key === 'deploy') state.update(ctx.id, { version: ctx.version, url: url(ctx.id) });
+      if (key === 'deploy') state.update(ctx.id, { version: ctx.version, url: ctx.lite ? ctx.origin : url(ctx.id) });
     } catch (e) {
       s.error(`${doing}: stopped`);
       fail(e, ctx.id);
@@ -319,7 +372,8 @@ async function update(args) {
     if (!go) { p.outro('Nothing changed.'); return; }
   }
   const signedIn = await account();
-  await build({ id, name: rec.name, region: rec.region, billing: rec.billing, owner: rec.owner, version, account: signedIn }, ['deploy', 'verify']);
+  await build({ id, name: rec.name, region: rec.region, billing: rec.billing, owner: rec.owner, version, account: signedIn, lite: rec.lite, origin: rec.origin }, ['deploy', 'verify']);
+  if (rec.lite) { p.outro(`Rebuild your host from ${state.workDir(id)} to run ${version}.`); return; }
   p.outro(`${url(id)} is on ${version}.`);
 }
 

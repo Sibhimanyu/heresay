@@ -727,7 +727,7 @@ try {
   const { StreamableHTTPClientTransport } = await import(`${PKG}node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js`);
   const chat = new Client({ name: 'chatgpt-e2e', version: '1' });
   await chat.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/v1/mcp`), { requestInit: { headers: { authorization: `Bearer ${tokens.access_token}` } } }));
-  assert.deepEqual((await chat.listTools()).tools.map((t) => t.name), ['list_apps', 'draft_request', 'send_draft', 'withdraw_request', 'my_requests']);
+  assert.deepEqual((await chat.listTools()).tools.map((t) => t.name), ['list_apps', 'draft_request', 'append_to_draft', 'send_draft', 'withdraw_request', 'my_requests']);
   const chatApps = (await chat.callTool({ name: 'list_apps', arguments: {} })).structuredContent.apps;
   assert.ok(chatApps.some((a) => a.name === 'Acme Notes'));
   // Nothing is sent until a second step: the person sees which app it's for first.
