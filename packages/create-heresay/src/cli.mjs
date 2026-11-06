@@ -4,14 +4,19 @@
  * npx create-heresay status     what's deployed where
  * npx create-heresay open       open a dashboard
  * npx create-heresay remove     delete a Heresay and its Google Cloud project
+ * npx create-heresay backup     save a Heresay's data to a file
+ * npx create-heresay restore    put a backup into a Heresay
  *
  * The UX is specified in docs/plan/cli-ux.md.
  */
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { spawn } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { account } from './google.mjs';
+import { account, g } from './google.mjs';
+import * as backup from './backup.mjs';
 import { firebase, logTo } from './firebase.mjs';
 import * as state from './state.mjs';
 import * as steps from './steps.mjs';
@@ -43,6 +48,8 @@ const HELP = `
   npx create-heresay status      See what's deployed, and where
   npx create-heresay open        Open your dashboard
   npx create-heresay remove      Delete a Heresay and its Google Cloud project
+  npx create-heresay backup      Save all of a Heresay's data to a file     [--out <file>]
+  npx create-heresay restore <file>   Put a backup into a Heresay           [--force]
 
   Setup flags, to skip questions:
     --name <name>          --project-id <id>     --region us-central1|asia-south1|europe-west1
@@ -421,6 +428,57 @@ async function removeCmd(args) {
   p.outro('Done.');
 }
 
+const FS = 'https://firestore.googleapis.com/v1';
+
+async function backupCmd(args) {
+  p.intro(`${peacock(pc.bold('heresay'))} backup`);
+  const id = await pickInstance('back up', args);
+  await account();
+  const s = progress(false);
+  s.start(`Reading ${id}`);
+  let b;
+  try { b = await backup.dump(g, { base: FS, project: id, version: steps.releaseVersion(), say: (m) => s.message(m) }); } catch (e) { s.error('Couldn’t read it'); fail(e); }
+  const stamp = b.created_at.slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
+  const file = resolvePath(String(args.out ?? `heresay-backup-${id}-${stamp}.json`));
+  writeFileSync(file, JSON.stringify(b) + '\n', { mode: 0o600 });
+  s.stop(`Saved ${b.documents.length} documents`);
+  const by = backup.summarize(b);
+  p.note([
+    ...Object.entries(by).map(([k, n]) => `  ${k.padEnd(16)} ${n}`),
+    '',
+    pc.bold(file),
+    '',
+    ...(b.unscanned.length ? [pc.yellow(`${b.unscanned.length} documents with ':' in their id were saved, but Firestore can’t list subcollections under them (Heresay keeps none there).`), ''] : []),
+    'It holds secrets (notification tokens, hashed agent tokens). Keep it somewhere private.',
+    'Put it back with: npx create-heresay restore <file>',
+  ].join('\n'), 'Backup');
+  p.outro('Done.');
+}
+
+async function restoreCmd(args) {
+  p.intro(`${peacock(pc.bold('heresay'))} restore`);
+  const path = args._[1];
+  if (!path) { p.log.error('Which file? npx create-heresay restore <file>'); process.exit(1); }
+  let b;
+  try { b = backup.check(JSON.parse(readFileSync(path, 'utf8'))); } catch (e) { p.log.error(e.message); process.exit(1); }
+  const id = await pickInstance('restore into', args);
+  await account();
+  p.log.info(`${b.documents.length} documents from ${b.project} (${b.created_at.slice(0, 10)}) → ${id}`);
+  if (await backup.hasData(g, { base: FS, project: id }) && !args.force) {
+    p.log.error(`${id} already has data. Restoring would overwrite matching documents and keep the rest. Run again with --force if that’s what you want.`);
+    process.exit(1);
+  }
+  if (!args.yes) {
+    const typed = bail(await p.text({ message: `Type ${id} to restore into it` }));
+    if (typed !== id) { p.outro('That didn’t match. Nothing was written.'); return; }
+  }
+  const s = progress(false);
+  s.start('Writing');
+  try { await backup.restore(g, b, { base: FS, project: id, say: (m) => s.message(m) }); } catch (e) { s.error('Stopped part way; run it again to finish'); fail(e); }
+  s.stop(`Restored ${b.documents.length} documents`);
+  p.outro(`Sign in at ${url(id)}/app/ with a team email. Reconnect repos with npx heresay connect --url ${url(id)}.`);
+}
+
 export async function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
@@ -431,6 +489,8 @@ export async function main(argv) {
   if (cmd === 'status') return status(args);
   if (cmd === 'open') return open(args);
   if (cmd === 'remove') return removeCmd(args);
+  if (cmd === 'backup') return backupCmd(args);
+  if (cmd === 'restore') return restoreCmd(args);
   console.log(`Unknown command: ${cmd}\n${HELP}`);
   process.exit(1);
 }
