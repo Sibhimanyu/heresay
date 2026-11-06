@@ -50,8 +50,12 @@ options are `data-` attributes (`public/guides/customize-web.md`); Swift takes a
 (`public/guides/customize-apple.md`). "Powered by Heresay" always shows. See
 `docs/decisions/0006-web-sdk-customisation.md`.
 
-Later: `npx create-heresay update` deploys a new version, `status` shows what's where, `remove`
-deletes a Heresay. The setup UX is specified in `docs/plan/cli-ux.md`; the code is
+No billing account? `npx create-heresay --lite --origin https://your-host` keeps Firebase on the
+free Spark plan and runs the API on a host you choose (`docs/lite.md`).
+
+Later: `npx create-heresay update` deploys a new version, `status` shows what's where, `backup`
+saves all of a Heresay's data to a file (and `restore <file>` puts it back), `remove` deletes a
+Heresay. The setup UX is specified in `docs/plan/cli-ux.md`; the code is
 `packages/create-heresay/`.
 
 ## Notifications

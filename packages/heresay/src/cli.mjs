@@ -37,7 +37,7 @@ const HELP = `
     heresay withdraw <id> ["<reason>"]      take back an open finding (kept as withdrawn)
 
   Your Heresay itself
-    npx create-heresay                     set one up    (also: update, status, open, remove)
+    npx create-heresay                     set one up    (also: update, status, open, backup, restore, remove)
 `;
 
 function parse(argv) {
@@ -73,7 +73,7 @@ export async function main(argv) {
     } catch (e) { if (process.env.HERESAY_DEBUG) console.error(e); /* otherwise say nothing */ }
     process.exit(0);
   }
-  if (['update', 'status', 'open', 'remove', 'setup'].includes(cmd)) {
+  if (['update', 'status', 'open', 'remove', 'setup', 'backup', 'restore'].includes(cmd)) {
     // Managing the Heresay itself lives in create-heresay, which carries the Firebase tools.
     const child = spawn('npx', ['-y', 'create-heresay@0', cmd === 'setup' ? '' : cmd, ...argv.slice(1)].filter(Boolean), { stdio: 'inherit' });
     child.on('close', (c) => process.exit(c ?? 0));

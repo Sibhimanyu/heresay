@@ -29,10 +29,17 @@ const deps: Deps = {
   telegramApi: telegramApi(),
 };
 
+/**
+ * The addresses this Heresay's dashboard is served from. A named Hosting site (HERESAY_SITE,
+ * written to functions/.env by the deploy) comes first: it is the one people use, so OAuth
+ * discovery and alert links name it, not the project's default site.
+ */
 function selfOrigins(): string[] {
   const id = process.env.GCLOUD_PROJECT;
   if (process.env.FUNCTIONS_EMULATOR === 'true') return ['http://127.0.0.1:5055', 'http://localhost:5055'];
-  return id ? [`https://${id}.web.app`, `https://${id}.firebaseapp.com`] : [];
+  const site = process.env.HERESAY_SITE;
+  const named = site && site !== id ? [`https://${site}.web.app`, `https://${site}.firebaseapp.com`] : [];
+  return id ? [...named, `https://${id}.web.app`, `https://${id}.firebaseapp.com`] : named;
 }
 
 /** Hosting rewrites /v1/** and /.well-known/** here, so the SDK, the API and the dashboard share one origin. */
