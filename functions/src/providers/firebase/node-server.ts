@@ -134,7 +134,9 @@ function reserved(res: ServerResponse, path: string): boolean {
 
 async function file(res: ServerResponse, path: string): Promise<void> {
   let rel = path === '/sdk/v1.js' ? '/sdk.js' : path;
-  if (rel.endsWith('/')) rel += 'index.html';
+  // The dashboard is the root of a Heresay; /app/ is its older address and keeps working.
+  if (rel === '/') rel = '/app/index.html';
+  else if (rel.endsWith('/')) rel += 'index.html';
   const full = join(PUBLIC_DIR, normalize(rel));
   if (!full.startsWith(PUBLIC_DIR + '/') || rel.split('/').some((p) => p.startsWith('.'))) { res.writeHead(404).end(); return; }
   try {

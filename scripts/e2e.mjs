@@ -59,6 +59,18 @@ try {
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 760 } });
   await seedOwner(OWNER);
 
+  step('the dashboard is the root of a Heresay, with no redirect; /app/ (its older address) still works');
+  {
+    const root = await ctx.newPage();
+    const res = await root.goto(`${BASE}/`);
+    assert.equal(new URL(root.url()).pathname, '/', 'no redirect away from the root');
+    assert.equal(res.status(), 200);
+    await root.locator('#gate').waitFor();
+    await root.goto(`${BASE}/app/`);
+    await root.locator('#gate').waitFor();
+    await root.close();
+  }
+
   step('owner signs in with an email link and lands on an empty Heresay');
   const dash = await ctx.newPage();
   dash.on('pageerror', (e) => console.error('dashboard error:', e));

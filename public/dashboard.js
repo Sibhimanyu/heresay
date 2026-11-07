@@ -188,7 +188,7 @@
     gateMsg('Sending…');
     // A chat app sent them here to say yes: come back to that page after the link.
     if (/^#\/authorize\?/.test(location.hash)) localStorage.setItem('heresay.after', JSON.stringify({ hash: location.hash, at: Date.now() }));
-    auth.sendSignInLinkToEmail(email, { url: location.origin + '/app/', handleCodeInApp: true })
+    auth.sendSignInLinkToEmail(email, { url: location.origin + '/', handleCodeInApp: true })
       .then(function () {
         localStorage.setItem('heresay.email', email);
         gateMsg('Check your inbox at ' + email + '. The link signs you in here. It can take a minute, and may land in spam.');
@@ -201,11 +201,11 @@
 
   function finishLink(email) {
     auth.signInWithEmailLink(email, location.href)
-      .then(function () { localStorage.removeItem('heresay.email'); history.replaceState(null, '', '/app/'); finishingLink = false; })
+      .then(function () { localStorage.removeItem('heresay.email'); history.replaceState(null, '', location.pathname); finishingLink = false; })
       .catch(function (x) {
         gateMsg(x.code === 'auth/invalid-action-code'
           ? 'That link has expired or was already used. Ask for a new one.' : x.message, true);
-        history.replaceState(null, '', '/app/'); finishingLink = false;
+        history.replaceState(null, '', location.pathname); finishingLink = false;
         $('link-form').querySelector('button').textContent = 'Email me a sign-in link';
       });
   }
@@ -233,7 +233,7 @@
       try {
         var after = JSON.parse(localStorage.getItem('heresay.after') || 'null');
         localStorage.removeItem('heresay.after');
-        if (after && Date.now() - after.at < 15 * 60000 && !location.hash) history.replaceState(null, '', '/app/' + after.hash);
+        if (after && Date.now() - after.at < 15 * 60000 && !location.hash) history.replaceState(null, '', location.pathname + after.hash);
       } catch (e) { /* nothing saved */ }
       route();  // first, so the view is already waiting when the app is shown
       show('app');
@@ -2767,7 +2767,7 @@
           draw(b.members);
           form.reset();
           err.className = 'ok-msg';
-          err.textContent = 'Added. Send them this address; they sign in with that email: ' + location.origin + '/app/';
+          err.textContent = 'Added. Send them this address; they sign in with that email: ' + location.origin;
         }).catch(function (x) { err.className = 'err'; err.textContent = x.message; });
       };
       view.appendChild(el('section', { class: 'card' }, [el('h2', { text: 'Add someone' }), form]));

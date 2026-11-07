@@ -229,7 +229,7 @@ async function findApp(v: unknown, deps: Deps): Promise<Project> {
   return hit;
 }
 
-const dashboardLink = (req: Req, deps: Deps, p: Project) => `${baseUrl(req, deps)}/app/#/apps/${p.id}`;
+const dashboardLink = (req: Req, deps: Deps, p: Project) => `${baseUrl(req, deps)}/#/apps/${p.id}`;
 
 const appNames = (ps: Project[]) => ps.map((p) => `${p.name} (${p.platform})`).join(', ');
 

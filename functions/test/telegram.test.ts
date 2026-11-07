@@ -228,7 +228,7 @@ test('the alert is formatted HTML with the app name escaped and the type as a wo
   const m = w.sent.at(-1)!;
   assert.equal(m.extra.telegram_html, true);
   assert.match(m.text, /^🔔 <b>New report<\/b> · Acme &lt;b&gt;&amp;&lt;\/b&gt; &quot;Notes&quot;\n/);
-  assert.match(m.text, /\n🐞 Broken · <code>r_[\w-]+<\/code>\n<a href="https:\/\/heresay\.example\/app\/#\/apps\/[^"]+">Open in Heresay →<\/a>$/);
+  assert.match(m.text, /\n🐞 Broken · <code>r_[\w-]+<\/code>\n<a href="https:\/\/heresay\.example\/#\/apps\/[^"]+">Open in Heresay →<\/a>$/);
   assert.ok(!/<b>&<\/b>/.test(m.text), 'a team-chosen name cannot add markup');
 });
 

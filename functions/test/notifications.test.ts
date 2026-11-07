@@ -137,7 +137,7 @@ test('real report transitions notify selected destinations once, without reporte
   const id = (submitted.body as { report: Report }).report.id;
   assert.equal(w.sent.length, 2);
   assert.match(w.sent[0].text, /needs your review/);
-  assert.match(w.sent[0].text, /https:\/\/heresay.example\/app\/#\/apps\//);
+  assert.match(w.sent[0].text, /https:\/\/heresay.example\/#\/apps\//);
   assert.equal((await w.triage(id, 'accept')).status, 200);
   assert.equal(w.sent.length, 4);
   assert.equal((await w.triage(id, 'accept')).status, 409);

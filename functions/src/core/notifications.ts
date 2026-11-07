@@ -225,7 +225,7 @@ export async function notify(event: NotificationEvent, project: Project, reportI
     const found = await deps.store.getReport(project.id, reportId).catch(() => null);
     const type = (found && TYPE[found.type]) || null;
     const origin = deps.selfOrigins?.[0];
-    const link = origin ? `${origin}/app/#/apps/${encodeURIComponent(project.id)}` : null;
+    const link = origin ? `${origin}/#/apps/${encodeURIComponent(project.id)}` : null;
     const meta = [type ? `${type[0]} ${type[1]}` : null, reportId];
     const text = [`${emoji} ${head} · ${project.name}`, `${labels[event]}.`, meta.filter(Boolean).join(' · ')].join('\n') + (link ? `\n${link}` : '');
     // Telegram gets bold and a link; the app name is the team's own, escaped, and nothing from a reporter is in it.

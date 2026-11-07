@@ -175,7 +175,7 @@ export async function authorize(req: Req, deps: Deps): Promise<Res> {
     const v = req.query[k];
     if (v) keep.set(k, v);
   }
-  return json(302, { redirect: true }, { location: `${baseUrl(req, deps)}/app/#/authorize?${keep}` });
+  return json(302, { redirect: true }, { location: `${baseUrl(req, deps)}/#/authorize?${keep}` });
 }
 
 /** What the dashboard shows on the "Allow?" page, before anyone says yes. */

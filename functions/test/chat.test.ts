@@ -48,7 +48,7 @@ async function connect(s: ReturnType<typeof setup>, who = 'alice') {
   const auth = await s.call({ path: '/v1/oauth/authorize', query: q });
   assert.equal(auth.status, 302);
   const to = auth.headers!.location!;
-  assert.ok(to.startsWith(`${BASE}/app/#/authorize?`), 'to the dashboard, to say yes signed in');
+  assert.ok(to.startsWith(`${BASE}/#/authorize?`), 'to the dashboard, to say yes signed in');
   const ask = await s.call({ path: '/v1/oauth/ask', query: q, headers: s.as(who) });
   assert.deepEqual(ask.body, { client_name: 'ChatGPT', redirect_host: 'chatgpt.com' });
   const ok = await s.call({ method: 'POST', path: '/v1/oauth/approve', headers: s.as(who), body: { ...q, allow: true } });

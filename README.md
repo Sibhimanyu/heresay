@@ -113,9 +113,8 @@ One Firebase project per team, one origin:
 | Path | What |
 | --- | --- |
 | `/sdk/v1.js` | The web SDK (also at `/sdk.js`). Plain JS, shadow DOM, no dependencies. `public/sdk.js` |
-| `/` | Redirects to `/app/`, with a link to the product page. `public/index.html` |
+| `/` | The developer dashboard (also at `/app/`, its older address). `public/app/index.html`, `public/dashboard.js` |
 | `/docs.html` | Developer docs. `public/docs.html`, `public/site.css` |
-| `/app/` | The developer dashboard. `public/app/index.html`, `public/dashboard.js` |
 | `/v1/**` | The `api` Cloud Function. Logic in `functions/src/core/`, Firebase adapter in `functions/src/providers/firebase/` |
 | `/.well-known/oauth-*` | OAuth discovery for chat apps, served by the same function |
 
@@ -131,7 +130,7 @@ npm run e2e     # the whole loop in a real browser against the emulators
 npm run e2e:workspace # inbox filters, review actions and responsive navigation
 npm run e2e:notifications # notification settings in Chromium, with delivery stubbed
 npm run e2e:agent  # heresay connect + the MCP server driving an app from install to fixed
-npm run dev     # emulators; site at http://127.0.0.1:5055, dashboard at /app/, demo host app at /demo.html?key=pk_...
+npm run dev     # emulators; site at http://127.0.0.1:5055, dashboard at /, demo host app at /demo.html?key=pk_...
 ```
 
 Emulator ports are non-default (auth 9199, firestore 8181, functions 5101, hosting 5055, UI 4100)
