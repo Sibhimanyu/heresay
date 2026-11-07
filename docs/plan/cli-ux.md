@@ -58,6 +58,7 @@ $ npx create-heresay
    ✓ Project created                    heresay-acme-7k2q
    ✓ Billing linked                     Sibhi Orchards
    ✓ Services switched on               Firestore, Functions, Auth, Hosting
+   ✓ Address reserved                   heresay-acme.web.app
    ✓ Database created                   us-central1
    ✓ Sign-in set up                     Google and email links
    ✓ Owner added                        you@gmail.com
@@ -66,7 +67,7 @@ $ npx create-heresay
 
   Your Heresay is live
 
-    https://heresay-acme-7k2q.web.app
+    https://heresay-acme.web.app
 
   Next: open it, sign in with you@gmail.com, and add your first app.
   Later:  npx create-heresay update   get new versions
@@ -89,6 +90,14 @@ $ npx create-heresay
 | Command needs this computer's saved settings | Says to run it where the Heresay was set up; `backup` and `restore` take `--project-id` instead. |
 | Interrupted anywhere | Rerun: "Found an unfinished setup for heresay-acme-7k2q. Pick up where it stopped?" |
 
+## The address
+
+The project id needs a random tail to be globally unique (`heresay-acme-7k2q`), and it can never
+change. The address shouldn't have either problem, so setup reserves a named Hosting site:
+`heresay-<name>`, else `heresay-<name>-team`, else `heresay-<name>-<tail>`, or `--site <name>`.
+If all are taken, the project's default address is used. The site is saved in
+`~/.heresay/config.json` and written to the API's `functions/.env` (`HERESAY_SITE`).
+
 ## Saved state
 
 `~/.heresay/config.json` holds each instance the user has set up: project id, URL, region,
@@ -97,7 +106,7 @@ read it, so no command asks for the project id twice.
 
 ## Flags, for CI and for testing
 
-`--name`, `--project-id`, `--region`, `--billing <account-id>`, `--owner <email>`, `--yes`
+`--name`, `--project-id`, `--region`, `--billing <account-id>`, `--owner <email>`, `--site <name>`, `--yes`
 (accept defaults). With `--yes`, the command never prompts. `HERESAY_HOME` moves the saved state
 (for tests).
 
