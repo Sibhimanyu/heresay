@@ -1,6 +1,6 @@
 # Feedback SDK
 
-Read README.md first. Background: `docs/decisions/`.
+Read README.md first. Background: `docs/decisions/`. UI work: `DESIGN.md`.
 
 ## Hard rules
 
