@@ -112,6 +112,65 @@ export async function services(ctx, say) {
   return 'Firestore, Functions, Auth, Hosting';
 }
 
+// ---- 3b. address ------------------------------------------------------------------------
+//
+// The project id carries a random tail (heresay-acme-7k2q) because project ids are global and
+// permanent. The address people type and paste into their apps shouldn't: a named Hosting site
+// gives heresay-acme.web.app, and it can later move to another project without changing.
+
+const HOSTING = 'https://firebasehosting.googleapis.com/v1beta1';
+
+/** Site names to try, best first: the one asked for, else heresay-<name>, then with the project's tail. */
+export function siteCandidates(name, id, asked) {
+  if (asked) return [asked];
+  const slug = String(name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  // Shorten the name, never the suffix, and never leave a dangling or doubled dash.
+  const join = (...parts) => {
+    const suffix = parts.slice(1).join('-');
+    const room = 30 - (suffix ? suffix.length + 1 : 0);
+    const head = parts[0].slice(0, room).replace(/-+$/, '');
+    return (suffix ? `${head}-${suffix}` : head).replace(/-{2,}/g, '-');
+  };
+  const base = join(slug ? `heresay-${slug}` : 'heresay');
+  const out = [base, join(base, 'team'), join(base, id.split('-').pop())].filter((c) => validSite(c));
+  return [...new Set(out)];
+}
+export const validSite = (s) => /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(s);
+
+/** True if created, false if the name is taken (by anyone). Retries only while Hosting is still switching on. */
+async function createSite(project, siteId) {
+  const until = Date.now() + 90_000;
+  for (;;) {
+    try {
+      await g('POST', `${HOSTING}/projects/${project}/sites?siteId=${siteId}`, { project, body: {} });
+      return true;
+    } catch (e) {
+      if (e.status === 409 || /already exists|unavailable|not available|taken|reserved/i.test(e.message)) return false;
+      if ((e.status === 403 || e.status === 404) && Date.now() < until) { await new Promise((r) => setTimeout(r, 5000)); continue; }
+      throw e;
+    }
+  }
+}
+
+export async function site(ctx, say) {
+  if (ctx.site) {
+    const mine = await g('GET', `${HOSTING}/projects/${ctx.id}/sites/${ctx.site}`, { project: ctx.id, missingOk: true });
+    if (mine) return `${ctx.site}.web.app`;
+  }
+  const tried = [];
+  for (const c of siteCandidates(ctx.name, ctx.id, ctx.askedSite)) {
+    say(`Reserving ${c}.web.app`);
+    // Ours already (a run that stopped right after reserving it): use it, don't count it as taken.
+    const ours = await g('GET', `${HOSTING}/projects/${ctx.id}/sites/${c}`, { project: ctx.id, missingOk: true }).catch(() => null);
+    if (ours || await createSite(ctx.id, c)) { ctx.site = c; return `${c}.web.app`; }
+    tried.push(c);
+  }
+  if (ctx.askedSite) throw new StepError(`${ctx.askedSite}.web.app is taken.`, 'Run this again with another --site name.');
+  // Every nice name is taken: the project's default address still works.
+  ctx.site = null;
+  return `${ctx.id}.web.app (${tried.join(', ')} taken)`;
+}
+
 // ---- 4. database ------------------------------------------------------------------------
 
 export async function database(ctx, say) {

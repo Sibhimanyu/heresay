@@ -61,7 +61,8 @@ const HELP = `
 
   Setup flags, to skip questions:
     --name <name>          --project-id <id>     --region us-central1|asia-south1|europe-west1
-    --billing <account>    --owner <email>       --yes  (take every default, never ask)
+    --billing <account>    --owner <email>       --site <name>  (your address: <name>.web.app)
+    --yes  (take every default, never ask)
 
   Free plan, no billing (Spark): the API runs on a host you choose instead of Cloud Functions.
     --lite --origin https://your-host.example      see docs/lite.md
@@ -92,9 +93,12 @@ function openInBrowser(target) {
 }
 
 /** The named Hosting site a saved Heresay lives on, from its saved address. */
-const savedSite = (rec) => /^https:\/\/([a-z0-9-]+)\.web\.app$/.exec(rec?.url ?? '')?.[1];
+const savedSite = (id, rec) => {
+  const site = /^https:\/\/([a-z0-9-]+)\.web\.app$/.exec(rec?.url ?? '')?.[1];
+  return site && site !== id ? site : undefined;   // the project's default site isn't a named one
+};
 const savedCtx = (id, rec) => ({ id, name: rec.name, region: rec.region, billing: rec.billing, owner: rec.owner,
-  lite: rec.lite, origin: rec.origin, site: savedSite(rec), onlySite: rec.only_site });
+  lite: rec.lite, origin: rec.origin, site: savedSite(id, rec), onlySite: rec.only_site });
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 function suggestId(name) {
@@ -187,7 +191,7 @@ async function setup(args) {
       'This sets up your own Heresay in your Google account:',
       '',
       `  ${peacock('•')} A new Firebase project, owned by you`,
-      `  ${peacock('•')} Its database, sign-in and hosting`,
+      `  ${peacock('•')} Its database, sign-in, and an address like heresay-<name>.web.app`,
       `  ${peacock('•')} The Heresay dashboard, API and SDK, deployed to it`,
       '',
       'Heresay’s API runs on Cloud Functions, which needs Firebase’s',
@@ -242,7 +246,9 @@ async function setup(args) {
       validate: (v) => (!v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'That isn’t an email address'),
     })));
 
-    ctx = { id, name, region, billing, owner, version, account: email, lite, origin };
+    const askedSite = args.site ? String(args.site).toLowerCase() : undefined;
+    if (askedSite && !steps.validSite(askedSite)) { p.log.error(`${askedSite} can’t be an address: 6 to 30 lowercase letters, digits and dashes, starting with a letter.`); process.exit(1); }
+    ctx = { id, name, region, billing, owner, version, account: email, lite, origin, askedSite };
     state.update(id, { name, region, billing, owner, lite, origin, url: lite ? origin : url(id), created_at: new Date().toISOString(), done: {} });
     if (!args.yes) p.log.message(pc.dim('You can add teammates in the dashboard later.'));
   }
@@ -326,6 +332,7 @@ const BUILD = [
   ['project', 'Creating the project', 'Project created', steps.project],
   ['billing', 'Linking billing', 'Billing linked', steps.billing],
   ['services', 'Switching on services', 'Services switched on', steps.services],
+  ['site', 'Choosing your address', 'Address reserved', steps.site],
   ['database', 'Creating the database', 'Database created', steps.database],
   ['signin', 'Setting up sign-in', 'Sign-in set up', steps.signIn],
   ['owner', 'Adding you as owner', 'Owner added', steps.owner],
@@ -361,6 +368,7 @@ async function build(ctx, only) {
       const secs = Math.round((Date.now() - started) / 1000);
       s.stop(`${title.padEnd(22)} ${pc.dim(String(detail ?? ''))}${secs > 20 ? pc.dim(`  (${secs}s)`) : ''}`);
       state.markDone(ctx.id, key);
+      if (key === 'site' && ctx.site) state.update(ctx.id, { url: `https://${ctx.site}.web.app` });
       if (key === 'signin' && ctx.googleError) {
         p.log.warn(`Google sign-in couldn’t be switched on (${ctx.googleError}). Email links work. To add Google later: https://console.firebase.google.com/project/${ctx.id}/authentication/providers`);
       }
