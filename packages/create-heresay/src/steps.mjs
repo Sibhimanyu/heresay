@@ -305,8 +305,9 @@ export async function verify(ctx, say) {
   for (;;) {
     try {
       const h = await (await fetch(`${base}/v1/health`)).json();
-      const app = await fetch(`${base}/app/`);
-      if (h.ok && app.ok) return `API ${h.version}, dashboard loads`;
+      // The dashboard is the site's root page; check it really is the dashboard, not a leftover page.
+      const app = await fetch(`${base}/`);
+      if (h.ok && app.ok && (await app.text()).includes('/dashboard.js')) return `API ${h.version}, dashboard loads`;
     } catch { /* hosting can take a moment to answer on a new site */ }
     if (Date.now() > until) {
       throw new StepError(`${base} isn’t answering yet.`, 'New sites can take a few minutes. Run npx create-heresay status in a little while.');

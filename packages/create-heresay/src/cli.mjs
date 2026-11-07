@@ -262,7 +262,7 @@ async function setup(args) {
       pc.dim('  docker build -t heresay-lite . && docker run --rm -p 8080:8080 --env-file lite.env heresay-lite'),
       '',
       `On a host, build that folder as a Docker service and add each line of lite.env as an environment variable. It must answer at ${pc.bold(ctx.origin)}.`,
-      `Then open ${ctx.origin}/app/ and sign in as ${ctx.owner}. Check with: npx create-heresay status`,
+      `Then open ${ctx.origin} and sign in as ${ctx.owner}. Check with: npx create-heresay status`,
     ].join('\n'), 'Your Heresay is ready for a host');
     p.outro('Every report gets a hearing.');
     return;
@@ -278,7 +278,7 @@ async function setup(args) {
   ].join('\n'), 'Your Heresay is live');
   if (!args.yes && process.stdout.isTTY) {
     const open = bail(await p.confirm({ message: 'Open it now?' }));
-    if (open) openInBrowser(url(ctx.id) + '/app/');
+    if (open) openInBrowser(url(ctx.id));
   }
   p.outro('Every report gets a hearing.');
 }
@@ -432,7 +432,7 @@ async function status() {
     const rec = all[id];
     const h = await health(id);
     const lines = [
-      `${pc.dim('Dashboard')}  ${url(id)}/app/`,
+      `${pc.dim('Dashboard')}  ${url(id)}`,
       `${pc.dim('Region   ')}  ${rec.region}`,
       `${pc.dim('Version  ')}  ${h ? h.version : pc.red('not answering')}${h && h.version !== bundled ? pc.dim(`  (${bundled} available: npx create-heresay update)`) : ''}`,
       `${pc.dim('Setup    ')}  ${rec.done?.verify ? 'complete' : pc.yellow('unfinished: run npx create-heresay to carry on')}`,
@@ -444,8 +444,8 @@ async function status() {
 
 async function open(args) {
   const id = await pickInstance('open', args);
-  openInBrowser(`${url(id)}/app/`);
-  console.log(`${url(id)}/app/`);
+  openInBrowser(url(id));
+  console.log(url(id));
 }
 
 async function removeCmd(args) {
@@ -519,7 +519,7 @@ async function restoreCmd(args) {
   s.start('Writing');
   try { await backup.restore(g, b, { base: FS, project: id, say: (m) => s.message(m) }); } catch (e) { s.error('Stopped part way; run it again to finish'); fail(e); }
   s.stop(`Restored ${b.documents.length} documents`);
-  p.outro(`Sign in at ${url(id)}/app/ with a team email. Reconnect repos with npx heresay connect --url ${url(id)}.`);
+  p.outro(`Sign in at ${url(id)} with a team email. Reconnect repos with npx heresay connect --url ${url(id)}.`);
 }
 
 export async function main(argv) {
