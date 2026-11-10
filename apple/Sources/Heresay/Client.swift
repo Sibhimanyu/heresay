@@ -21,6 +21,8 @@ struct Client: Sendable {
         let context: ReportContext
         let reporter: ReporterPrefs.Reporter?
         let trail: [TrailEvent]?
+        /// "crash": sent by the SDK itself, not by a person (`HeresayCrashReports.send`).
+        let auto: String?
     }
 
     private struct MineBody: Encodable {
@@ -38,9 +40,14 @@ struct Client: Sendable {
     private struct ErrorEnvelope: Decodable { let error: String? }
 
     func submit(deviceId: String, type: ReportType, text: String, context: ReportContext,
-                reporter: ReporterPrefs.Reporter? = nil, trail: [TrailEvent]? = nil) async throws -> SentReport {
-        let body = SubmitBody(key: key, device_id: deviceId, sdk: sdk, type: type, text: text, context: context, reporter: reporter, trail: trail)
+                reporter: ReporterPrefs.Reporter? = nil, trail: [TrailEvent]? = nil, auto: String? = nil) async throws -> SentReport {
+        let body = submitBody(deviceId: deviceId, type: type, text: text, context: context, reporter: reporter, trail: trail, auto: auto)
         return try await post("reports", body, as: ReportEnvelope.self).report
+    }
+
+    func submitBody(deviceId: String, type: ReportType, text: String, context: ReportContext,
+                                reporter: ReporterPrefs.Reporter? = nil, trail: [TrailEvent]?, auto: String?) -> some Encodable {
+        SubmitBody(key: key, device_id: deviceId, sdk: sdk, type: type, text: text, context: context, reporter: reporter, trail: trail, auto: auto)
     }
 
     private struct WithdrawBody: Encodable {
@@ -60,12 +67,17 @@ struct Client: Sendable {
         try await post("reports/mine", MineBody(key: key, device_id: deviceId, sdk: sdk), as: ReportsEnvelope.self).reports
     }
 
-    private func post<B: Encodable, R: Decodable>(_ path: String, _ body: B, as: R.Type) async throws -> R {
+    func request<B: Encodable>(_ path: String, _ body: B) throws -> URLRequest {
         var req = URLRequest(url: base.appending(path: "v1/\(path)"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 20
         req.httpBody = try JSONEncoder().encode(body)
+        return req
+    }
+
+    private func post<B: Encodable, R: Decodable>(_ path: String, _ body: B, as: R.Type) async throws -> R {
+        let req = try request(path, body)
         let (data, res) = try await session.data(for: req)
         let status = (res as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {

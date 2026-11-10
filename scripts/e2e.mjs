@@ -301,6 +301,24 @@ try {
   await sdk.getByText('Why: Cancel is under Settings, Plan').waitFor();
   await app.screenshot({ path: `${SHOTS}e2e-4-reporter-sees-reason.png` });
 
+  step('a crash the Mac app reported by itself shows in the inbox, labelled, as Broken');
+  {
+    // Acme Notes is a web app, so it comes from its own site; the server treats auto the same for any platform.
+    const r = await fetch(`${BASE}/v1/reports`, { method: 'POST', headers: { 'content-type': 'application/json', origin: CUSTOMER }, body: JSON.stringify({
+      key, device_id: 'macos_e2ecrash0000000000001', sdk: 'web', auto: 'crash', type: 'idea',
+      text: 'The app closed unexpectedly 2 s after launch, on the first launch of 1.4',
+      trail: [{ kind: 'page', ago: 1, text: 'Export', run: 'last' }],
+    }) });
+    assert.equal(r.status, 201, await r.text());
+    await dash.goto(`${BASE}/#/apps`);
+    await dash.locator('.app-card', { hasText: 'Acme Notes' }).click();
+    await dash.locator('.status-tabs button', { hasText: 'Open' }).click();
+    const crash = dash.locator('article.report', { hasText: 'The app closed unexpectedly 2 s after launch' });
+    await crash.waitFor();
+    await crash.getByText('Sent automatically after a crash').first().waitFor();
+    await dash.screenshot({ path: `${SHOTS}e2e-3d-crash-report.png` });
+  }
+
   step('a signed-in reporter is never asked their name: the app says who it is');
   const signed = await ctx.newPage();
   await signed.goto(`${BASE}/demo.html?key=${key}#/home`);

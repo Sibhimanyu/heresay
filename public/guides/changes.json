@@ -2,50 +2,117 @@
   "about": "Features added to Heresay since apps were first installed. An agent in a connected repo checks these with whats_new, tells the person what's new, and asks before adding any. `detect` is what the code contains once a feature is in; `platforms` limits it to those apps; `sign_in` limits it to apps that answered that.",
   "changes": [
     {
+      "id": "crash-reports",
+      "since": "0.2.48",
+      "title": "Get crash reports without anyone sending them",
+      "summary": "With crashReports: .send, a Mac or iOS app reports a run that ended badly (a crash, a hang, running out of memory, a force quit) by itself at the next launch, with what happened before it and how it crashed. It arrives even when the app crashes on every launch, as long as Heresay.configure runs first. It waits in the inbox for a person like any report. Off until the app turns it on; it sends diagnostics without asking, so the app's privacy details should say so.",
+      "platforms": [
+        "ios",
+        "macos"
+      ],
+      "detect": [
+        "crashReports:"
+      ],
+      "how": {
+        "ios": "guide customize-apple, Crash reports",
+        "macos": "guide customize-apple, Crash reports"
+      }
+    },
+    {
       "id": "nudge",
       "since": "0.2.21",
       "title": "Offer help when someone seems stuck",
       "summary": "A small note by the Report button asks “Something not working?” when someone presses a button again and again with nothing happening, hits an error right after a click, or sees requests fail (web), clicks a disabled control again and again (macOS), or comes back after a crash (iOS and macOS). And “Stuck on something?” when someone seems unsure: typing that stopped, going back and forth between the same few pages or screens, a field refused again and again. It opens the form as Broken or Confusing, with what happened attached. Watched on the device, never sent; once per visit, and quiet for a week after “Not now”. Off until the app turns it on.",
-      "platforms": ["web", "ios", "macos"],
-      "detect": ["data-nudge", "nudge:", "nudge()"],
-      "how": { "web": "guide customize-web, Offering help", "ios": "guide customize-apple, Offering help", "macos": "guide customize-apple, Offering help" }
+      "platforms": [
+        "web",
+        "ios",
+        "macos"
+      ],
+      "detect": [
+        "data-nudge",
+        "nudge:",
+        "nudge()"
+      ],
+      "how": {
+        "web": "guide customize-web, Offering help",
+        "ios": "guide customize-apple, Offering help",
+        "macos": "guide customize-apple, Offering help"
+      }
     },
     {
       "id": "design-apple",
       "since": "0.2.11",
       "title": "Make Heresay fit the app",
       "summary": "The Swift package takes a HeresayStyle: another corner or clear a tab bar, say “Feedback” instead of “Report”, a quieter button, the app's light or dark theme, French, Tamil or Hindi, a half-height or full-screen sheet, or only some report types. The dashboard's Design page shows each choice and gives the Swift.",
-      "platforms": ["ios", "macos"],
-      "detect": ["HeresayStyle("],
-      "how": { "ios": "guide customize-apple", "macos": "guide customize-apple" }
+      "platforms": [
+        "ios",
+        "macos"
+      ],
+      "detect": [
+        "HeresayStyle("
+      ],
+      "how": {
+        "ios": "guide customize-apple",
+        "macos": "guide customize-apple"
+      }
     },
     {
       "id": "design-web",
       "since": "0.2.11",
       "title": "Make the Report button fit the app",
       "summary": "The web widget can take the app's colour (the logo follows it), sit in another corner or clear a chat bubble, say “Feedback” instead of “Report”, follow the app's light or dark theme, speak French, Tamil or Hindi, or have no floating button when the app has its own feedback menu item. The dashboard's Design page shows each choice on the real widget.",
-      "platforms": ["web"],
-      "detect": ["data-accent", "data-hide-on", "data-backdrop", "data-preferences"],
-      "how": { "web": "guide customize-web" }
+      "platforms": [
+        "web"
+      ],
+      "detect": [
+        "data-accent",
+        "data-hide-on",
+        "data-backdrop",
+        "data-preferences"
+      ],
+      "how": {
+        "web": "guide customize-web"
+      }
     },
     {
       "id": "introduce",
       "since": "0.2.7",
       "title": "Tell people Heresay is there",
       "summary": "A one-time introduction, so the people using the app know they can report things. On macOS it names Help › Report a Problem… (⌥⌘R), on iOS the Report button, on the web a bubble over the button. Shown once per device.",
-      "platforms": ["web", "ios", "macos"],
-      "detect": ["introduce(", "data-intro"],
-      "how": { "web": "guide install-web, step 4", "ios": "guide install-apple, step 5", "macos": "guide install-apple, step 5" }
+      "platforms": [
+        "web",
+        "ios",
+        "macos"
+      ],
+      "detect": [
+        "introduce(",
+        "data-intro"
+      ],
+      "how": {
+        "web": "guide install-web, step 4",
+        "ios": "guide install-apple, step 5",
+        "macos": "guide install-apple, step 5"
+      }
     },
     {
       "id": "identify-email",
       "since": "0.2.6",
       "title": "Signed-in people are never asked who they are",
       "summary": "When the app tells Heresay who is signed in (id, name, email), the report form stops asking for a name and email, and the team can reply to them.",
-      "platforms": ["web", "ios", "macos"],
+      "platforms": [
+        "web",
+        "ios",
+        "macos"
+      ],
       "sign_in": "yes",
-      "detect": ["identify("],
-      "how": { "web": "guide install-web, step 3", "ios": "guide install-apple, step 4", "macos": "guide install-apple, step 4" }
+      "detect": [
+        "identify("
+      ],
+      "how": {
+        "web": "guide install-web, step 3",
+        "ios": "guide install-apple, step 4",
+        "macos": "guide install-apple, step 4"
+      }
     }
   ]
 }

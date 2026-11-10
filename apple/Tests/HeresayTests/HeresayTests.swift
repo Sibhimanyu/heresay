@@ -882,3 +882,84 @@ final class WithdrawTests: XCTestCase {
         XCTAssertEqual(h.unseen, 0, "taking it back yourself isn't news")
     }
 }
+
+@MainActor
+final class CrashReportTests: XCTestCase {
+    private func dir() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("heresay-crash-\(UUID().uuidString)") }
+    private func defaults() -> UserDefaults { UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")! }
+
+    /// A run that started and never said it ended: what a crash leaves behind.
+    private func crashedRun(_ d: URL, _ ud: UserDefaults, version: String = "1.4") {
+        let box = BlackBox(dir: d)
+        box.begin(version: version, defaults: ud)
+        box.update([Trail.Entry(kind: .page, at: Date(), text: "Export")])
+        box.flushNow()
+    }
+
+    private func launch(_ d: URL, _ ud: UserDefaults, _ mode: HeresayCrashReports) -> Heresay {
+        let h = Heresay(defaults: ud, boxDir: d)
+        h.configure(key: "pk", url: URL(string: "https://x.web.app")!, version: "1.4", accent: nil, trail: .all,
+                    crashReports: mode, session: StubProtocol.session())
+        return h
+    }
+
+    private func reportsSent(within seconds: Double = 3) async -> [[String: Any]] {
+        let until = Date().addingTimeInterval(seconds)
+        var out: [[String: Any]] = []
+        repeat {
+            out = StubProtocol.sent.filter { $0.0.url?.path.hasSuffix("/v1/reports") == true }
+                .compactMap { try? JSONSerialization.jsonObject(with: $0.1) as? [String: Any] }
+            if !out.isEmpty && seconds > 0 { try? await Task.sleep(for: .milliseconds(300)); break }
+            try? await Task.sleep(for: .milliseconds(50))
+        } while Date() < until
+        return StubProtocol.sent.filter { $0.0.url?.path.hasSuffix("/v1/reports") == true }
+            .compactMap { try? JSONSerialization.jsonObject(with: $0.1) as? [String: Any] }
+    }
+
+    override func setUp() {
+        StubProtocol.sent = []
+        StubProtocol.handler = { req, _ in
+            req.url?.path.hasSuffix("/mine") == true ? (200, Data(#"{"reports":[]}"#.utf8)) : (201, Data(#"{"report":\#(sample)}"#.utf8))
+        }
+    }
+
+    func testARunThatEndedBadlyIsReportedByItselfOnceWithWhatHappened() async {
+        let d = dir(), ud = defaults()
+        crashedRun(d, ud)
+        let first = launch(d, ud, .send)
+        let sent = await reportsSent()
+        XCTAssertEqual(sent.count, 1)
+        XCTAssertEqual(sent.first?["auto"] as? String, "crash")
+        XCTAssertEqual(sent.first?["type"] as? String, "broken", "the type is never the SDK's guess")
+        XCTAssertTrue((sent.first?["text"] as? String)?.hasPrefix("The app closed unexpectedly") == true)
+        let trail = sent.first?["trail"] as? [[String: Any]] ?? []
+        XCTAssertTrue(trail.contains { $0["text"] as? String == "Export" && $0["run"] as? String == "last" }, "the last run's trail goes with it")
+
+        // That launch quits normally; the next one still has the crashed run on file, and doesn't send it again.
+        first.blackBox?.markClean(true)
+        StubProtocol.sent = []
+        _ = launch(d, ud, .send)
+        let again = await reportsSent(within: 1)
+        XCTAssertTrue(again.isEmpty)
+    }
+
+    func testOffSendsNothingByItself() async {
+        let d = dir(), ud = defaults()
+        crashedRun(d, ud)
+        _ = launch(d, ud, .off)
+        let sent = await reportsSent(within: 1)
+        XCTAssertTrue(sent.isEmpty, "off by default: the crash waits for someone to report")
+    }
+
+    func testACrashLoopSendsAtMostThreeADay() async {
+        let d = dir(), ud = defaults()
+        var total = 0
+        for _ in 0..<5 {
+            crashedRun(d, ud)
+            StubProtocol.sent = []
+            _ = launch(d, ud, .send)
+            total += await reportsSent(within: 1).count
+        }
+        XCTAssertEqual(total, Heresay.autoReportsPerDay)
+    }
+}

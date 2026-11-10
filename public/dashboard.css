@@ -2,7 +2,7 @@
   --broken:#b3261e; --confusing:#8a5100; --improvement:#2d5da8; --idea:#6b4fa8;
   --edge:#cfd4da; --chip:#eceef1; --faint:#8b93a1; --ink:#15171c;
   --t-broken:#fbeceb; --t-confusing:#fbf1e3; --t-improvement:#eaf0fa; --t-idea:#f1edf9;
-  --chat-bg:#eef2ff; --chat-fg:#3730a3; --agent-bg:#fef3c7; --agent-fg:#92400e; --sug-bg:#fff7ed; --sug-fg:#7c2d12; --ver-bg:#dcfce7; --ver-fg:#166534;
+  --chat-bg:#eef2ff; --chat-fg:#3730a3; --agent-bg:#fef3c7; --agent-fg:#92400e; --crash-bg:#ffe4e6; --crash-fg:#9f1239; --sug-bg:#fff7ed; --sug-fg:#7c2d12; --ver-bg:#dcfce7; --ver-fg:#166534;
   color-scheme:light;
   --head:"Bricolage Grotesque", system-ui, sans-serif; --mono:"JetBrains Mono", ui-monospace, monospace; }
 * { box-sizing:border-box; }
@@ -445,6 +445,7 @@ a.platform:hover { border-color:var(--acc); box-shadow:0 0 0 3px var(--mist); }
 .src-sdk { --src-bg:var(--mist); --src-fg:var(--deep); }
 .src-chat { --src-bg:var(--chat-bg); --src-fg:var(--chat-fg); }
 .src-agent { --src-bg:var(--agent-bg); --src-fg:var(--agent-fg); }
+.src-crash { --src-bg:var(--crash-bg); --src-fg:var(--crash-fg); }
 .src-label { color:var(--src-fg); font-weight:600; }
 .src-label::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:currentColor; margin-right:5px; vertical-align:1px; }
 

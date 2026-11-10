@@ -103,21 +103,29 @@ public final class Heresay: ObservableObject {
     ///     crash. `[]` turns it off; `[.screens, .errors]` keeps only those.
     ///   - nudge: When someone seems stuck, offer to report it: `.clicks` (macOS), `.crash`, or
     ///     `.all`. Off by default. `Heresay.nudge()` offers it from the app's own code.
+    ///   - crashReports: `.send` reports a run that ended badly (a crash, a hang, a force quit) by
+    ///     itself, at the next launch, without anyone pressing Report. Off by default. See
+    ///   `HeresayCrashReports`; call `configure` first thing at launch so it beats a crash loop.
     public static func configure(key: String, url: URL, version: String? = nil, accent: Color? = nil,
                                  style: HeresayStyle = HeresayStyle(), trail: HeresayTrail = .all,
-                                 nudge: HeresayNudge = [], session: URLSession = .shared) {
-        shared.configure(key: key, url: url, version: version, accent: accent, style: style, trail: trail, nudge: nudge, session: session)
+                                 nudge: HeresayNudge = [], crashReports: HeresayCrashReports = .off,
+                                 session: URLSession = .shared) {
+        shared.configure(key: key, url: url, version: version, accent: accent, style: style, trail: trail, nudge: nudge,
+                         crashReports: crashReports, session: session)
     }
 
     func configure(key: String, url: URL, version: String?, accent: Color?, style: HeresayStyle = HeresayStyle(),
-                   trail parts: HeresayTrail = .all, nudge: HeresayNudge = [], session: URLSession) {
+                   trail parts: HeresayTrail = .all, nudge: HeresayNudge = [], crashReports: HeresayCrashReports = .off,
+                   session: URLSession) {
         client = Client(base: url, key: key, session: session)
         isDisabled = false
         self.version = version ?? Self.bundleVersion()
         if let accent { self.accent = accent; customAccent = true }
         setStyle(style)
         collectors.start(parts) { [weak self] in Task { @MainActor in self?.crashArrived() } }
-        startBlackBox(parts)
+        startBlackBox(parts, always: crashReports == .send)
+        // Before anything else the app does: a crash on every launch must still get reported.
+        if crashReports == .send { sendLastRunIfItEndedBadly() }
         if let screen { trail.note(.page, screen) }
         nudges = nudge
         #if os(macOS)
@@ -263,16 +271,47 @@ public final class Heresay: ObservableObject {
         if offerHelp(.crash) { defaults.set(at, forKey: Keys.nudgedCrash) }
     }
 
+    // MARK: Crash reports (HeresayCrashReports.send)
+
+    nonisolated static let autoReportsPerDay = 3
+
+    /// The run before this one ended badly and `.send` is on: report it now, once.
+    func sendLastRunIfItEndedBadly(now: Date = Date()) {
+        guard let client, let box = blackBox, let run = box.lastRun(now: now) else { return }
+        if (defaults.object(forKey: AutoKeys.sentRun) as? Date) == run.launchedAt { return }
+        var recent = (defaults.array(forKey: AutoKeys.sent) as? [Date] ?? []).filter { now.timeIntervalSince($0) < 86_400 }
+        guard recent.count < Self.autoReportsPerDay else { return }
+        // Marked before it goes: if this launch crashes too, the next one mustn't send it again.
+        recent.append(now)
+        defaults.set(recent, forKey: AutoKeys.sent)
+        defaults.set(run.launchedAt, forKey: AutoKeys.sentRun)
+
+        var entries: [Trail.Entry] = []
+        if !trail.parts.isEmpty {
+            if trail.parts.contains(.errors), let crash = Trail.lastCrash(defaults, now: now) { entries.append(crash) }
+            entries += box.lastRunEntries(now: now)
+        }
+        client.submitSurvivingExit(deviceId: deviceId, type: .broken, text: BlackBox.ending(run),
+                                   context: context(now: now), trail: Trail.toSend(entries, now: now), auto: "crash")
+    }
+
+    enum AutoKeys {
+        static let sent = "heresay.auto.sent"
+        static let sentRun = "heresay.auto.sent_run"
+    }
+
     // MARK: The black box
 
     /// Keep the trail on disk from now on, so a crash doesn't take it with it, and the app's own
     /// logged errors with it, read once a minute while the app is in front. The run before this
     /// one, if it ended badly, is kept for the next report.
-    private func startBlackBox(_ parts: HeresayTrail) {
+    /// `always`: keep track of how runs end even with the trail off, for crash reports.
+    private func startBlackBox(_ parts: HeresayTrail, always: Bool = false) {
         logTimer?.invalidate(); logTimer = nil
         guard let box = blackBox else { return }
         trail.onChange = nil
-        guard !parts.isEmpty else { return }
+        guard !parts.isEmpty || always else { return }
+        guard !parts.isEmpty else { box.begin(version: version, defaults: defaults); return }
         box.begin(version: version, defaults: defaults)
         trail.onChange = { [box] entries in box.update(entries) }
         if parts.contains(.errors) { scheduleLogRead(after: Self.logEvery) }

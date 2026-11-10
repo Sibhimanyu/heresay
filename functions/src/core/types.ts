@@ -91,7 +91,8 @@ export type { TrailEvent, TrailKind } from './trail.js';
  * 'chat': a member of the team, from a conversation in ChatGPT or another chat app (chat.ts).
  * 'agent': a coding agent in a connected repo, about something it noticed while working (agent.ts).
  */
-export type ReportSource = 'sdk' | 'chat' | 'agent';
+/** 'crash': sent by the SDK itself after a run that ended badly, not by a person (HeresayCrashReports.send). */
+export type ReportSource = 'sdk' | 'chat' | 'agent' | 'crash';
 
 /** Where in the code an agent's finding is. */
 export interface CodeRef { path: string; line: number | null }
