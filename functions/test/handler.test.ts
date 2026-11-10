@@ -436,6 +436,27 @@ test('trail: events from the run that crashed are kept apart, and timed from whe
   assert.equal(prompt.split('"""').length, 3);
 });
 
+test('crash reports the SDK sends by itself: always Broken, marked as a crash, rate-limited like any report', async () => {
+  const { call, asOwner, project, submit, store } = await withProject();
+  const r = await submit({
+    auto: 'crash', type: 'idea', text: 'The app closed unexpectedly 2 s after launch (version 1.4)',
+    trail: [{ kind: 'page', ago: 1, text: 'Export', run: 'last' }],
+  });
+  assert.equal(r.status, 201);
+  const id = (r.body as { report: { id: string } }).report.id;
+  const saved = store.reports.get(id)!;
+  assert.equal(saved.type, 'broken', 'never the client\'s say');
+  assert.equal(saved.source, 'crash');
+  assert.equal(saved.status, 'open', 'it waits for a person like any report');
+  const listed = (await call({ path: `/v1/projects/${project.id}/reports`, headers: asOwner() })).body as { reports: Array<{ id: string; source?: string }> };
+  assert.equal(listed.reports.find((x) => x.id === id)?.source, 'crash', 'the dashboard can say it was automatic');
+
+  const plain = await submit({ type: 'idea', text: 'Dark mode', auto: 'something-else' });
+  assert.equal(store.reports.get((plain.body as { report: { id: string } }).report.id)!.source, undefined, 'only "crash" is automatic');
+  for (let i = 0; i < 3; i++) await submit({ auto: 'crash', text: 'The app closed unexpectedly' });
+  assert.equal((await submit({ auto: 'crash', text: 'The app closed unexpectedly' })).status, 429, 'the device limit holds');
+});
+
 test('duplicates: merge, one brief with everyone\'s words, and every reporter hears the outcome', async () => {
   const { call, asOwner, project, submit, store } = await withProject();
   const send = async (text: string, device: string) => ((await submit({ type: 'broken', text, device_id: device })).body as { report: { id: string } }).report.id;

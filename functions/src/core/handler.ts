@@ -451,6 +451,9 @@ async function submit(req: Req, deps: Deps): Promise<Res> {
   const { project, headers } = got;
 
   if (!validDeviceId(body.device_id)) return json(400, { error: 'bad device_id' }, headers);
+  // Sent by the SDK itself after a crash: always Broken (never the client's say), marked as such.
+  const auto = body.auto === 'crash';
+  if (auto) body.type = 'broken';
   if (!isReportType(body.type)) {
     // Refused, never defaulted: the type is the one thing the reporter judged, and it sets
     // the order the developer reads in.
@@ -477,6 +480,7 @@ async function submit(req: Req, deps: Deps): Promise<Res> {
     id: newId('r_'), project_id: project.id, device_id: body.device_id, type: body.type, text,
     context: parseContext(body.context), reporter: parseReporter(body.reporter), trail: parseTrail(body.trail),
     status: 'open', decline_reason: null, fix_note: null, created_at: at, updated_at: at, triaged_by: null,
+    ...(auto ? { source: 'crash' as const } : {}),
   };
   await deps.store.createReport(report);
   await markSeen(project, req, body, deps);
@@ -486,7 +490,7 @@ async function submit(req: Req, deps: Deps): Promise<Res> {
   if (!project.framework && report.context.framework && !fromSelf) {
     await deps.store.updateProject(project.id, { framework: report.context.framework, framework_detected: true });
   }
-  deps.log('api.report_created', { project_id: project.id, report_id: report.id, type: report.type });
+  deps.log('api.report_created', { project_id: project.id, report_id: report.id, type: report.type, ...(auto ? { auto: 'crash' } : {}) });
   await notify('new_report', project, report.id, deps);
   return json(201, { report: toReporterView(report) }, headers);
 }

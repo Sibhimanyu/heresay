@@ -83,6 +83,27 @@ asked.
 | --- | --- |
 | `configure(…, nudge:)` | `[]` (default, off) · `.all` · `.clicks` (macOS: a disabled control clicked 3 times in 10 s, or one spot clicked 5 times in 2 s; leave it out for games and drawing apps) · `.crash` (the app crashed last time; once, at the next launch) · `.circles` (6 screen changes in a minute among at most 3 screens; needs named screens) · `.stalled` (typed, then 45 s still editing with nothing more: the keyboard still up on iOS; search fields don't count). The last two say "Stuck on something?" and open as Confusing. |
 
+**Crash reports**
+
+Off by default: a crash waits on the device and goes with the next report someone sends. Turn on
+`crashReports: .send` when the team wants every crash, including ones nobody reports, for example
+an app that crashes on launch for some people:
+
+```swift
+Heresay.configure(key: "KEY", url: URL(string: "HERESAY_URL")!, crashReports: .send)
+```
+
+At the next launch after a run that ended badly (a crash, a hang the system killed, running out
+of memory, a force quit), Heresay reports it as Broken, with that run's last five minutes, the
+app's logged errors and, once macOS or iOS hands it over, how it crashed. It shows in the inbox as
+"Sent automatically after a crash" and waits for a person like any report. Once per bad run, at
+most three a day per device. It goes as a background upload, so it arrives even if the app
+crashes again straight away, as long as `configure` runs first: keep it the first line of the
+`App`'s `init`, before anything that could crash.
+
+It sends diagnostics without asking, so tell the person: their privacy policy should say so, and
+on the App Store their privacy details should list Crash Data and Other Diagnostic Data.
+
 Screens make the trail readable: if the app has several screens and doesn't name them yet, add
 `.heresayScreen("<name>")` to each screen's root view.
 

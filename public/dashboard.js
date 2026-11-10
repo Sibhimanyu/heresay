@@ -1336,7 +1336,7 @@
     advanced.appendChild(el('label', {}, ['Type ', el('select', { 'aria-label': 'Report type', onchange: function () { type = this.value; render(); } },
       [el('option', { value: 'all', text: 'All types' })].concat(Object.keys(TYPE_LABEL).map(function (t) { return el('option', { value: t, text: TYPE_LABEL[t] }); })))]));
     advanced.appendChild(el('label', {}, ['Source ', el('select', { 'aria-label': 'Report source', onchange: function () { source = this.value; render(); } },
-      [['all', 'All sources'], ['sdk', 'In-app'], ['chat', 'Chat apps'], ['agent', 'Agents']].map(function (t) { return el('option', { value: t[0], text: t[1] }); }))]));
+      [['all', 'All sources'], ['sdk', 'In-app'], ['crash', 'Crashes'], ['chat', 'Chat apps'], ['agent', 'Agents']].map(function (t) { return el('option', { value: t[0], text: t[1] }); }))]));
     var heading = el('h1', { text: p ? productName(p) : 'Inbox' });
     var controls = el('div', { class: 'inbox-controls' }, [productSelect, platformSelect, filterButton]);
     var productTools = el('details', { class: 'inbox-app-tools', hidden: !p }, [el('summary', { text: 'Manage app' })]);
@@ -1642,8 +1642,8 @@
   }
 
   // Where a report came from, worded and coloured the same in the list and on the report.
-  function sourceLabel(r) { return r.source === 'agent' ? 'From an agent' : r.source === 'chat' ? 'From ' + (r.via || 'a chat app') : 'From the app'; }
-  function fromApp(r) { return (r.source || 'sdk') === 'sdk'; }
+  function sourceLabel(r) { return r.source === 'agent' ? 'From an agent' : r.source === 'chat' ? 'From ' + (r.via || 'a chat app') : r.source === 'crash' ? 'Sent automatically after a crash' : 'From the app'; }
+  function fromApp(r) { var s = r.source || 'sdk'; return s === 'sdk' || s === 'crash'; }
   function sourceTag(r, cls) { return el('span', { class: cls + ' src-' + (r.source || 'sdk'), text: sourceLabel(r) }); }
 
   function deviceView(c) {
