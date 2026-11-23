@@ -199,22 +199,28 @@ try {
   const sdk = app.locator('[data-feedback-sdk]');
   await sdk.getByRole('button', { name: /Report a problem/ }).click();
 
-  step('an anonymous reporter sets preferences once: name, email, a setup note');
-  await sdk.getByRole('tab', { name: 'Preferences' }).click();
-  await sdk.getByLabel('Your name').fill('Asha');
-  await sdk.getByLabel('Email').fill('not-an-email');
-  await sdk.getByRole('button', { name: 'Save' }).click();
+  step('an anonymous reporter sets a name and email once, under Your reports');
+  assert.equal(await sdk.getByRole('tab').count(), 0, 'no tabs');
+  assert.equal(await sdk.getByRole('switch').count(), 0, 'no trail switch');
+  assert.equal(await sdk.getByText('are attached').count(), 0, 'no attached sentence');
+  await sdk.getByRole('button', { name: 'Your reports' }).click();
+  await sdk.getByRole('button', { name: 'Your name and email' }).click();
+  await sdk.getByLabel('Name (optional)').fill('Asha');
+  await sdk.getByLabel('Email (optional)').fill('not-an-email');
+  await sdk.getByLabel('Email (optional)').press('Tab');
   await sdk.getByText('That email does not look right.').waitFor();
-  await sdk.getByLabel('Email').fill('asha@example.org');
-  await sdk.getByLabel('About your setup').fill('I use a screen reader.');
-  await sdk.getByRole('button', { name: 'Save' }).click();
+  await sdk.getByLabel('Email (optional)').fill('asha@example.org');
+  await sdk.getByLabel('Email (optional)').press('Tab');
   await sdk.getByText('Saved on this device.').waitFor();
+  assert.equal(await sdk.getByLabel('About your setup').count(), 0, 'no setup field');
   await app.screenshot({ path: `${SHOTS}e2e-2a-preferences.png` });
   assert.equal(await sdk.getByText('Button position').count(), 0, 'where the button sits is the developer\'s choice');
-  await sdk.getByRole('tab', { name: 'Report', exact: true }).click();
-  await sdk.getByText('your preferences are attached').waitFor();
-  await sdk.getByRole('button', { name: /Confusing/ }).click();
-  await sdk.getByLabel('What happened?').fill('I could not work out how to cancel my plan.');
+  await sdk.getByRole('button', { name: 'Back to Report' }).click();
+  assert.equal(await sdk.getByRole('radio', { checked: true }).count(), 0, 'no type preselected');
+  assert.equal(await sdk.getByRole('button', { name: 'Send' }).isDisabled(), true, 'Send waits for a type and some text');
+  await sdk.getByRole('radio', { name: 'Confusing' }).click();
+  await sdk.getByPlaceholder('What were you trying to do?').waitFor();
+  await sdk.getByRole('textbox', { name: 'Your report' }).fill('I could not work out how to cancel my plan.');
   await app.screenshot({ path: `${SHOTS}e2e-2-report-form.png` });
   // Hold the send a moment so the Send button's Glance loader can be seen.
   const hold = async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); };
@@ -222,7 +228,10 @@ try {
   await sdk.getByRole('button', { name: 'Send' }).click();
   await sdk.locator('.send.busy .glance').waitFor();
   await app.screenshot({ path: `${SHOTS}e2e-2g-sending.png` });
-  await sdk.getByText('Waiting for the developer').waitFor();
+  await sdk.getByText('Sent. You’ll see the reply under Your reports.').waitFor();
+  await app.screenshot({ path: `${SHOTS}e2e-2h-sent.png` });
+  await sdk.getByRole('button', { name: 'Done' }).click();
+  assert.equal(await sdk.getByRole('dialog').count(), 0, 'Done closes the panel');
   await app.unroute('**/reports', hold);
 
   step('developer sees it with screen and version, declines with a reason');
@@ -273,7 +282,7 @@ try {
   assert.match(ctxText, /Heresay test page/, 'page title');
   assert.match(ctxText, /\d+x\d+/, 'viewport');
   await row.getByText('From: Asha · asha@example.org').waitFor();
-  await row.getByText('About their setup: I use a screen reader.').waitFor();
+  assert.equal(await row.getByText('About their setup').count(), 0, 'the setup note is gone');
   await row.getByRole('link', { name: `${BASE}/demo.html#/settings/billing` }).waitFor();
   assert.equal(await row.getByText('?key=').count(), 0, 'the query string is not sent');
   await dash.screenshot({ path: `${SHOTS}e2e-2b-dashboard-prefs.png` });
@@ -327,14 +336,14 @@ try {
   await signed.evaluate(() => window.Heresay.openPreferences());
   const sw = signed.locator('[data-feedback-sdk]');
   await sw.getByText('Signed in as Sibhi Govindasamy').waitFor();
-  assert.equal(await sw.getByLabel('Your name').count(), 0, 'no name field when signed in');
-  assert.equal(await sw.getByLabel('Email').count(), 0, 'no email field when signed in');
+  assert.equal(await sw.getByLabel('Name (optional)').count(), 0, 'no name field when signed in');
+  assert.equal(await sw.getByLabel('Email (optional)').count(), 0, 'no email field when signed in');
   await signed.screenshot({ path: `${SHOTS}e2e-2c-signed-in-prefs.png` });
-  await sw.getByRole('tab', { name: 'Report', exact: true }).click();
-  await sw.getByRole('button', { name: /Idea/ }).click();
-  await sw.getByLabel('What happened?').fill('Dark mode for the calendar, please.');
+  await sw.getByRole('button', { name: 'Back to Report' }).click();
+  await sw.getByRole('radio', { name: 'Idea' }).click();
+  await sw.getByRole('textbox', { name: 'Your report' }).fill('Dark mode for the calendar, please.');
   await sw.getByRole('button', { name: 'Send' }).click();
-  await sw.getByText('Waiting for the developer').waitFor();
+  await sw.getByText('Sent. You’ll see the reply under Your reports.').waitFor();
   await dash.reload();
   await dash.locator('.status-tabs button', { hasText: 'Open' }).click();
   await dash.locator('.report-preview', { hasText: 'Dark mode for the calendar' }).click();
@@ -349,11 +358,13 @@ try {
   await intro.waitForFunction(() => window.Heresay && window.Heresay.introduce);
   assert.equal(await intro.evaluate(() => window.Heresay.introduce()), true);
   const iw = intro.locator('[data-feedback-sdk]');
-  await iw.getByText('Help make this app better').waitFor();
+  await iw.getByText('Spotted something off?').waitFor();
+  await iw.getByText('Tell the team here.').waitFor();
+  assert.equal(await iw.getByRole('button', { name: 'Try it' }).count(), 0);
   await intro.waitForTimeout(400); // past the fade-in
   await intro.screenshot({ path: `${SHOTS}e2e-2d-introduce.png` });
-  await iw.getByRole('button', { name: 'Try it' }).click();
-  await iw.getByRole('button', { name: /Confusing/ }).waitFor();
+  await iw.getByRole('button', { name: 'Got it' }).click();
+  assert.equal(await iw.getByText('Spotted something off?').count(), 0, 'Got it closes the bubble');
   await intro.reload();
   await intro.waitForFunction(() => window.Heresay && window.Heresay.introduce);
   assert.equal(await intro.evaluate(() => window.Heresay.introduce()), false, 'never twice on a device');
@@ -365,7 +376,7 @@ try {
     await pg.goto(`${BASE}/demo.html?key=${key}${q}`);
     const w = pg.locator('[data-feedback-sdk]');
     await pg.waitForFunction(() => window.Feedback && window.Feedback.open);
-    await pg.evaluate(() => window.Feedback.open());
+    await pg.evaluate(() => window.Feedback.open({ type: 'broken', text: 'x' }));
     const bg = await w.getByRole('button', { name: 'Send' }).evaluate((b) => [getComputedStyle(b).backgroundColor, getComputedStyle(b).color]);
     await pg.close();
     return bg;
@@ -382,8 +393,8 @@ try {
   await by.evaluate(() => window.Heresay.open());
   await bw.getByText('Sent to this app’s team').waitFor();
   assert.equal(await bw.getByRole('link', { name: 'Powered by Heresay' }).getAttribute('href'), 'https://sibhimanyu.github.io/heresay/');
-  assert.equal(await bw.getByRole('tab', { name: 'Preferences' }).count(), 0, 'data-preferences="hide"');
-  await bw.getByRole('tab', { name: 'Your reports' }).click();
+  await bw.getByRole('button', { name: 'Your reports' }).click();
+  assert.equal(await bw.getByText('Your name and email').count(), 0, 'data-preferences="hide"');
   await bw.getByRole('link', { name: 'Powered by Heresay' }).waitFor();
   await by.close();
 
@@ -399,8 +410,8 @@ try {
   assert.ok(box.x < 100 && box.y < 100, 'top left');
   await des.screenshot({ path: `${SHOTS}e2e-2e-design-button.png` });
   await dfab.click();
-  await dw.getByRole('tab', { name: 'Vos signalements' }).waitFor();
-  assert.equal(await dw.locator('.type').count(), 2, 'only the types the developer offers');
+  await dw.getByRole('button', { name: 'Vos signalements' }).waitFor();
+  assert.equal(await dw.getByRole('radio').count(), 2, 'only the types the developer offers');
   assert.equal(await dw.locator('.panel').evaluate((n) => getComputedStyle(n).backgroundColor), 'rgb(22, 24, 29)', 'always dark');
   await dw.getByRole('link', { name: 'Propulsé par Heresay' }).waitFor();
   await des.screenshot({ path: `${SHOTS}e2e-2f-design-panel.png` });
@@ -408,8 +419,8 @@ try {
   step('open({ type, text }) fills the form in; on("sent") tells the app');
   await des.evaluate(() => { window.__sent = []; window.Heresay.close(); window.Heresay.on('sent', (r) => window.__sent.push(r)); });
   await des.evaluate(() => window.Heresay.open({ type: 'confusing', text: 'Where is export?' }));
-  assert.equal(await dw.getByLabel('Que s’est-il passé ?').inputValue(), 'Where is export?');
-  assert.equal(await dw.locator('.type[data-type=confusing]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await dw.getByRole('textbox', { name: 'Votre signalement' }).inputValue(), 'Where is export?');
+  assert.equal(await dw.locator('[role=radio][data-type=confusing]').getAttribute('aria-checked'), 'true');
   await dw.getByRole('button', { name: 'Envoyer' }).click();
   await dw.getByText('Merci !').waitFor();
   assert.deepEqual(await des.evaluate(() => window.__sent), [{ id: 'preview', type: 'confusing' }]);
@@ -435,7 +446,7 @@ try {
   await dash.locator('.design-item', { hasText: 'Your colour' }).getByRole('button', { name: 'Purple' }).click();
   await dash.getByText('3 changes from the recommended setup').waitFor();
   const designed = await dash.locator('.code pre').first().textContent();
-  assert.match(designed, /data-position="left"/);
+  assert.match(designed, /data-position="bottom-left"/);
   assert.match(designed, /data-label="Feedback"/);
   assert.match(designed, /data-accent="#7c3aed"/);
   assert.doesNotMatch(designed, /data-size|data-theme/, 'defaults stay out of the tag');
@@ -448,7 +459,7 @@ try {
   await dash.screenshot({ path: `${SHOTS}e2e-1h-design.png` });
   await dash.getByRole('button', { name: 'Copy prompt for your agent' }).click();
   const designPrompt = await dash.evaluate(() => navigator.clipboard.readText());
-  assert.match(designPrompt, /data-position="left"/);
+  assert.match(designPrompt, /data-position="bottom-left"/);
   assert.match(designPrompt, /guide customize-web/);
 
   step('accepted reports, and only those, produce an agent prompt');
@@ -523,7 +534,7 @@ try {
   await dash.screenshot({ path: `${SHOTS}e2e-1i-design-ios.png` });
   await dash.getByRole('tab', { name: 'Sheet' }).click();
   await dash.locator('.apple-frame').getByText('Heresay மூலம் இயங்குகிறது').waitFor();
-  assert.equal(await dash.locator('.apple-frame .am-type').count(), 2);
+  assert.equal(await dash.locator('.apple-frame .am-pill').count(), 2);
   await dash.screenshot({ path: `${SHOTS}e2e-1j-design-ios-sheet.png` });
   await dash.getByRole('tab', { name: 'Introduction' }).click();
   await dash.locator('.apple-frame .am-intro:not(.mac)').waitFor();
@@ -548,7 +559,7 @@ try {
   assert.match(await dash.locator('.code pre').first().textContent(), /sheet: \.large/);
   await dash.screenshot({ path: `${SHOTS}e2e-1k-design-mac.png` });
   await dash.getByRole('tab', { name: 'Introduction' }).click();
-  await dash.locator('.apple-frame .am-intro.mac').getByText('Help make this app better').waitFor();
+  await dash.locator('.apple-frame .am-intro.mac').getByText('Spotted something off?').waitFor();
   await dash.locator('.apple-frame').screenshot({ path: `${SHOTS}e2e-1k-design-mac-intro.png` });
 
   step('one product on two platforms: add iOS to Acme Notes; one card, one inbox, each report marked');
@@ -605,7 +616,7 @@ try {
   await dash.getByText('Manage app', { exact: true }).click();
   await dash.getByText(/Agents fix these in github.com\/acme\/notes/).waitFor();
 
-  step('the trail: pages, clicks, failed requests and errors go with a report; the reporter can leave parts out');
+  step('the trail: pages, clicks, failed requests and errors go with every report, and the reporter is not shown it');
   const ctx3 = await browser.newContext({ viewport: { width: 1100, height: 760 } });
   const host = await ctx3.newPage();
   await host.goto(`${BASE}/demo.html?key=${key}#/home`);
@@ -629,30 +640,21 @@ try {
   await host.getByRole('button', { name: 'Save changes' }).click();
   await host.waitForTimeout(500);
   await hsdk.getByRole('button', { name: /Report a problem/ }).click();
-  await hsdk.getByRole('button', { name: /Broken/ }).click();
-  await hsdk.getByLabel('What happened?').fill('Saving my profile does nothing.');
-  await hsdk.getByRole('switch', { name: 'Attach what happened' }).waitFor();
-  assert.equal(await hsdk.getByRole('switch', { name: 'Attach what happened' }).isChecked(), true, 'on by default');
-  for (const chip of ['2 pages', '2 clicks', '1 failed request', '1 error']) await hsdk.getByRole('button', { name: chip }).waitFor();
-  await hsdk.getByText('See it').click();
-  const lines = await hsdk.locator('.tlist li').allTextContents();
-  console.log('trail on the device:', lines);
-  assert.ok(lines.some((l) => /PATCH \/api\/profile → 404/.test(l)), 'the failed request, without its query string');
-  assert.ok(lines.some((l) => /TypeError: user\.avatar is undefined/.test(l)));
-  assert.ok(lines.some((l) => /button "Save changes"/.test(l)));
-  assert.ok(lines.every((l) => !/s3cr3t|asha@/.test(l)), 'no query strings, private text stays out');
+  await hsdk.getByRole('radio', { name: 'Broken' }).click();
+  await hsdk.getByRole('textbox', { name: 'Your report' }).fill('Saving my profile does nothing.');
+  for (const gone of ['switch', 'tab']) assert.equal(await hsdk.getByRole(gone).count(), 0, `no ${gone} in the form`);
+  assert.equal(await hsdk.getByText('See it').count() + await hsdk.getByText('Also sent').count() + await hsdk.getByText('Attach what happened').count(), 0, 'the trail is not shown');
   await host.screenshot({ path: `${SHOTS}e2e-8a-trail-form.png` });
-  await hsdk.getByRole('button', { name: '2 clicks' }).click();
-  assert.equal(await hsdk.getByRole('button', { name: '2 clicks' }).getAttribute('aria-pressed'), 'false');
-  await host.screenshot({ path: `${SHOTS}e2e-8b-trail-without-clicks.png` });
   await hsdk.getByRole('button', { name: 'Send' }).click();
-  await hsdk.getByText('Waiting for the developer').waitFor();
+  await hsdk.getByText('Sent. You’ll see the reply under Your reports.').waitFor();
   await ctx3.close();
 
   const listed = (await (await api('GET', `/projects/${project.id}/reports`)).json()).reports;
   const withTrail = listed.find((r) => r.text === 'Saving my profile does nothing.');
   console.log('trail stored:', withTrail.trail.map((e) => `${e.kind}: ${e.text}`));
-  assert.deepEqual([...new Set(withTrail.trail.map((e) => e.kind))].sort(), ['error', 'page', 'request']);
+  assert.deepEqual([...new Set(withTrail.trail.map((e) => e.kind))].sort(), ['click', 'error', 'page', 'request'], 'the trail is attached, clicks included');
+  assert.ok(withTrail.trail.some((e) => /Save changes/.test(e.text)), 'the click on Save changes');
+  assert.ok(withTrail.trail.every((e) => !/s3cr3t|asha@/.test(`${e.text} ${e.detail ?? ''}`)), 'no query strings, private text stays out');
   assert.match(withTrail.trail.find((e) => e.kind === 'error').detail ?? '', /at /, 'the top of the stack');
   await dash.goto(`${BASE}/app/#/apps/${project.id}`);
   await dash.reload();
@@ -689,11 +691,10 @@ try {
   await stuck.waitForTimeout(400); // past the fade-in
   await stuck.screenshot({ path: `${SHOTS}e2e-9a-nudge.png` });
   await offer.getByRole('button', { name: 'Tell the team' }).click();
-  assert.equal(await ssdk.getByRole('button', { name: /Broken/ }).getAttribute('aria-pressed'), 'true', 'opens as Broken');
-  await ssdk.getByLabel('What happened?').fill('Place order does nothing.');
-  await ssdk.getByRole('button', { name: '3 clicks' }).waitFor();
+  assert.equal(await ssdk.getByRole('radio', { name: 'Broken' }).getAttribute('aria-checked'), 'true', 'opens as Broken');
+  await ssdk.getByRole('textbox', { name: 'Your report' }).fill('Place order does nothing.');
   await ssdk.getByRole('button', { name: 'Send' }).click();
-  await ssdk.getByText('Waiting for the developer').waitFor();
+  await ssdk.getByText('Sent. You’ll see the reply under Your reports.').waitFor();
   await ctx4.close();
   const nudged = (await (await api('GET', `/projects/${project.id}/reports`)).json()).reports
     .find((r) => r.text === 'Place order does nothing.');
@@ -716,7 +717,7 @@ try {
   await lost.waitForTimeout(400); // past the fade-in
   await lost.screenshot({ path: `${SHOTS}e2e-9b-nudge-stuck.png` });
   await unsure.getByRole('button', { name: 'Tell the team' }).click();
-  assert.equal(await lsdk.getByRole('button', { name: /Confusing/ }).getAttribute('aria-pressed'), 'true', 'opens as Confusing');
+  assert.equal(await lsdk.getByRole('radio', { name: 'Confusing' }).getAttribute('aria-checked'), 'true', 'opens as Confusing');
   await ctx5.close();
 
   step('ChatGPT: a team member connects it with their own sign-in, and sends an idea with the conversation\'s context');
@@ -910,8 +911,8 @@ try {
   await wd.goto(`${BASE}/demo.html?key=${key}`);
   const wsdk = wd.locator('[data-feedback-sdk]');
   await wsdk.getByRole('button', { name: /Report a problem/ }).click();
-  await wsdk.getByRole('tab', { name: 'Your reports' }).click();
-  const item = wsdk.locator('.item', { hasText: 'Please add a calendar view' });
+  await wsdk.getByRole('button', { name: 'Your reports' }).click();
+  const item = wsdk.locator('.card', { hasText: 'Please add a calendar view' });
   await item.getByRole('button', { name: 'Take back' }).click();
   await item.getByText('It isn’t deleted').waitFor();
   await item.getByLabel('Why? (optional)').fill('Found it under Views.');
@@ -948,6 +949,37 @@ try {
   await outsider.goto(`${BASE}/app/#/team`);
   assert.equal(await outsider.locator('#invite-email').count(), 0, 'members do not get the invite form');
   await ctx2.close();
+
+  step('layouts: steps and bar each open, take a type and a sentence, and the report reaches the dashboard');
+  const lctx = await browser.newContext({ viewport: { width: 1100, height: 760 } });
+  const lay = await lctx.newPage();
+  lay.on('pageerror', (e) => console.error('layout page error:', e));
+  const lsd = lay.locator('[data-feedback-sdk]');
+  await lay.goto(`${BASE}/demo.html?key=${key}&layout=steps`);
+  await lsd.getByRole('button', { name: /Report a problem/ }).click();
+  await lsd.getByText('What’s going on?').waitFor();
+  await lsd.getByRole('button', { name: 'Idea' }).click();
+  assert.equal(await lsd.getByRole('button', { name: 'Send' }).isDisabled(), true, 'Send waits for text');
+  await lsd.getByPlaceholder('What would you like?').waitFor();
+  await lsd.getByRole('textbox', { name: 'Your report' }).fill('Steps layout: let me export to CSV.');
+  await lay.screenshot({ path: `${SHOTS}e2e-14a-layout-steps.png` });
+  await lsd.getByRole('button', { name: 'Send' }).click();
+  await lsd.getByText('Sent. You’ll see the reply under Your reports.').waitFor();
+  await lsd.getByRole('button', { name: 'Done' }).click();
+  await lay.goto(`${BASE}/demo.html?key=${key}&layout=bar&position=bottom-left`);
+  await lsd.getByRole('button', { name: /Report a problem/ }).click();
+  assert.equal(await lsd.getByRole('button', { name: 'Send' }).isDisabled(), true, 'Send waits for a type and text');
+  await lsd.getByRole('textbox', { name: 'Your report' }).fill('Bar layout: the table jumps when I sort.');
+  assert.equal(await lsd.getByRole('button', { name: 'Send' }).isDisabled(), true, 'text alone is not enough');
+  await lsd.getByRole('button', { name: /What kind of report/ }).click();
+  await lsd.getByRole('menuitemradio', { name: 'Confusing' }).click();
+  await lay.screenshot({ path: `${SHOTS}e2e-14b-layout-bar.png` });
+  await lsd.getByRole('button', { name: 'Send' }).click();
+  await lsd.getByText('Sent. Replies show under Your reports.').waitFor();
+  const viaLayouts = (await (await api('GET', `/projects/${project.id}/reports`)).json()).reports;
+  assert.equal(viaLayouts.find((r) => r.text === 'Steps layout: let me export to CSV.')?.type, 'idea');
+  assert.equal(viaLayouts.find((r) => r.text === 'Bar layout: the table jumps when I sort.')?.type, 'confusing');
+  await lctx.close();
 
   console.log('\nE2E PASSED');
   customer.close();

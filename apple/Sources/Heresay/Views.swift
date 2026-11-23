@@ -41,9 +41,7 @@ struct ReportButtonModifier: ViewModifier {
     let alignment: Alignment?
     let showsButton: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    #if os(iOS)
-    @State private var tryAfterIntro = false
-    #else
+    #if os(macOS)
     /// The note offering help shows in the window being used, not in every window.
     @Environment(\.controlActiveState) private var windowState
     #endif
@@ -63,24 +61,21 @@ struct ReportButtonModifier: ViewModifier {
             .overlay(alignment: corner) {
                 // The note sits by the button: above it, or below one at the top.
                 VStack(alignment: corner.horizontal, spacing: 10) {
-                    if top && showsButton && heresay.buttonVisible { ReportButton(heresay: heresay) }
+                    if top && showsButton && heresay.buttonVisible && !heresay.isPresented { ReportButton(heresay: heresay) }
                     if let offer {
                         NudgeCard(heresay: heresay, offer: offer)
                             .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: top ? .top : .bottom)))
                     }
-                    if !top && showsButton && heresay.buttonVisible { ReportButton(heresay: heresay) }
+                    if !top && showsButton && heresay.buttonVisible && !heresay.isPresented { ReportButton(heresay: heresay) }
                 }
                 .padding(heresay.style.offset)
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: heresay.offer)
             }
             .modifier(SheetPresenter(heresay: heresay))
             #if os(iOS)
-            // A welcome sheet, like the ones apps show for what's new. The report sheet waits
-            // until it has gone, since only one sheet can be up.
-            .sheet(isPresented: $heresay.introPending, onDismiss: {
-                if tryAfterIntro { tryAfterIntro = false; heresay.present(.report) }
-            }) {
-                IntroView(heresay: heresay) { tryIt in tryAfterIntro = tryIt; heresay.introPending = false }
+            // A welcome sheet, like the ones apps show for what's new.
+            .sheet(isPresented: $heresay.introPending) {
+                IntroView(heresay: heresay) { heresay.introPending = false }
                     .heresayTypeface(heresay.style.typeface)
                     .preferredColorScheme(heresay.style.colorScheme)
                     .presentationDetents([.medium])
@@ -97,11 +92,10 @@ struct ReportButtonModifier: ViewModifier {
 
 // MARK: - The introduction
 
-/// The one-time introduction: the mark, what Heresay is for and where to find it, and a way in.
+/// The one-time introduction: the mark, one line, one button.
 struct IntroView: View {
     @ObservedObject var heresay: Heresay
-    /// Close it; `true` opens the report sheet next.
-    let finish: (Bool) -> Void
+    let finish: () -> Void
 
     private var badge: some View {
         HeresayMark.filled(heresay.markColor)
@@ -115,6 +109,7 @@ struct IntroView: View {
         VStack(spacing: 8) {
             Text(heresay.introTitle)
                 .font(.title2.weight(.bold))
+                .accessibilityAddTraits(.isHeader)
             Text(heresay.introBody)
                 .foregroundStyle(.secondary)
         }
@@ -129,15 +124,13 @@ struct IntroView: View {
             badge
             words
             Spacer(minLength: 12)
-            Button { finish(true) } label: {
-                Text(heresay.words[.tryIt]).fontWeight(.semibold).frame(maxWidth: .infinity)
+            Button { finish() } label: {
+                Text(heresay.words[.gotIt]).fontWeight(.semibold).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .tint(heresay.accent)
-            Button(heresay.words[.gotIt]) { finish(false) }
-                .tint(heresay.accent)
-            PoweredBy(heresay: heresay)
+            SheetFooter(heresay: heresay)
         }
         .padding(.horizontal, 28)
         .padding(.top, 8)
@@ -149,19 +142,14 @@ struct IntroView: View {
             }
             .padding(.horizontal, 36)
             .padding(.top, 40)
-            .padding(.bottom, 28)
-            HStack(spacing: 10) {
-                PoweredBy(heresay: heresay).fixedSize()
-                Spacer()
-                Button(heresay.words[.gotIt]) { finish(false) }
-                    .keyboardShortcut(.cancelAction)
-                Button(heresay.words[.tryIt]) { finish(true) }
-                    .keyboardShortcut(.defaultAction)
-                    .tint(heresay.accent)
-            }
-            .controlSize(.large)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
+            .padding(.bottom, 24)
+            Button(heresay.words[.gotIt]) { finish() }
+                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(.cancelAction)
+                .controlSize(.large)
+                .tint(heresay.accent)
+                .padding(.bottom, 16)
+            SheetFooter(heresay: heresay)
         }
         .frame(width: 440)
         #endif
@@ -195,11 +183,7 @@ enum IntroWindow {
         case .dark?: w.appearance = NSAppearance(named: .darkAqua)
         default: break
         }
-        var openSheet = false
-        let host = NSHostingController(rootView: IntroView(heresay: heresay) { tryIt in
-            openSheet = tryIt
-            w.close()
-        }.heresayTypeface(heresay.style.typeface))
+        let host = NSHostingController(rootView: IntroView(heresay: heresay) { w.close() }.heresayTypeface(heresay.style.typeface))
         w.contentViewController = host
         w.setContentSize(host.view.fittingSize)
         if let parent {
@@ -214,7 +198,6 @@ enum IntroWindow {
                 closing = nil
                 window = nil
                 parent?.makeKeyAndOrderFront(nil)
-                if openSheet { heresay.present(.report) }
             }
         }
         window = w
@@ -227,28 +210,69 @@ enum IntroWindow {
 struct SheetPresenter: ViewModifier {
     @ObservedObject var heresay: Heresay
 
+    /// `.bar` layout: Your reports opens the normal sheet over the bar.
+    @State private var mineOpen = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isBar: Bool { heresay.style.layout == .bar }
+    private var active: Bool { heresay.isPresented && !heresay.isDisabled }
+    private var barShown: Bool { active && isBar && !mineOpen }
+
     private var shown: Binding<Bool> {
-        Binding(get: { heresay.isPresented && !heresay.isDisabled }, set: { heresay.isPresented = $0 })
+        Binding(get: { active && (!isBar || mineOpen) },
+                set: { heresay.isPresented = $0; if !$0 { mineOpen = false } })
+    }
+
+    private var barAlignment: Alignment {
+        #if os(macOS)
+        heresay.style.alignment
+        #else
+        .bottom
+        #endif
+    }
+
+    private var barEdge: Edge { barAlignment.vertical == .top ? .top : .bottom }
+
+    private var bar: some View {
+        let edge = barEdge
+        return ZStack(alignment: barAlignment) {
+            Color.clear.allowsHitTesting(false)
+            if barShown {
+                ReportBar(heresay: heresay) { mineOpen = true }
+                    #if os(macOS)
+                    .frame(maxWidth: 440)
+                    .padding(heresay.style.offset)
+                    #else
+                    .frame(maxWidth: 560)
+                    .padding(.horizontal, 12).padding(.bottom, 8)
+                    #endif
+                    .transition(reduceMotion ? .opacity : .move(edge: edge).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: barShown)
     }
 
     private var sheet: some View {
         ReportSheet(heresay: heresay)
             .heresayTypeface(heresay.style.typeface)
             .preferredColorScheme(heresay.style.colorScheme)
-            #if os(iOS)
-            .presentationDetents(heresay.style.sheet == .compact ? [.medium, .large] : [.large])
-            #endif
     }
 
     func body(content: Content) -> some View {
+        let base = content
+            .overlay { bar }
+            .onChange(of: heresay.isPresented) { on in
+                if !on { mineOpen = false }
+                else if isBar, let tab = heresay.requestedTab, tab != .report { mineOpen = true }
+            }
         #if os(iOS)
-        if heresay.style.sheet == .large {
-            content.fullScreenCover(isPresented: shown) { sheet }
+        if heresay.style.sheet == .large && !isBar {
+            base.fullScreenCover(isPresented: shown) { sheet }
         } else {
-            content.sheet(isPresented: shown) { sheet }
+            base.sheet(isPresented: shown) { sheet }
         }
         #else
-        content.sheet(isPresented: shown) { sheet }
+        base.sheet(isPresented: shown) { sheet }
         #endif
     }
 }
@@ -278,9 +302,11 @@ struct ReportButton: View {
             .foregroundStyle(filled ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
             .padding(.horizontal, st.button == .icon ? m.v + 1 : m.h)
             .padding(.vertical, st.button == .icon ? m.v + 1 : m.v)
-            .background {
-                if filled { shape.fill(heresay.accent) } else {
-                    shape.fill(.regularMaterial).overlay(shape.stroke(Color.primary.opacity(0.12)))
+            .glassOr(shape, tint: filled ? heresay.accent : nil) {
+                $0.background {
+                    if filled { shape.fill(heresay.accent) } else {
+                        shape.fill(.regularMaterial).overlay(shape.stroke(Color.primary.opacity(0.12)))
+                    }
                 }
             }
             .overlay(alignment: .topTrailing) {
@@ -302,8 +328,8 @@ struct ReportButton: View {
     }
 }
 
-/// "Powered by Heresay", on every tab. People should be able to tell the app uses an outside
-/// tool. Not configurable.
+/// "Powered by Heresay", a link. People should be able to tell the app uses an outside tool.
+/// Not configurable.
 struct PoweredBy: View {
     @ObservedObject var heresay: Heresay
 
@@ -311,7 +337,7 @@ struct PoweredBy: View {
         Link(destination: heresayURL) {
             HStack(spacing: 5) {
                 HeresayMark.filled(heresay.markColor).frame(width: 15, height: 15)
-                Text(heresay.words[.powered])
+                Text(heresay.words[.powered]).lineLimit(1).fixedSize(horizontal: true, vertical: false)
             }
             .font(.caption.weight(.medium))
             .foregroundStyle(.secondary)
@@ -322,33 +348,75 @@ struct PoweredBy: View {
     }
 }
 
+/// One line at the foot of every view: "Sent to this app's team · Powered by Heresay". Stacks
+/// when text is large.
+struct SheetFooter: View {
+    @ObservedObject var heresay: Heresay
+    /// Only "Powered by Heresay" (the steps layout's first screen).
+    var compact = false
+
+    private var link: some View {
+        Link(destination: heresayURL) {
+            HStack(spacing: 5) {
+                HeresayMark.filled(heresay.markColor).frame(width: 14, height: 14).accessibilityHidden(true)
+                Text(heresay.words[.powered]).fontWeight(.medium)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var sentTo: some View { Text(heresay.words[.sentTo]) }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            if compact { link.fixedSize() }
+            HStack(spacing: 6) { sentTo.fixedSize(); Text("·").accessibilityHidden(true); link.fixedSize() }
+            VStack(spacing: 4) { sentTo; link }
+        }
+        .font(.caption)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20).padding(.vertical, 10)
+        .overlay(alignment: .top) { Divider() }
+    }
+}
+
 // MARK: - The sheet
 
+/// The report form, and Your reports pushed over it. No tabs: one calm view at a time.
 struct ReportSheet: View {
     @ObservedObject var heresay: Heresay
     @Environment(\.dismiss) private var dismiss
-    @State private var tab: SheetTab
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var page: Page
+    @State private var prefsOpen: Bool
     @State private var type: ReportType?
+    /// Steps layout: screen 2 (the text box) once a type is chosen.
+    @State private var picked: Bool
     @State private var text = ""
     @State private var sending = false
     @State private var error: String?
     @State private var sent = false
-    /// The trail as it was when the sheet opened, and what the reporter kept of it.
-    @State private var trail: [Trail.Entry] = []
-    @State private var trailOn = true
-    @State private var trailSkip: Set<TrailKind> = []
     @FocusState private var textFocused: Bool
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    #endif
+    /// The natural height of the form, measured, so the sheet can fit it.
+    @State private var fitHeight: CGFloat = 380
+    @State private var keyboard: CGFloat = 0
+    @State private var pulled = false
+
+    enum Page { case report, mine }
 
     init(heresay: Heresay) {
         self.heresay = heresay
-        var first = heresay.requestedTab ?? (heresay.unseen > 0 ? .mine : .report)
-        if first == .preferences && !heresay.style.showsPreferences { first = .report }
-        _tab = State(initialValue: first)
+        let asked = heresay.requestedTab
+        let prefs = asked == .preferences && heresay.style.showsPreferences
+        _page = State(initialValue: asked == .mine || prefs ? .mine : .report)
+        _prefsOpen = State(initialValue: prefs)
         let d = heresay.draft
-        _type = State(initialValue: d.type.flatMap { heresay.style.types.contains($0) ? $0 : nil })
+        let preset = d.type.flatMap { heresay.style.types.contains($0) ? $0 : nil }
+        _type = State(initialValue: preset)
+        _picked = State(initialValue: preset != nil)
         _text = State(initialValue: d.text)
     }
 
@@ -358,43 +426,50 @@ struct ReportSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Picker("", selection: $tab) {
-                Text(w[.tabReport]).tag(SheetTab.report)
-                Text(heresay.unseen > 0 ? w[.tabMine] + " ●" : w[.tabMine]).tag(SheetTab.mine)
-                if heresay.style.showsPreferences { Text(w[.tabPrefs]).tag(SheetTab.preferences) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .tint(heresay.accent)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 12)
-
-            Divider()
-
-            Group {
-                switch tab {
-                case .report: if sent { sentView } else { form }
-                case .mine: MineList(heresay: heresay)
-                case .preferences: PreferencesForm(heresay: heresay)
+            ZStack {
+                switch page {
+                case .report:
+                    VStack(spacing: 0) {
+                        if sent { sentHeader; sentView }
+                        else if heresay.style.layout == .steps && !picked { stepsHeader.measured(); stepsList }
+                        else if heresay.style.layout == .steps { stepTwoHeader.measured(); form }
+                        else { header.measured(); form }
+                    }
+                    .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
+                case .mine:
+                    VStack(spacing: 0) {
+                        mineHeader
+                        MineList(heresay: heresay, prefsOpen: $prefsOpen)
+                    }
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-
-            PoweredBy(heresay: heresay)
-
-            if tab == .report && !sent { footer } else { doneBar }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            SheetFooter(heresay: heresay,
+                        compact: heresay.style.layout == .steps && page == .report && !sent && !picked)
         }
+        .onPreferenceChange(FitHeight.self) { if page == .report && !sent && $0 > 0 { fitHeight = $0 } }
         #if os(macOS)
-        .frame(minWidth: macWidth - 40, idealWidth: macWidth, minHeight: 520, idealHeight: 600)
+        .frame(width: macWidth, height: page == .report && !sent ? min(max(fitHeight, 300), 620) : 540)
+        .glassBackdrop()
+        #else
+        .modifier(PhoneSheetSizing(page: page == .mine ? .mine : sent ? .sent : .report,
+                                   fit: fitHeight, keyboard: keyboard, pulled: $pulled,
+                                   fixed: heresay.style.sheet == .compact))
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { n in
+            let end = (n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect) ?? .zero
+            let screen = UIScreen.main.bounds.height
+            keyboard = end.minY >= screen ? 0 : max(0, screen - end.minY)
+        }
         #endif
+        .onChange(of: page) { _ in pulled = false }
+        .onChange(of: sent) { _ in pulled = false }
         .task { await heresay.refresh() }
-        .task { trail = await heresay.gatherTrail() }
-        .onChange(of: tab) { t in if t == .mine { heresay.markSeen() } }
         .onAppear {
             heresay.requestedTab = nil
             heresay.draft = (nil, "")
-            if tab == .mine { heresay.markSeen() }
+            if page == .mine { heresay.markSeen() }
         }
     }
 
@@ -408,218 +483,349 @@ struct ReportSheet: View {
     }
     #endif
 
-    // MARK: Header and footer
+    private func go(_ p: Page) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { page = p }
+        if p == .mine { heresay.markSeen() }
+    }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            HeresayMark.filled(heresay.markColor)
-                .frame(width: 30, height: 30)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(w[.sendFeedback]).font(.headline)
-                Text(Self.appName.map { w(.straightToApp, ["app": $0]) } ?? w[.straightToTeam])
-                    .font(.subheadline).foregroundStyle(.secondary)
+    // MARK: Headers
+
+    private var title: some View {
+        HStack(spacing: 8) {
+            HeresayMark.filled(heresay.markColor).frame(width: 24, height: 24).accessibilityHidden(true)
+            Text(w[.report]).font(.headline).lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    private var closeButton: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(.title2)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 36, minHeight: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(.cancelAction)
+        .accessibilityLabel(w[.close])
+        .help(w[.close])
+    }
+
+    private var mineButton: some View {
+        Button { go(.mine) } label: {
+            HStack(spacing: 6) {
+                Text(w[.yourReports]).lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                if heresay.unseen > 0 { UnreadDot() }
             }
-            Spacer()
-            #if os(iOS)
-            Button { dismiss() } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 8).padding(.horizontal, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(heresay.unseen > 0 ? w[.yourReportsA11yUpdate] : w[.yourReports])
+    }
+
+    /// "Report", a quiet "Your reports", close. The title and the link stack when text is large.
+    private var header: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { title; Spacer(minLength: 8); mineButton; closeButton }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack { title; Spacer(minLength: 8); closeButton }
+                mineButton
+            }
+        }
+        .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 6)
+    }
+
+    private var sentHeader: some View {
+        HStack { Spacer(); closeButton }
+            .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 6)
+    }
+
+    private var mineHeader: some View {
+        HStack(spacing: 8) {
+            Button { if heresay.style.layout == .bar { dismiss() } else { go(.report) } } label: {
+                Image(systemName: "chevron.left")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(heresay.accent)
+                    .frame(minWidth: 36, minHeight: 36)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(w[.close])
-            #endif
+            .accessibilityLabel(w[.back])
+            .help(w[.back])
+            Text(w[.yourReports]).font(.headline).accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            closeButton
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 14)
+        .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 6)
     }
 
-    private var footer: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 10) {
-                if let error {
-                    Label(error, systemImage: "exclamationmark.circle.fill")
-                        .font(.callout).foregroundStyle(.red).lineLimit(2)
-                } else {
-                    Text(attachedLine).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                }
-                Spacer(minLength: 8)
-                #if os(macOS)
-                Button(w[.cancel]) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                #endif
-                Button {
-                    Task { await submit() }
-                } label: {
-                    HStack(spacing: 6) {
-                        if sending { HeresayGlance(.white).frame(width: 20, height: 20) }
-                        Text(sending ? w[.sending] : w[.send]).fontWeight(.semibold)
+    // MARK: Steps layout
+
+    private func symbolTile(_ t: ReportType) -> some View {
+        Image(systemName: t.symbol)
+            .font(.title3)
+            .foregroundStyle(.primary)
+            .frame(width: 44, height: 44)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.06)))
+            .accessibilityHidden(true)
+    }
+
+    private var clockButton: some View {
+        Button { go(.mine) } label: {
+            Image(systemName: "clock")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 36, minHeight: 36)
+                .overlay(alignment: .topTrailing) { if heresay.unseen > 0 { UnreadDot().offset(x: -2, y: 4) } }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(heresay.unseen > 0 ? w[.yourReportsA11yUpdate] : w[.yourReports])
+        .help(w[.yourReports])
+    }
+
+    /// Screen 1: the mark and "What's going on?", Your reports, close.
+    private var stepsHeader: some View {
+        HStack(spacing: 10) {
+            HeresayMark.filled(heresay.markColor).frame(width: 24, height: 24).accessibilityHidden(true)
+            Text(w[.whatsGoingOn]).font(.headline).accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            clockButton
+            closeButton
+        }
+        .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 6)
+    }
+
+    /// Four full-width rows, one per type.
+    private var stepsList: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach(heresay.style.types) { t in
+                    Button {
+                        type = t
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { picked = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { textFocused = true }
+                    } label: {
+                        HStack(spacing: 14) {
+                            symbolTile(t)
+                            Text(t.label(w)).font(.body.weight(.semibold)).foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.primary.opacity(0.03)))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.12)))
+                        .contentShape(RoundedRectangle(cornerRadius: 16))
                     }
-                    #if os(iOS)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    #endif
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(t.label(w))
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(heresay.accent)
-                .keyboardShortcut(.return, modifiers: .command)
-                .disabled(!canSend)
-                .help(w[.sendHelp])
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 20).padding(.vertical, 8)
+            .measured()
         }
-        .background(.bar)
     }
 
-    /// macOS sheets have no swipe-down or close box: every tab needs a way out.
-    @ViewBuilder private var doneBar: some View {
-        #if os(macOS)
-        VStack(spacing: 0) {
-            Divider()
-            HStack {
-                Spacer()
-                Button(w[.done]) { dismiss() }
-                    .tint(heresay.accent)
-                    .keyboardShortcut(.defaultAction)
-                    .keyboardShortcut(.cancelAction)
+    /// Screen 2's header: back, the chosen type as a pill, Your reports, close.
+    private var stepTwoHeader: some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { picked = false; type = nil }
+                textFocused = false
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(heresay.accent)
+                    .frame(minWidth: 36, minHeight: 36)
+                    .contentShape(Rectangle())
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .buttonStyle(.plain)
+            .accessibilityLabel(w[.back])
+            .help(w[.back])
+            if let type {
+                Text(type.label(w))
+                    .font(.footnote.weight(.semibold)).lineLimit(1)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .foregroundStyle(Color.white)
+                    .background(Capsule().fill(heresay.accent))
+                    .accessibilityAddTraits(.isHeader)
+            }
+            Spacer(minLength: 8)
+            clockButton
+            closeButton
         }
-        .background(.bar)
-        #endif
-    }
-
-    /// What goes with the report, said plainly, so nobody wonders.
-    private var attachedLine: String {
-        heresay.prefs.reporter(signedIn: heresay.isSignedIn) != nil ? w[.attachedPrefs] : w[.attached]
+        .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 6)
     }
 
     // MARK: Report form
 
     private var form: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(w[.whatIsIt]).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                typePicker
-                Text(w[.whatHappened]).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                    .padding(.top, 8)
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $text)
-                        .scrollContentBackground(.hidden)
-                        .font(.body)
-                        .focused($textFocused)
-                        .frame(minHeight: 120)
-                        .accessibilityLabel(w[.whatHappened])
-                    if text.isEmpty {
-                        Text(type?.placeholder(w) ?? heresay.style.placeholder ?? w[.placeholder])
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, Self.editorInset.height)
-                            .padding(.leading, Self.editorInset.width)
-                            .allowsHitTesting(false)
-                    }
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if heresay.style.layout != .steps { pills }
+                    editor
                 }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
-                .overlay(RoundedRectangle(cornerRadius: 10)
-                    .stroke(textFocused ? heresay.accent : Color.primary.opacity(0.12), lineWidth: textFocused ? 1.5 : 1))
-                if !trail.isEmpty {
-                    TrailBox(heresay: heresay, entries: trail, on: $trailOn, skip: $trailSkip).padding(.top, 6)
-                }
+                .padding(.horizontal, 20).padding(.vertical, 8)
+                .measured()
             }
-            .padding(20)
+            .scrollDismissesKeyboardIfAvailable()
+            VStack(spacing: 10) {
+                if let error {
+                    Label(error, systemImage: "exclamationmark.circle.fill")
+                        .font(.callout).foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                sendRow
+            }
+            .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 12)
+            .measured()
         }
     }
 
-    /// One row per type on a phone, where two columns would wrap every label; a grid of equal
-    /// cards, two to a row, everywhere else.
-    @ViewBuilder private var typePicker: some View {
+    /// One compact row of capsules, nothing picked. If the row can't fit (long words, large text)
+    /// it scrolls sideways rather than wrapping or squeezing.
+    private var pills: some View {
         let all = heresay.style.types
-        if narrow {
-            VStack(spacing: 8) { ForEach(all) { typeCard($0) } }
-        } else {
-            Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-                ForEach(Array(stride(from: 0, to: all.count, by: 2)), id: \.self) { i in
-                    GridRow {
-                        typeCard(all[i])
-                        if i + 1 < all.count { typeCard(all[i + 1]) } else { Color.clear.gridCellUnsizedAxes([.horizontal, .vertical]) }
-                    }
-                }
+        return ViewThatFits(in: .horizontal) {
+            pillGroup { HStack(spacing: 6) { ForEach(all) { pill($0) } }.frame(maxWidth: .infinity, alignment: .leading) }
+            ScrollView(.horizontal, showsIndicators: false) {
+                pillGroup { HStack(spacing: 6) { ForEach(all) { pill($0) } } }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(w[.whatIsIt])
     }
 
-    private var narrow: Bool {
-        #if os(iOS)
-        sizeClass == .compact
+    @ViewBuilder private func pillGroup<C: View>(@ViewBuilder _ c: () -> C) -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26, macOS 26, *) { GlassEffectContainer(spacing: 6) { c() } } else { c() }
         #else
-        false
+        c()
         #endif
     }
 
-    private func typeCard(_ t: ReportType) -> some View {
+    private func pill(_ t: ReportType) -> some View {
         let on = type == t
         return Button {
             type = t
             textFocused = true
         } label: {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: t.symbol)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(on ? .white : heresay.accent)
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(on ? heresay.accent : heresay.accent.opacity(0.12)))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(t.label(w)).font(.callout.weight(.semibold)).foregroundStyle(.primary)
-                    Text(t.hint(w)).font(.caption).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+            Text(t.label(w))
+                .font(.footnote.weight(.medium))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 10).padding(.vertical, 8)
+                .foregroundStyle(on ? Color.white : Color.primary)
+                // The chosen pill always has a solid accent fill, so it can never be invisible
+                // (glass is drawn over it, never instead of it).
+                .background { if on { Capsule().fill(heresay.accent) } }
+                .glassOr(Capsule(), tint: on ? heresay.accent : nil) {
+                    $0.background(Capsule().fill(on ? heresay.accent : Color.primary.opacity(0.05)))
+                        .overlay(Capsule().stroke(on ? Color.clear : Color.primary.opacity(0.12)))
                 }
-                Spacer(minLength: 0)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: narrow ? 0 : 64, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: 12).fill(on ? heresay.accent.opacity(0.10) : Color.primary.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(on ? heresay.accent : Color.primary.opacity(0.08), lineWidth: on ? 2 : 1))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
-        .accessibilityLabel("\(t.label(w)). \(t.hint(w))")
+        .accessibilityLabel(t.label(w))
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }
 
-    private var sentView: some View {
-        VStack(spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                HeresayMark.filled(heresay.markColor).frame(width: 64, height: 64)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(.white, Color.green)
-                    .offset(x: 6, y: 4)
+    private var editor: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $text)
+                .scrollContentBackground(.hidden)
+                .font(.body)
+                .focused($textFocused)
+                .frame(minHeight: 130)
+                .accessibilityLabel(w[.whatHappened])
+            if text.isEmpty {
+                Text(heresay.style.placeholder ?? type?.placeholder(w) ?? w[.placeholder])
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, Self.editorInset.height)
+                    .padding(.leading, Self.editorInset.width)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
-            .padding(.bottom, 4)
-            Text(w[.sentTitle]).font(.title3.weight(.semibold))
-            if let thanks = heresay.style.thanks {
-                Text(thanks).multilineTextAlignment(.center).frame(maxWidth: 320)
-            }
-            Text(w[.sentBody])
-                .foregroundStyle(.secondary).multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
-            HStack {
-                Button(w[.sendAnother]) {
-                    sent = false; type = nil; text = ""
-                    Task { trail = await heresay.gatherTrail() }
-                }
-                Button(w[.seeReports]) { tab = .mine }.buttonStyle(.borderedProminent).tint(heresay.accent)
-            }
-            .padding(.top, 6)
         }
-        .padding(32)
-        .frame(maxHeight: .infinity)
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04)))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .stroke(textFocused ? heresay.accent : Color.primary.opacity(0.12), lineWidth: textFocused ? 1.5 : 1))
+    }
+
+    private var sendRow: some View {
+        let button = Button {
+            Task { await submit() }
+        } label: {
+            HStack(spacing: 6) {
+                if sending { HeresayGlance(.white).frame(width: 20, height: 20) }
+                Text(sending ? w[.sending] : w[.send]).fontWeight(.semibold)
+            }
+            #if os(iOS)
+            .frame(maxWidth: .infinity)
+            #else
+            .padding(.horizontal, 8)
+            #endif
+        }
+        .prominentOrGlass()
+        .controlSize(.large)
+        .tint(heresay.accent)
+        .keyboardShortcut(.return, modifiers: .command)
+        .disabled(!canSend)
+        .help(w[.sendHelp])
+        #if os(iOS)
+        return button
+        #else
+        return HStack { Spacer(); button }
+        #endif
+    }
+
+    // MARK: Sent
+
+    private var sentView: some View {
+        VStack(spacing: 16) {
+            Spacer(minLength: 0)
+            SentCheck(color: heresay.accent)
+            VStack(spacing: 8) {
+                Text(w[.sentLine]).font(.headline).multilineTextAlignment(.center)
+                if let thanks = heresay.style.thanks {
+                    Text(thanks).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+            }
+            .frame(maxWidth: 340)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            Button { dismiss() } label: {
+                Text(w[.done]).fontWeight(.semibold)
+                    #if os(iOS)
+                    .frame(maxWidth: .infinity)
+                    #else
+                    .padding(.horizontal, 12)
+                    #endif
+            }
+            .prominentOrGlass()
+            .controlSize(.large)
+            .tint(heresay.accent)
+            .keyboardShortcut(.defaultAction)
+            #if os(iOS)
+            .frame(maxWidth: 340)
+            #endif
+            .padding(.top, 4)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { UIAccessibilityAnnounce.post(w[.sentLine]) }
     }
 
     private func submit() async {
@@ -628,8 +834,9 @@ struct ReportSheet: View {
         error = nil
         defer { sending = false }
         do {
-            _ = try await heresay.send(type: type, text: text.trimmed,
-                                       trail: .some(trailOn ? Trail.toSend(trail, skip: trailSkip) : nil))
+            // Everything the app collects still goes, as before: crash, trail, device.
+            _ = try await heresay.send(type: type, text: text.trimmed)
+            textFocused = false
             sent = true
         } catch {
             self.error = error.localizedDescription
@@ -644,161 +851,148 @@ struct ReportSheet: View {
         CGSize(width: 5, height: 8)
         #endif
     }
-
-    static var appName: String? {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.nilIfEmpty
-            ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.nilIfEmpty
-    }
 }
 
-// MARK: - The trail
+/// Adds up the natural heights of the parts of the form, so the sheet can be exactly that tall.
+struct FitHeight: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value += nextValue() }
+}
 
-/// "Attach what happened": the reporter sees what the trail holds, can read every line of it, and
-/// can switch it off or leave a kind out. Shown only when there is something to attach.
-struct TrailBox: View {
-    @ObservedObject var heresay: Heresay
-    let entries: [Trail.Entry]
-    @Binding var on: Bool
-    @Binding var skip: Set<TrailKind>
-    @State private var open = false
-
-    private var w: Words { heresay.words }
-
-    /// The device details that go with the report too, so nothing is sent unseen.
-    private var deviceLine: String? {
-        let c = heresay.context()
-        let parts = [c.device, c.screen, c.theme, c.locale, c.timezone, c.network, c.settings].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    private var counts: [(TrailKind, Int)] {
-        TrailKind.allCases.compactMap { k in
-            let n = entries.filter { $0.kind == k }.reduce(0) { $0 + $1.n }
-            return n > 0 ? (k, n) : nil
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: $on) {
-                Text(w[.attachTrail]).font(.subheadline.weight(.semibold))
-            }
-            .toggleStyle(.switch)
-            .tint(heresay.accent)
-            #if os(macOS)
-            .controlSize(.small)
-            #endif
-            if on {
-                Flow(spacing: 6) {
-                    ForEach(counts, id: \.0) { k, n in chip(k, n) }
-                }
-                DisclosureGroup(isExpanded: $open) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(w[Self.hasClicks ? .trailHint : .trailHintTouch])
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.bottom, 2)
-                        ForEach(entries.reversed()) { e in line(e) }
-                        if let d = deviceLine {
-                            Text(w[.alsoSent] + d)
-                                .font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 4)
-                        }
-                    }
-                    .padding(.top, 4)
-                } label: {
-                    Text(w[.seeTrail]).font(.caption).foregroundStyle(.secondary)
-                }
-                .tint(.secondary)
-            }
-        }
-    }
-
-    private func chip(_ k: TrailKind, _ n: Int) -> some View {
-        let kept = !skip.contains(k)
-        return Button {
-            if kept { skip.insert(k) } else { skip.remove(k) }
-        } label: {
-            Text("\(n) \(Self.name(k, n, w))")
-                .font(.caption)
-                .strikethrough(!kept)
-                .foregroundStyle(kept ? .primary : .secondary)
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Capsule().stroke(kept ? heresay.accent : Color.primary.opacity(0.15)))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(kept ? .isSelected : [])
-    }
-
-    private func line(_ e: Trail.Entry) -> some View {
-        // From the run that ended badly: timed back from when it ended, and marked as such.
-        let secs = e.beforeEnd ?? max(0, Int(Date().timeIntervalSince(e.at)))
-        let ago = secs >= 3600 ? "-1h+" : String(format: "-%d:%02d", secs / 60, secs % 60)
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(ago).monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 38, alignment: .leading)
-            Text((e.beforeEnd == nil ? "" : w[.trailLastRun] + " · ") + e.text + (e.n > 1 ? " ×\(e.n)" : "")).textSelection(.enabled)
-        }
-        .font(.caption)
-        .strikethrough(skip.contains(e.kind))
-        .opacity(skip.contains(e.kind) ? 0.45 : 1)
-    }
-
-    static func name(_ k: TrailKind, _ n: Int, _ w: Words) -> String {
-        let (one, many): (W, W) = switch k {
-        case .page: (.trailPage, .trailPages)
-        case .click: (.trailClick, .trailClicks)
-        case .request: (.trailRequest, .trailRequests)
-        case .error: (.trailError, .trailErrors)
-        case .warn: (.trailWarn, .trailWarns)
-        case .state: (.trailState, .trailStates)
-        }
-        return w[n == 1 ? one : many]
-    }
-
-    static var hasClicks: Bool {
-        #if os(macOS)
-        true
+extension View {
+    /// The accent button: glass-prominent on iOS and macOS 26 and later, bordered-prominent before.
+    @ViewBuilder func prominentOrGlass() -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26, macOS 26, *) { buttonStyle(.glassProminent) } else { buttonStyle(.borderedProminent) }
         #else
-        false
+        buttonStyle(.borderedProminent)
+        #endif
+    }
+
+    func measured() -> some View {
+        background(GeometryReader { Color.clear.preference(key: FitHeight.self, value: $0.size.height) })
+    }
+
+    /// Mac: a translucent backdrop. On macOS 26 the system sheet is already Liquid Glass, so
+    /// only older systems get the material.
+    @ViewBuilder func glassBackdrop() -> some View {
+        #if os(macOS)
+        if #available(macOS 26, *) { self } else { background(.regularMaterial) }
+        #else
+        self
+        #endif
+    }
+
+    /// Liquid Glass in `shape` on iOS and macOS 26 and later (tinted when given a tint);
+    /// otherwise `fallback`.
+    @ViewBuilder func glassOr<S: Shape, F: View>(_ shape: S, tint: Color? = nil, interactive: Bool = true,
+                                                  @ViewBuilder fallback: (Self) -> F) -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26, macOS 26, *) {
+            glassEffect(interactive ? .regular.tint(tint).interactive() : .regular.tint(tint), in: shape)
+        } else { fallback(self) }
+        #else
+        fallback(self)
         #endif
     }
 }
 
-/// Lays chips out in rows, wrapping when a row is full.
-struct Flow: Layout {
-    var spacing: CGFloat = 6
+#if os(iOS)
+/// How tall the sheet is on iPhone: as tall as the form (plus the keyboard, when it is up), Your
+/// reports taller. On iPad the system's form sheet sets the size.
+struct PhoneSheetSizing: ViewModifier {
+    enum Page { case report, mine, sent }
+    let page: Page
+    let fit: CGFloat
+    let keyboard: CGFloat
+    @Binding var pulled: Bool
+    let fixed: Bool
+    @Environment(\.dynamicTypeSize) private var typeSize
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = arrange(proposal.width ?? .infinity, subviews)
-        return CGSize(width: rows.map(\.width).max() ?? 0, height: rows.last.map { $0.y + $0.height } ?? 0)
-    }
+    private var form: PresentationDetent { .height(fit + (keyboard > 0 ? keyboard : 34)) }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        for row in arrange(bounds.width, subviews) {
-            var x = bounds.minX
-            for i in row.items {
-                let size = subviews[i].sizeThatFits(.unspecified)
-                subviews[i].place(at: CGPoint(x: x, y: bounds.minY + row.y), proposal: ProposedViewSize(size))
-                x += size.width + spacing
-            }
+    private var detents: Set<PresentationDetent> {
+        switch page {
+        // At accessibility text sizes the form is taller than the screen: give it all of it.
+        case .report: typeSize.isAccessibilitySize ? [.large] : fixed ? [form] : [form, .large]
+        case .mine: [.medium, .large]
+        case .sent: [.medium]
         }
     }
 
-    private func arrange(_ width: CGFloat, _ subviews: Subviews) -> [(items: [Int], y: CGFloat, width: CGFloat, height: CGFloat)] {
-        var rows: [(items: [Int], y: CGFloat, width: CGFloat, height: CGFloat)] = []
-        var cur: [Int] = [], x: CGFloat = 0, h: CGFloat = 0, y: CGFloat = 0
-        for i in subviews.indices {
-            let s = subviews[i].sizeThatFits(.unspecified)
-            if !cur.isEmpty && x + s.width > width {
-                rows.append((cur, y, x - spacing, h)); y += h + spacing
-                cur = []; x = 0; h = 0
-            }
-            cur.append(i); x += s.width + spacing; h = max(h, s.height)
+    private var selection: Binding<PresentationDetent> {
+        Binding(
+            get: {
+                if pulled && detents.contains(.large) { return .large }
+                if typeSize.isAccessibilitySize && page == .report { return .large }
+                switch page { case .report: return form; case .mine: return .large; case .sent: return .medium }
+            },
+            set: { pulled = $0 == .large })
+    }
+
+    func body(content: Content) -> some View {
+        content.presentationDetents(detents, selection: selection)
+    }
+}
+#endif
+
+extension View {
+    @ViewBuilder func scrollDismissesKeyboardIfAvailable() -> some View {
+        #if os(iOS)
+        if #available(iOS 16.0, *) { scrollDismissesKeyboard(.interactively) } else { self }
+        #else
+        self
+        #endif
+    }
+}
+
+/// Reads the result out loud: the sent view replaces what had focus.
+enum UIAccessibilityAnnounce {
+    @MainActor static func post(_ text: String) { NudgeCard.announce(text) }
+}
+
+/// The teal dot that says "something new" on Your reports.
+struct UnreadDot: View {
+    var body: some View {
+        Circle().fill(Color(red: 45 / 255, green: 212 / 255, blue: 191 / 255))
+            .frame(width: 9, height: 9)
+            .accessibilityHidden(true)
+    }
+}
+
+/// A check that draws itself: the ring, then the tick. Still when Reduce Motion is on.
+struct SentCheck: View {
+    let color: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var ring: CGFloat = 0
+    @State private var tick: CGFloat = 0
+
+    var body: some View {
+        ZStack {
+            Circle().fill(color.opacity(0.1))
+            Circle().trim(from: 0, to: ring)
+                .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            CheckShape().trim(from: 0, to: tick)
+                .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
         }
-        if !cur.isEmpty { rows.append((cur, y, x - spacing, h)) }
-        return rows
+        .frame(width: 72, height: 72)
+        .accessibilityHidden(true)
+        .onAppear {
+            if reduceMotion { ring = 1; tick = 1; return }
+            withAnimation(.easeOut(duration: 0.4)) { ring = 1 }
+            withAnimation(.easeOut(duration: 0.3).delay(0.35)) { tick = 1 }
+        }
+    }
+}
+
+struct CheckShape: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX + r.width * 0.30, y: r.minY + r.height * 0.52))
+        p.addLine(to: CGPoint(x: r.minX + r.width * 0.45, y: r.minY + r.height * 0.67))
+        p.addLine(to: CGPoint(x: r.minX + r.width * 0.71, y: r.minY + r.height * 0.36))
+        return p
     }
 }
 
@@ -806,81 +1000,90 @@ struct Flow: Layout {
 
 struct MineList: View {
     @ObservedObject var heresay: Heresay
+    @Binding var prefsOpen: Bool
     /// "Take back": the report being asked about, the optional reason, and any error.
     @State private var taking: SentReport?
     @State private var reason = ""
     @State private var takeError: String?
 
     var body: some View {
-        if heresay.reports.isEmpty {
-            VStack(spacing: 10) {
-                HeresayMark.filled(Color.secondary.opacity(0.35)).frame(width: 44, height: 44)
-                Text(heresay.words[.none]).foregroundStyle(.secondary)
-            }
-            .padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            List(heresay.reports) { r in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        StatusPill(status: r.status, label: r.status.label(heresay.words), accent: heresay.accent)
-                        Spacer()
-                        Label(r.type.label(heresay.words), systemImage: r.type.symbol)
-                            .font(.caption).foregroundStyle(.secondary)
-                        if let when = Self.date(r.createdAt) {
-                            Text(when, format: .dateTime.day().month(.abbreviated).locale(Locale(identifier: heresay.words.lang)))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 10) {
+                if heresay.reports.isEmpty {
+                    VStack(spacing: 10) {
+                        HeresayMark.filled(Color.secondary.opacity(0.35)).frame(width: 44, height: 44)
+                        Text(heresay.words[.none]).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     }
-                    Text(r.text).lineLimit(4)
-                    if r.status == .declined, let why = r.declineReason {
-                        note(heresay.words[.why] + why, fill: Color.primary.opacity(0.06))
-                    }
-                    if r.status == .fixed, let fix = r.fixNote {
-                        note(fix, fill: heresay.accent.opacity(0.1))
-                    }
-                    if r.status == .withdrawn, let why = r.withdrawnReason {
-                        Text(heresay.words[.yourWhy] + why).font(.caption).foregroundStyle(.secondary)
-                    }
-                    if r.status == .open {
-                        Button(heresay.words[.takeBack]) { taking = r; reason = "" }
-                            .buttonStyle(.borderless)
-                            .font(.caption)
-                            .tint(heresay.accent)
-                    }
-                    if r.status == .fixed, let v = r.fixVersion {
-                        Text(heresay.words(.fixedIn, ["v": v]) + (heresay.isOlder(than: v) ? " " + heresay.words(.updateTo, ["v": v]) : ""))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    ForEach(heresay.reports) { card($0) }
                 }
-                .padding(.vertical, 6)
-            }
-            #if os(macOS)
-            .listStyle(.inset)
-            #else
-            .listStyle(.plain)
-            #endif
-            .alert(heresay.words[.takeBackAsk], isPresented: Binding(get: { taking != nil }, set: { if !$0 { taking = nil } })) {
-                TextField(heresay.words[.takeBackWhy], text: $reason)
-                Button(heresay.words[.keep], role: .cancel) { taking = nil }
-                Button(heresay.words[.takeBackYes], role: .destructive) {
-                    guard let r = taking else { return }
-                    let why = reason
-                    taking = nil
-                    Task {
-                        do { try await heresay.withdraw(r.id, reason: why) } catch { takeError = error.localizedDescription }
-                    }
+                if heresay.style.showsPreferences {
+                    PreferencesRow(heresay: heresay, open: $prefsOpen).padding(.top, 8)
                 }
             }
-            .alert(takeError ?? "", isPresented: Binding(get: { takeError != nil }, set: { if !$0 { takeError = nil } })) {
-                Button(heresay.words[.done]) { takeError = nil }
-            }
-            .refreshable { await heresay.refresh() }
+            .padding(.horizontal, 20).padding(.vertical, 8)
         }
+        .refreshable { await heresay.refresh() }
+        .alert(heresay.words[.takeBackAsk], isPresented: Binding(get: { taking != nil }, set: { if !$0 { taking = nil } })) {
+            TextField(heresay.words[.takeBackWhy], text: $reason)
+            Button(heresay.words[.keep], role: .cancel) { taking = nil }
+            Button(heresay.words[.takeBackYes], role: .destructive) {
+                guard let r = taking else { return }
+                let why = reason
+                taking = nil
+                Task {
+                    do { try await heresay.withdraw(r.id, reason: why) } catch { takeError = error.localizedDescription }
+                }
+            }
+        }
+        .alert(takeError ?? "", isPresented: Binding(get: { takeError != nil }, set: { if !$0 { takeError = nil } })) {
+            Button(heresay.words[.done]) { takeError = nil }
+        }
+    }
+
+    private func card(_ r: SentReport) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text(r.type.label(heresay.words)).fontWeight(.semibold)
+                if let when = Self.date(r.createdAt) {
+                    Text("·")
+                    Text(when, format: .dateTime.day().month(.abbreviated).locale(Locale(identifier: heresay.words.lang)))
+                }
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            Text(r.text).lineLimit(5).fixedSize(horizontal: false, vertical: true)
+            StatusPill(status: r.status, label: r.status.label(heresay.words), accent: heresay.accent)
+            if r.status == .declined, let why = r.declineReason {
+                note(heresay.words[.why] + why, fill: Color.primary.opacity(0.06))
+            }
+            if r.status == .fixed, let fix = r.fixNote {
+                note(fix, fill: heresay.accent.opacity(0.1))
+            }
+            if r.status == .withdrawn, let why = r.withdrawnReason {
+                Text(heresay.words[.yourWhy] + why).font(.caption).foregroundStyle(.secondary)
+            }
+            if r.status == .fixed, let v = r.fixVersion {
+                Text(heresay.words(.fixedIn, ["v": v]) + (heresay.isOlder(than: v) ? " " + heresay.words(.updateTo, ["v": v]) : ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if r.status == .open {
+                Button(heresay.words[.takeBack]) { taking = r; reason = "" }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .tint(heresay.accent)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04)))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08)))
     }
 
     private func note(_ s: String, fill: Color) -> some View {
         Text(s).font(.callout).padding(8)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 8).fill(fill))
     }
@@ -900,6 +1103,7 @@ struct StatusPill: View {
     var body: some View {
         Text(label)
             .font(.caption.weight(.semibold))
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 8).padding(.vertical, 3)
             .foregroundStyle(color)
             .background(Capsule().fill(color.opacity(0.12)))
@@ -914,95 +1118,68 @@ struct StatusPill: View {
     }
 }
 
-// MARK: - Preferences
+// MARK: - Your name and email
 
-/// Saved as they type; nothing to press. Sent only with reports they send. When the app has said
-/// who is signed in, it shows that instead of asking for a name and email.
-struct PreferencesForm: View {
+/// At the bottom of Your reports, not a section of its own: "Signed in as X" when the app said who,
+/// otherwise a row that opens to two optional fields. Saved as they type; sent only with reports
+/// they send.
+struct PreferencesRow: View {
     @ObservedObject var heresay: Heresay
+    @Binding var open: Bool
     @State private var prefs: ReporterPrefs
 
-    init(heresay: Heresay) {
+    init(heresay: Heresay, open: Binding<Bool>) {
         self.heresay = heresay
+        _open = open
         _prefs = State(initialValue: heresay.prefs)
     }
 
     private var w: Words { heresay.words }
 
     var body: some View {
-        Form {
+        Group {
             if let who = heresay.signedInAs {
-                Section {
-                    HStack(spacing: 12) {
-                        Text(Self.initials(who))
-                            .font(.callout.weight(.bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(heresay.accent))
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(w(.signedInAs, ["who": who])).fontWeight(.semibold)
-                            if let email = heresay.userEmail, email != who {
-                                Text(email).font(.callout).foregroundStyle(.secondary)
-                            }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(w(.signedInAs, ["who": who])).font(.subheadline.weight(.medium))
+                    if let email = heresay.userEmail, email != who {
+                        Text(email).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Text(heresay.userEmail != nil ? w[.seesReply] : w[.sees])
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                DisclosureGroup(isExpanded: $open) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField(w[.name], text: $prefs.name, prompt: Text(w[.name] + " · " + w[.optional]))
+                            .textFieldStyle(.roundedBorder)
+                            #if os(iOS)
+                            .textContentType(.name)
+                            #endif
+                        TextField(w[.email], text: $prefs.email, prompt: Text(w[.email] + " · " + w[.optional]))
+                            .textFieldStyle(.roundedBorder)
+                            #if os(iOS)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            #endif
+                        if prefs.emailLooksValid {
+                            Text(w[.emailHint]).font(.footnote).foregroundStyle(.secondary)
+                        } else {
+                            Text(w[.emailBad]).font(.footnote).foregroundStyle(.red)
                         }
                     }
-                    .padding(.vertical, 2)
-                } header: {
-                    Text(w[.you])
-                } footer: {
-                    Text(heresay.userEmail != nil ? w[.seesReply] : w[.sees])
+                    .padding(.top, 8)
+                } label: {
+                    Text(w[.nameAndEmail]).font(.subheadline.weight(.medium))
                 }
-            } else {
-                Section {
-                    TextField(w[.name], text: $prefs.name, prompt: Text(w[.optional]))
-                        #if os(iOS)
-                        .textContentType(.name)
-                        #endif
-                    TextField(w[.email], text: $prefs.email, prompt: Text(w[.optional]))
-                        #if os(iOS)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        #endif
-                } header: {
-                    Text(w[.aboutYou])
-                } footer: {
-                    if prefs.emailLooksValid {
-                        Text(w[.emailHint])
-                    } else {
-                        Text(w[.emailBad]).foregroundStyle(.red)
-                    }
-                }
-            }
-
-            Section {
-                TextField(w[.setupLabel], text: $prefs.note,
-                          prompt: Text(w[.setupPrompt]),
-                          axis: .vertical)
-                    .labelsHidden()
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(3...6)
-            } header: {
-                Text(w[.yourSetup])
-            } footer: {
-                Text(w[.setupFooter])
-            }
-
-            if prefs != ReporterPrefs() {
-                Section {
-                    Button(w[.clearAll], role: .destructive) { prefs = ReporterPrefs() }
-                }
+                .tint(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .tint(heresay.accent)
+        .padding(.vertical, 10)
+        .overlay(alignment: .top) { Divider() }
         // A bad email is kept so they can fix it; it just isn't sent (`ReporterPrefs.reporter`).
         .onChange(of: prefs) { heresay.save($0) }
-    }
-
-    static func initials(_ s: String) -> String {
-        s.split(whereSeparator: { " @.".contains($0) }).prefix(2).compactMap(\.first).map { String($0).uppercased() }.joined()
     }
 }

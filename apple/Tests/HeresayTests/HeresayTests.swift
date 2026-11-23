@@ -58,10 +58,10 @@ final class ModelTests: XCTestCase {
 
     func testContextUsesTheSameFieldNamesAsTheWebSDK() throws {
         let c = ReportContext(route: "Checkout", appVersion: "1.4 (22)", platform: "ios", os: "iOS 18.1",
-                              browser: nil, userId: "u1", userLabel: "Asha", framework: "swiftui")
+                              browser: nil, userId: "u1", userLabel: "Alex", framework: "swiftui")
         let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(c)) as! [String: Any]
         XCTAssertEqual(json["app_version"] as? String, "1.4 (22)")
-        XCTAssertEqual(json["user_label"] as? String, "Asha")
+        XCTAssertEqual(json["user_label"] as? String, "Alex")
         XCTAssertEqual(json["platform"] as? String, "ios")
         XCTAssertNil(json["appVersion"])
     }
@@ -239,15 +239,15 @@ final class PreferencesTests: XCTestCase {
     }
 
     func testABadEmailIsKeptToFixButNotSent() {
-        let p = ReporterPrefs(name: "Asha", email: "not an email", note: "I use VoiceOver")
+        let p = ReporterPrefs(name: "Alex", email: "not an email", note: "I use VoiceOver")
         XCTAssertFalse(p.emailLooksValid)
-        XCTAssertEqual(p.reporter(), .init(name: "Asha", email: nil, note: "I use VoiceOver"))
-        XCTAssertEqual(ReporterPrefs(email: " asha@example.org ").reporter()?.email, "asha@example.org")
+        XCTAssertEqual(p.reporter(), .init(name: "Alex", email: nil, note: nil))
+        XCTAssertEqual(ReporterPrefs(email: " alex@example.org ").reporter()?.email, "alex@example.org")
     }
 
-    func testSignedInTheAppSpeaksForThemAndOnlyTheNoteIsSent() {
+    func testSignedInTheAppSpeaksForThem() {
         let p = ReporterPrefs(name: "Typed name", email: "typed@example.org", note: "VoiceOver")
-        XCTAssertEqual(p.reporter(signedIn: true), .init(name: nil, email: nil, note: "VoiceOver"))
+        XCTAssertNil(p.reporter(signedIn: true))
         XCTAssertNil(ReporterPrefs(name: "Typed").reporter(signedIn: true))
     }
 
@@ -258,12 +258,12 @@ final class PreferencesTests: XCTestCase {
         var ctx = ReportContext(route: "Home", appVersion: "1.0", platform: "ios", os: "iOS 18", browser: nil, userId: nil, userLabel: nil, framework: "swiftui")
         ctx.viewport = "390x844"
         _ = try await c.submit(deviceId: "ios_0123456789abcdef", type: .idea, text: "x", context: ctx,
-                               reporter: ReporterPrefs(name: "Asha", note: "VoiceOver").reporter())
+                               reporter: ReporterPrefs(name: "Alex").reporter())
         let json = try JSONSerialization.jsonObject(with: StubProtocol.sent[0].1) as! [String: Any]
         XCTAssertEqual((json["context"] as? [String: Any])?["viewport"] as? String, "390x844")
         let reporter = json["reporter"] as? [String: Any]
-        XCTAssertEqual(reporter?["name"] as? String, "Asha")
-        XCTAssertEqual(reporter?["note"] as? String, "VoiceOver")
+        XCTAssertEqual(reporter?["name"] as? String, "Alex")
+        XCTAssertNil(reporter?["note"])
         XCTAssertNil(reporter?["email"], "unset fields are left out")
     }
 }
@@ -272,17 +272,18 @@ final class PreferencesTests: XCTestCase {
 final class SavedPreferencesTests: XCTestCase {
     func testPreferencesSurviveARelaunch() {
         let d = UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!
-        Heresay(defaults: d).save(ReporterPrefs(name: "Asha", note: "VoiceOver"))
+        Heresay(defaults: d).save(ReporterPrefs(name: "Alex", note: "VoiceOver"))
         let again = Heresay(defaults: d)
-        XCTAssertEqual(again.prefs.name, "Asha")
-        XCTAssertEqual(again.prefs.note, "VoiceOver")
+        XCTAssertEqual(again.prefs.name, "Alex")
+        XCTAssertEqual(again.prefs.note, "", "the retired note is wiped at launch")
+        XCTAssertEqual(Heresay(defaults: d).prefs.note, "", "and stays wiped on disk")
     }
 
     func testIdentifySendsTheSignedInEmail() {
         let h = Heresay(defaults: UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!)
-        h.identify(id: "u1", label: "Sibhi", email: "sibhi@example.com")
+        h.identify(id: "u1", label: "Alex", email: "alex@example.com")
         XCTAssertTrue(h.isSignedIn)
-        XCTAssertEqual(h.context().userEmail, "sibhi@example.com")
+        XCTAssertEqual(h.context().userEmail, "alex@example.com")
         h.identify(id: nil, label: nil, email: nil)
         XCTAssertFalse(h.isSignedIn)
     }
@@ -298,7 +299,8 @@ final class IntroductionTests: XCTestCase {
         h.introPending = false
         XCTAssertFalse(h.introduce(), "never twice")
         XCTAssertFalse(Heresay(defaults: d).introduce(), "not after a relaunch either")
-        XCTAssertTrue(h.introMessage.contains("A real person reads every report"))
+        XCTAssertEqual(h.introTitle, "Spotted something off?")
+        XCTAssertTrue(h.introMessage.contains("Tell the team here."))
     }
 }
 
@@ -311,7 +313,6 @@ final class StyleTests: XCTestCase {
             let t = Words.tables[lang]!
             XCTAssertEqual(Set(t.keys), Set(W.allCases), "\(lang) is missing words")
             XCTAssertTrue(t.values.allSatisfy { !$0.trimmed.isEmpty }, lang)
-            XCTAssertTrue(t[.introBody]!.contains("{reach}"), lang)
             XCTAssertTrue(t[.powered]!.contains("Heresay"), "\(lang) names Heresay")
         }
     }
@@ -321,7 +322,7 @@ final class StyleTests: XCTestCase {
         XCTAssertEqual(Words("hi-IN").lang, "hi")
         XCTAssertEqual(Words("de").lang, "en", "a language Heresay doesn't speak falls back to English")
         XCTAssertEqual(Words(nil).lang, "en", "the test bundle is English")
-        XCTAssertEqual(Words("fr")(.straightToApp, ["app": "Notes"]), "Directement à l’équipe Notes")
+        XCTAssertEqual(Words("fr")(.signedInAs, ["who": "Notes"]), "Connecté en tant que Notes")
     }
 
     func testTheDefaultsAreTheRecommendedSetup() {
@@ -332,6 +333,22 @@ final class StyleTests: XCTestCase {
         XCTAssertTrue(s.showsPreferences)
         XCTAssertEqual(s.types, ReportType.allCases)
         XCTAssertNil(s.colorScheme)
+        XCTAssertEqual(s.layout, .composer)
+    }
+
+    func testLayoutIsChosenByName() {
+        XCTAssertEqual(HeresayStyle(layout: .bar).layout, .bar)
+        XCTAssertEqual(HeresayLayout(rawValue: "steps"), .steps)
+        XCTAssertNil(HeresayLayout(rawValue: "nope"))
+        XCTAssertEqual(HeresayLayout.allCases.count, 3)
+    }
+
+    func testNewWordsExistInEveryLanguage() {
+        for l in Words.languages {
+            for k in [W.whatsGoingOn, .typeChip, .tellTeam, .sentShort, .pickType] {
+                XCTAssertNotNil(Words.tables[l]?[k], "\(l) \(k)")
+            }
+        }
     }
 
     func testTextIsTrimmedAndCutAndTypesKeepTheirNames() {
@@ -363,7 +380,6 @@ final class StyleTests: XCTestCase {
         XCTAssertTrue(h.introMessage.hasSuffix("Heresay द्वारा संचालित"))
         h.setStyle(HeresayStyle(label: "Feedback"))
         XCTAssertEqual(h.buttonLabel, "Feedback")
-        XCTAssertTrue(h.introMessage.contains("“Feedback”"))
         XCTAssertTrue(h.introMessage.hasSuffix("Powered by Heresay"))
     }
 
@@ -404,8 +420,8 @@ final class StyleTests: XCTestCase {
 
 final class TrailTests: XCTestCase {
     func testScrubBlanksWhatIsPersonalOrSecretLikeTheServer() {
-        let s = Trail.scrub("Sync failed for asha@example.com at https://api.x.com/v1/sync?token=abc with Bearer abc.def, card 4111 1111 1111 1111, id 3f2a9c1e7b4d4e8f9a0b1c2d3e4f5a6b7c8d", max: 400)!
-        XCTAssertFalse(s.contains("asha@"))
+        let s = Trail.scrub("Sync failed for alex@example.com at https://api.x.com/v1/sync?token=abc with Bearer abc.def, card 4111 1111 1111 1111, id 3f2a9c1e7b4d4e8f9a0b1c2d3e4f5a6b7c8d", max: 400)!
+        XCTAssertFalse(s.contains("alex@"))
         XCTAssertTrue(s.contains("https://api.x.com/v1/sync with"), "query string gone")
         XCTAssertTrue(s.contains("Bearer [token]"))
         XCTAssertTrue(s.contains("[number]"))
@@ -506,13 +522,6 @@ final class TrailTests: XCTestCase {
         _ = try await h.send(type: .broken, text: "x", trail: .some(nil))
         let off = try JSONSerialization.jsonObject(with: StubProtocol.lastSubmit) as! [String: Any]
         XCTAssertNil(off["trail"], "switched off in the sheet: nothing goes")
-    }
-
-    @MainActor
-    func testTheChipsCountEachKindInTheSheetsLanguage() {
-        XCTAssertEqual(TrailBox.name(.page, 1, Words("en")), "screen")
-        XCTAssertEqual(TrailBox.name(.page, 3, Words("en")), "screens")
-        XCTAssertEqual(TrailBox.name(.error, 2, Words("fr")), "erreurs")
     }
 }
 

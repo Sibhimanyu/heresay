@@ -116,7 +116,7 @@ export function client(conn) {
 
 // ---- guides, fetched from the Heresay itself ----------------------------------------------
 
-export const SKILL_VERSION = 7;
+export const SKILL_VERSION = 9;
 
 /** The bootstrap skill version installed in this repo, or null. */
 export function repoSkillVersion(root) {
