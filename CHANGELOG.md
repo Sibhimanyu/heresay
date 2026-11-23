@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.51] - Unreleased
+## [0.2.51] - 2026-11-23
 
 ### What the people using your app see
 
