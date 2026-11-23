@@ -1,0 +1,165 @@
+{
+  "about": "What each Heresay release changed, in plain words. `users`: what the people using an app with Heresay will see. `developers`: what a developer can now do or must know. `action`: a code change an app needs, if any. `features`: ids from changes.json that this release introduced. Read by whats_new to explain an update before it is applied. A release cannot be cut without an entry here (scripts/release.mjs).",
+  "versions": [
+    {
+      "version": "0.2.51",
+      "users": [
+        "When an app opens Heresay from its own button, the panel now opens centred (it used to sit in the bottom-right corner)",
+        "Clicking or tapping outside the panel closes it, and what they had typed is kept for next time."
+      ],
+      "developers": [
+        "Web: an app's own button (data-heresay-open, or Heresay.open() from a click) opens a centred window with the page dimmed; the bar layout docks at the bottom centre. data-panel=\"beside\" opens it next to the button instead.",
+        "Swift: Heresay.present() from your own button opens a centred sheet; add .heresayAnchor() to that button to open it next to the button on iPad and Mac.",
+        "Opened by code with no click, the panel is centred.",
+        "Web: data-heresay-mark on any element (an empty span inside your own button) is filled with the Heresay mark, 1em square; data-heresay-mark=\"currentColor\" takes the text colour, otherwise the accent. Swift: HeresayMarkIcon() sizes the mark to the text. The dashboard's Design page shows a snippet when the button is \"Never\"."
+      ],
+      "features": [
+        "open-next-to-trigger",
+        "mark-in-own-button"
+      ]
+    },
+    {
+      "version": "0.2.50",
+      "date": "2026-11-23",
+      "users": [
+        "The Report panel was redesigned: no tabs, compact type pills, a shorter intro, and a sent view after reporting.",
+        "Name and email sit under Your reports instead of the form; reporters no longer see trail controls.",
+        "On iOS and macOS 26 the panel uses the system glass look."
+      ],
+      "developers": [
+        "Three layouts: composer (default), steps, bar. Web data-layout, Swift HeresayStyle(layout:).",
+        "data-position takes bottom-right, bottom-left, top-right, top-left, bottom-center, left-tab, right-tab or none.",
+        "Agent guides are clearer about placement and layout."
+      ],
+      "action": "None required. Check where the Report button sits if the app positioned it by hand.",
+      "features": [
+        "layouts"
+      ]
+    },
+    {
+      "version": "0.2.49",
+      "date": "2026-11-23",
+      "users": [],
+      "developers": [
+        "iOS runs that were never active are no longer counted as crashes in crash reports."
+      ]
+    },
+    {
+      "version": "0.2.48",
+      "date": "2026-11-10",
+      "users": [
+        "After a crash, hang, out-of-memory or force quit, an app that turned on crash reports sends it by itself at the next launch."
+      ],
+      "developers": [
+        "crashReports: .send on iOS and macOS; it waits in the inbox like any report. Off until the app turns it on."
+      ],
+      "features": [
+        "crash-reports"
+      ]
+    },
+    {
+      "version": "0.2.47",
+      "date": "2026-11-07",
+      "users": [],
+      "developers": [
+        "Setup reserves a clean address, heresay-<name>.web.app."
+      ]
+    },
+    {
+      "version": "0.2.46",
+      "date": "2026-11-07",
+      "users": [],
+      "developers": [
+        "The dashboard is served at the root of a Heresay."
+      ]
+    },
+    {
+      "version": "0.2.45",
+      "date": "2026-11-06",
+      "users": [],
+      "developers": [
+        "Backup and restore for a Heresay; setup and connect polish, named sites, runs with no terminal."
+      ]
+    },
+    {
+      "version": "0.2.44",
+      "date": "2026-11-06",
+      "users": [],
+      "developers": [
+        "Lite hosting on the free Spark plan, with fewer database reads."
+      ]
+    },
+    {
+      "version": "0.2.43",
+      "date": "2026-10-27",
+      "users": [],
+      "developers": [
+        "Telegram alerts are formatted: bold headline, type, id and an Open link."
+      ]
+    },
+    {
+      "version": "0.2.42",
+      "date": "2026-10-27",
+      "users": [],
+      "developers": [
+        "Notifications are small modules on the dashboard; the Telegram webhook registers on any save."
+      ]
+    },
+    {
+      "version": "0.2.41",
+      "date": "2026-10-27",
+      "users": [],
+      "developers": [
+        "Select and accept several open reports at once. A long file sent from a chat app arrives as one request."
+      ]
+    },
+    {
+      "version": "0.2.40",
+      "date": "2026-10-26",
+      "users": [],
+      "developers": [
+        "Act on Heresay notifications from Telegram."
+      ]
+    },
+    {
+      "version": "0.2.39",
+      "date": "2026-10-26",
+      "users": [],
+      "developers": [
+        "A connected Telegram bot gets the Heresay logo as its picture."
+      ]
+    },
+    {
+      "version": "0.2.38",
+      "date": "2026-10-25",
+      "users": [],
+      "developers": [
+        "The dashboard updates itself (delta polling), without reloading."
+      ]
+    },
+    {
+      "version": "0.2.37",
+      "date": "2026-10-23",
+      "users": [],
+      "developers": [
+        "Every report's source is labelled the same way in the list and on the report. The dashboard's dark mode uses the on-dark logo."
+      ]
+    },
+    {
+      "version": "0.2.36",
+      "date": "2026-10-21",
+      "users": [],
+      "developers": [
+        "Agents see every app on their repo. A dead Heresay address is an error, not \"nothing to do\"."
+      ]
+    },
+    {
+      "version": "0.2.35",
+      "date": "2026-10-19",
+      "users": [],
+      "developers": [
+        "Dashboard dark mode follows the device, with an Auto/Light/Dark toggle. A Heresay can deploy to a named hosting site (HERESAY_SITE)."
+      ]
+    }
+  ]
+}

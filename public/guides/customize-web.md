@@ -72,25 +72,58 @@ editors, admin screens, data tables) where a panel would cover the work. The pag
 - After sending, the bar shows a check, "Sent. Replies show under Your reports." and Done. Your
   reports opens the normal Your reports panel, and its back arrow returns to the bar.
 - On phones (under 600px) the bar docks to the bottom edge at full width and rides above the keyboard.
-- `data-panel` is ignored by the bar. There is no backdrop.
+- `data-panel` is ignored by the bar, except `beside` (next to the app's own button). There is no backdrop.
 - Tag: `<script src="SDK_URL" data-key="KEY" data-layout="bar" defer></script>`
 
 **With `data-position`.** The panel or bar opens beside the button, in its corner, away from the
 edge, with room for the button and the same `data-offset`; with `left-tab` or `right-tab` it sits
-beside the tab, vertically centred. With `data-position="none"` (the app opens it with
-`Heresay.open()` from its own menu) it takes the named corner, bottom-right by default, with no button
-to leave room for. Examples:
+beside the tab, vertically centred. With `data-position="none"` the app opens it from its own
+item (see How it opens): a centred window by default, or next to that item with `data-panel="beside"`; the named corner
+is used only for the nudge note. Examples:
 `data-layout="steps" data-position="bottom-left"`, `data-layout="bar" data-position="none"`.
+
+## How it opens
+
+| How it is opened | Where the panel appears (web, any layout) |
+| --- | --- |
+| Floating button (any position or tab) | Beside the button |
+| The app's own trigger (`Heresay.open()` called during a click or key press, or any element with `data-heresay-open`), no `data-panel` | **A centred window with the page dimmed (the default and the recommendation).** Bar layout: docked at the bottom centre |
+| The app's own trigger with `data-panel="beside"` (opt-in) | A popover next to that trigger, on the side with the most room (right of a left-sidebar item, left of a right-sidebar item, below a header button, above a footer item), aligned to its edge and kept on screen |
+| `data-panel="beside"` and a trigger inside a menu that closes when clicked | Next to where the trigger was at the moment of the click |
+| Code with no click (an error screen, a timer) | Centred, page dimmed |
+| The "Something not working?" note with no floating button | The note sits in the bottom corner; the panel then opens in that corner |
+| Page scrolls or resizes while it is open (`beside`) | Stays attached to the trigger, always fully on screen |
+| Phones (under 600px) | Bottom sheet (bar: docked bar), whatever the trigger |
+
+`data-panel="sheet"` (full-height side), `data-panel="center"` and `data-panel="corner"` always win over the
+trigger. Clicking outside the panel closes it and focus returns to the trigger; the typed text and chosen type
+are kept until the report is sent. `Heresay.open({ anchor: element })` (an element or a rectangle
+`{ left, top, width, height }`) also centres the window unless `data-panel="beside"` is set.
 
 ## Placement
 
 | The app has... | Do this |
 | --- | --- |
-| Its own feedback or help menu item | `data-position="none"`; the item calls `window.Heresay?.open()` |
+| Its own feedback or help menu item | `data-position="none"`, plus `data-heresay-open` on that element (preferred, no JavaScript; `data-heresay-open="broken"` starts as that type) or `onclick` calling `window.Heresay?.open()`. The panel opens as a centred window (recommended); ask the person "Open Heresay as a centred window (recommended) or next to your button?" and add `data-panel="beside"` only if they pick next to the button |
 | A chat bubble, cookie banner or bottom nav in the bottom right | `data-position="bottom-left"` or `data-offset="20,96"` |
 | A mobile bottom tab bar | `data-offset="16,72"` |
 | Pages where it's in the way | `data-hide-on="/checkout,/login"` |
 | An error screen | a button calling `window.Heresay?.open({ type: 'broken', text: '<what failed>' })` |
+
+## The mark in your own button
+
+`data-heresay-mark` on any element (an empty `<span>` inside the app's own button) fills it with the
+Heresay mark, 1em square and hidden from screen readers. It takes the accent (`data-accent`, unless
+`data-mark="heresay"`); `data-heresay-mark="currentColor"` takes the text colour. Elements added later
+are filled too; elements without the attribute are never touched.
+
+```html
+<button data-heresay-open><span data-heresay-mark></span> Report a problem</button>
+```
+
+## What to recommend
+
+The design choices worth proposing to the person (own-button mark, wording, where, error screens, brand) are listed with their reasons in guide `install-web`, "What to recommend". Propose, explain in a sentence, accept their answer; never apply a design change unasked.
 
 ## Calls
 

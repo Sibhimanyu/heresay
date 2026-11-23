@@ -698,7 +698,7 @@ try {
   await ctx4.close();
   const nudged = (await (await api('GET', `/projects/${project.id}/reports`)).json()).reports
     .find((r) => r.text === 'Place order does nothing.');
-  assert.ok(nudged.trail.some((e) => e.kind === 'click' && e.text === 'button "Place order"' && e.n === 3), 'the clicks went with it');
+  assert.ok(nudged.trail.some((e) => e.kind === 'click' && e.text === 'button "Place order"' && e.n === 3), 'the clicks went with it ' + JSON.stringify(nudged.trail));
 
   step('offering help, unsure: the same few pages over and over brings "Stuck on something?", opening as Confusing');
   const ctx5 = await browser.newContext({ viewport: { width: 1100, height: 760 } });
@@ -980,6 +980,103 @@ try {
   assert.equal(viaLayouts.find((r) => r.text === 'Steps layout: let me export to CSV.')?.type, 'idea');
   assert.equal(viaLayouts.find((r) => r.text === 'Bar layout: the table jumps when I sort.')?.type, 'confusing');
   await lctx.close();
+
+  step('opened from the app\'s own trigger: a centred window by default, next to it with data-panel="beside", docked bar for the bar layout; outside click closes it');
+  const hostHtml = (layout, panel) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+    body{margin:0;font:15px system-ui;background:#f5f6f7;height:100vh}
+    aside{position:fixed;left:0;top:0;bottom:0;width:220px;background:#15171c;color:#e6e8eb;display:flex;flex-direction:column;justify-content:flex-end;padding:16px 12px;box-sizing:border-box}
+    aside a{color:#e6e8eb;padding:10px;border-radius:8px;text-decoration:none;display:block}
+    header{position:fixed;left:220px;right:0;top:0;height:56px;display:flex;justify-content:flex-end;align-items:center;padding:0 24px;background:#fff}
+    main{margin:80px 0 0 260px}
+  </style>
+  <aside><a id="side" href="#" data-heresay-open>Report a problem</a></aside>
+  <header><button id="hdr" onclick="Heresay.open()"><span id="hmark" data-heresay-mark></span> Help</button></header><main><p>Host app</p></main>
+  <script>var s=document.createElement('script');s.src='/sdk/v1.js';s.dataset.key='k';s.dataset.preview='';s.dataset.position='none';s.dataset.layout='${layout}';${panel ? `s.dataset.panel='${panel}';` : ''}document.body.appendChild(s);</script>`;
+  const anchorCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await anchorCtx.route('**/anchor-host*', (r) => { const q = new URL(r.request().url()).searchParams; return r.fulfill({ contentType: 'text/html; charset=utf-8', body: hostHtml(q.get('layout') || 'composer', q.get('panel') || '') }); });
+  const ap = await anchorCtx.newPage();
+  const asd = ap.locator('[data-feedback-sdk]');
+  const boxOf = async (sel) => ap.evaluate((q) => {
+    const h = document.querySelector('[data-feedback-sdk]'), n = h.shadowRoot.querySelector('.panel, .barbox');
+    const b = n.getBoundingClientRect(), t = document.querySelector(q).getBoundingClientRect();
+    const sc = h.shadowRoot.querySelector('.scrim');
+    return { b: b.toJSON(), t: t.toJSON(), vw: innerWidth, vh: innerHeight, bg: getComputedStyle(sc).backgroundColor };
+  }, sel);
+  const openAnchor = async (layout, panel, sel = '#side') => {
+    await ap.goto(`${BASE}/anchor-host?layout=${layout}${panel ? `&panel=${panel}` : ''}`);
+    await ap.waitForFunction(() => window.Heresay && window.Heresay.open);
+    await ap.click(sel);
+    await asd.locator('.panel, .barbox').waitFor();
+    return boxOf(sel);
+  };
+  mkdirSync(`${SHOTS}anchor`, { recursive: true });
+  // default: centred, dimmed (composer and steps); the bar docks at the bottom centre
+  for (const layout of ['composer', 'steps', 'bar']) {
+    const g = await openAnchor(layout, '');
+    const cx = (g.b.left + g.b.right) / 2, cy = (g.b.top + g.b.bottom) / 2;
+    if (layout === 'bar') {
+      assert.ok(Math.abs(cx - g.vw / 2) < 40, 'bar: docked at the horizontal centre');
+      assert.ok(g.b.bottom > g.vh - 60 && g.b.top > g.vh / 2, 'bar: docked at the bottom');
+    } else {
+      assert.ok(Math.abs(cx - g.vw / 2) < 40 && Math.abs(cy - g.vh / 2) < 40, `${layout}: own button opens centred`);
+      assert.notEqual(g.bg, 'rgba(0, 0, 0, 0)', `${layout}: the page is dimmed`);
+    }
+    await ap.screenshot({ path: `${SHOTS}e2e-15-anchor-${layout}.png` });
+    if (layout === 'composer') {
+      // data-heresay-mark: a host button's empty span gets the mark; one added later does too; others are untouched.
+      const m = await ap.evaluate(() => {
+        const s = document.getElementById('hmark'), later = document.createElement('span');
+        later.setAttribute('data-heresay-mark', 'currentColor'); document.body.appendChild(later);
+        const plain = document.createElement('span'); document.body.appendChild(plain);
+        return new Promise((res) => setTimeout(() => res({ svg: !!s.querySelector('svg'), hidden: s.getAttribute('aria-hidden'), later: !!later.querySelector('svg'), color: later.style.color, plain: plain.children.length }), 200));
+      });
+      assert.ok(m.svg && m.hidden === 'true', 'data-heresay-mark: the host button gets an aria-hidden <svg>');
+      assert.ok(m.later && m.color === 'currentcolor', 'data-heresay-mark: an element added later is filled, currentColor honoured');
+      assert.equal(m.plain, 0, 'elements without the attribute are untouched');
+      await ap.screenshot({ path: `${SHOTS}anchor/sidebar-centred.png` });
+      await asd.getByRole('textbox', { name: 'Your report' }).fill('Kept after an outside click.');
+      await ap.mouse.click(1200, 100);
+      await asd.locator('.panel').waitFor({ state: 'detached' });
+      await ap.click('#side');
+      assert.equal(await asd.getByRole('textbox', { name: 'Your report' }).inputValue(), 'Kept after an outside click.');
+    }
+    if (layout === 'bar') {
+      await asd.getByRole('button', { name: /What kind of report/ }).click();
+      await ap.mouse.click(700, 300);
+      assert.equal(await asd.locator('.barbox').count(), 1, 'first outside click closes only the type menu');
+      await ap.mouse.click(700, 300);
+      await asd.locator('.barbox').waitFor({ state: 'detached' });
+    }
+    await ap.evaluate(() => window.Heresay.close());
+  }
+  // data-panel="beside": next to the link
+  for (const layout of ['composer', 'steps', 'bar']) {
+    const g = await openAnchor(layout, 'beside');
+    assert.ok(g.b.left >= g.t.right, `${layout} beside: panel is right of the sidebar link`);
+    assert.ok(g.b.top < g.t.bottom && g.b.bottom > g.t.top, `${layout} beside: panel overlaps the link vertically`);
+    assert.ok(g.b.left >= 0 && g.b.top >= 0 && g.b.right <= g.vw && g.b.bottom <= g.vh, `${layout} beside: panel is on screen`);
+    await ap.screenshot({ path: `${SHOTS}e2e-15-anchor-beside-${layout}.png` });
+    if (layout === 'composer') {
+      await ap.waitForTimeout(400);
+      await ap.screenshot({ path: `${SHOTS}anchor/sidebar-beside.png` });
+      await asd.getByRole('textbox', { name: 'Your report' }).fill('Kept after an outside click.');
+      await ap.mouse.click(700, 400);
+      await asd.locator('.panel').waitFor({ state: 'detached' });
+    }
+    await ap.evaluate(() => window.Heresay.close());
+  }
+  // beside, from a header button: below it; and code with no click: centred
+  let hg = await openAnchor('composer', 'beside', '#hdr');
+  assert.ok(hg.b.top >= hg.t.bottom, 'panel is below the header button');
+  assert.ok(hg.b.right <= hg.vw && hg.b.left >= 0, 'header panel is on screen');
+  await ap.screenshot({ path: `${SHOTS}e2e-15-anchor-header.png` });
+  await ap.evaluate(() => window.Heresay.close());
+  await ap.evaluate(() => setTimeout(() => window.Heresay.open(), 1200));
+  await asd.locator('.panel').waitFor();
+  hg = await boxOf('#hdr');
+  assert.ok(Math.abs((hg.b.left + hg.b.right) / 2 - hg.vw / 2) < 2 && Math.abs((hg.b.top + hg.b.bottom) / 2 - hg.vh / 2) < 2, 'no gesture: panel is centred');
+  await ap.screenshot({ path: `${SHOTS}e2e-15-anchor-centred.png` });
+  await anchorCtx.close();
 
   console.log('\nE2E PASSED');
   customer.close();

@@ -1002,3 +1002,68 @@ final class CrashReportTests: XCTestCase {
         XCTAssertEqual(total, Heresay.autoReportsPerDay)
     }
 }
+
+final class AnchorTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_000)
+
+    func testNoTapMeansNoAnchor() {
+        var b = AnchorBook(); b.appear(UUID())
+        XCTAssertNil(b.pick(at: t0))
+    }
+
+    func testMostRecentTapWins() {
+        var b = AnchorBook(); let a = UUID(), c = UUID()
+        b.appear(a); b.appear(c)
+        b.touch(a, at: t0); b.touch(c, at: t0.addingTimeInterval(0.3))
+        XCTAssertEqual(b.pick(at: t0.addingTimeInterval(0.5)), c)
+    }
+
+    func testATapExpires() {
+        var b = AnchorBook(); let a = UUID()
+        b.appear(a); b.touch(a, at: t0)
+        XCTAssertEqual(b.pick(at: t0.addingTimeInterval(0.9)), a)
+        XCTAssertNil(b.pick(at: t0.addingTimeInterval(1.5)))
+    }
+
+    func testClearedWhenTheViewDisappears() {
+        var b = AnchorBook(); let a = UUID()
+        b.appear(a); b.touch(a, at: t0)
+        b.disappear(a)
+        XCTAssertNil(b.pick(at: t0))
+        b.appear(a) // back on screen: the old tap does not come back
+        XCTAssertNil(b.pick(at: t0))
+    }
+
+    func testTouchBeforeAppearingIsIgnoredAndConsumeUsesUpTaps() {
+        var b = AnchorBook(); let a = UUID()
+        b.touch(a, at: t0); b.appear(a)
+        XCTAssertNil(b.pick(at: t0))
+        b.touch(a, at: t0); b.consume()
+        XCTAssertNil(b.pick(at: t0))
+    }
+
+    @MainActor func testClosedWithoutSendingKeepsTheDraft() {
+        let h = Heresay(defaults: UserDefaults(suiteName: "heresay.tests.\(UUID().uuidString)")!)
+        h.keep(type: .broken, text: "It crashes")
+        XCTAssertEqual(KeptDraft.start(asked: h.draft, kept: h.kept), KeptDraft(type: .broken, text: "It crashes"))
+        h.keep(type: nil, text: "  ")
+        XCTAssertNil(h.kept)
+    }
+
+    func testWhatTheAppAsksForBeatsAKeptDraft() {
+        let kept = KeptDraft(type: .idea, text: "old")
+        XCTAssertEqual(KeptDraft.start(asked: (.broken, "new"), kept: kept), KeptDraft(type: .broken, text: "new"))
+        XCTAssertEqual(KeptDraft.start(asked: (nil, ""), kept: kept), kept)
+    }
+}
+
+
+final class MarkIconTests: XCTestCase {
+    func testMarkIconBuildsWithTintAndWithAColor() {
+        _ = HeresayMarkIcon().body
+        _ = HeresayMarkIcon(color: .primary).body
+        let p = HeresayMark().path(in: CGRect(x: 0, y: 0, width: 16, height: 16))
+        XCTAssertFalse(p.isEmpty)
+        XCTAssertLessThanOrEqual(p.boundingRect.width, 16.001)
+    }
+}

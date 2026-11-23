@@ -116,7 +116,7 @@ export function client(conn) {
 
 // ---- guides, fetched from the Heresay itself ----------------------------------------------
 
-export const SKILL_VERSION = 9;
+export const SKILL_VERSION = 13;
 
 /** The bootstrap skill version installed in this repo, or null. */
 export function repoSkillVersion(root) {
@@ -278,19 +278,42 @@ export async function whatsNew(conn, apps, { root = repoAt().root } = {}) {
   const updates = [];
   for (const c of changes) {
     if (skipped[c.id]) continue;
-    const mine = apps.filter((a) => (!c.platforms || c.platforms.includes(a.platform)) && (!c.sign_in || a.sign_in === c.sign_in));
-    if (!mine.length || !findKeyInRepo(root, mine[0].key)) continue; // not installed here: install covers it
-    if (findInRepo(root, c.detect ?? [], { code: true })) continue;
+    const mine = applicableApps(root, c, apps);
+    if (!mine.length) continue;
     updates.push({
-      id: c.id, since: c.since, title: c.title, summary: c.summary,
+      id: c.id, since: c.since, offer: c.offer ?? 'recommended', title: c.title, summary: c.summary,
       apps: mine.map((a) => `${a.name} (${a.platform})`),
+      platforms: [...new Set(mine.map((a) => a.platform))],
       how: [...new Set(mine.map((a) => c.how?.[a.platform]).filter(Boolean))].join('; '),
     });
   }
   return {
     updates,
-    ...(updates.length ? { ask_first: 'Tell the person what each update does in a sentence and ask whether to add it. Do not add any without a yes. If they say no, call skip_update with its id.' } : {}),
+    ...(updates.length ? { ask_first: 'Explain each in plain words (what the app\'s users will see, what code changes, your recommendation for this app and why) and ask: Add it / Not now / Never. Add none without a yes. On Never, call skip_update with its id.' } : {}),
   };
+}
+
+/** A changes.json list that is one array, or keyed by web / swift (or the platform itself). */
+export function forPlatform(v, platform) {
+  if (Array.isArray(v)) return v;
+  return v?.[platform] ?? v?.[platform === 'web' ? 'web' : 'swift'] ?? [];
+}
+
+/**
+ * The apps a feature applies to in this repo: right platform and sign-in, installed here, the
+ * code contains one of `when` (if it has any: the app has the thing the feature is for), and
+ * nothing in `detect` yet (it isn't in already).
+ */
+export function applicableApps(root, c, apps) {
+  return apps.filter((a) => {
+    if (c.platforms && !c.platforms.includes(a.platform)) return false;
+    if (c.sign_in && a.sign_in !== c.sign_in) return false;
+    if (!findKeyInRepo(root, a.key)) return false; // not installed here: install covers it
+    const when = forPlatform(c.when, a.platform);
+    if (when.length && !findInRepo(root, when, { code: true })) return false;
+    const detect = forPlatform(c.detect, a.platform);
+    return !(detect.length && findInRepo(root, detect, { code: true }));
+  });
 }
 
 /** Remember a no, so the next agent doesn't ask again. */

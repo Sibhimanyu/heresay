@@ -1,5 +1,25 @@
 import SwiftUI
 
+/// The Heresay mark as an icon that sizes to the text around it, in the tint colour. Use it in
+/// the app's own button so people recognise it from app to app:
+///
+///     Button { Heresay.present() } label: {
+///         Label { Text("Report a problem") } icon: { HeresayMarkIcon() }
+///     }
+///
+/// Pass `color:` to use something other than the tint (`.primary` follows the text).
+public struct HeresayMarkIcon: View {
+    @ScaledMetric(relativeTo: .body) private var side: CGFloat = 17
+    private let color: AnyShapeStyle
+
+    public init() { color = AnyShapeStyle(.tint) }
+    public init<S: ShapeStyle>(color: S) { self.color = AnyShapeStyle(color) }
+
+    public var body: some View {
+        HeresayMark().fill(color).frame(width: side, height: side).accessibilityHidden(true)
+    }
+}
+
 /// The Heresay mark: a soft wave with quote-mark eyes, drawn from the brand SVG
 /// (`brand/svg/heresay-mark.svg`, 200×200). The eyes are holes, so it takes any fill: peacock on
 /// white, or white on the peacock button.

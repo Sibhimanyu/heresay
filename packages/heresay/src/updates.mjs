@@ -39,6 +39,49 @@ async function instanceVersion(url) {
   } catch { return null; }
 }
 
+// ---- release notes ---------------------------------------------------------------------------
+
+const RELEASES_FALLBACK = 'https://raw.githubusercontent.com/Sibhimanyu/heresay/master/public/guides/releases.json';
+
+/**
+ * releases.json: from this team's Heresay, and from the project's repo when the Heresay is behind
+ * the version being described (it can't know about releases newer than itself).
+ */
+export async function loadReleases(conn, upTo) {
+  const get = async (url) => {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      return r.ok ? (await r.json()).versions ?? [] : [];
+    } catch { return []; }
+  };
+  let versions = conn ? await get(`${conn.url}/guides/releases.json`) : [];
+  if (!versions.some((v) => !newer(upTo, v.version))) versions = await get(process.env.HERESAY_RELEASES_URL ?? RELEASES_FALLBACK);
+  return versions;
+}
+
+/** The releases after `from`, up to and including `to`, oldest first. */
+export function releasesBetween(versions, from, to) {
+  return versions
+    .filter((v) => newer(v.version, from) && !newer(v.version, to))
+    .sort((a, b) => (newer(a.version, b.version) ? 1 : -1));
+}
+
+/** Compact notes for the agent to explain: only what each release has to say. */
+export function notesFor(releases) {
+  return releases.map((r) => ({
+    version: r.version,
+    ...(r.users?.length ? { users: r.users } : {}),
+    ...(r.developers?.length ? { developers: r.developers } : {}),
+    ...(r.action ? { action: r.action } : {}),
+  })).filter((n) => Object.keys(n).length > 1);
+}
+
+/** Ids of the features those releases introduced that fit this app (applicable, not in yet, not skipped). */
+export function thenFor(releases, features, platforms) {
+  const introduced = new Set(releases.flatMap((r) => r.features ?? []));
+  return features.filter((f) => introduced.has(f.id) && f.platforms.some((p) => platforms.includes(p))).map((f) => f.id);
+}
+
 // ---- the Swift package -----------------------------------------------------------------------
 
 /**
@@ -114,18 +157,27 @@ function skippedIds(root) {
   try { return JSON.parse(readFileSync(join(root, DECISIONS), 'utf8')).skipped ?? {}; } catch { return {}; }
 }
 
+/** notes and then for a version update from `from` to `to`; nothing when there are no notes. */
+async function withNotes(conn, from, to, features, platforms) {
+  const releases = releasesBetween(await loadReleases(conn, to), from, to);
+  const notes = notesFor(releases);
+  const then = thenFor(releases, features, platforms);
+  return { ...(notes.length ? { notes } : {}), ...(then.length ? { then } : {}) };
+}
+
 /**
  * Version updates for this repo. `conn` may be null (a teammate who hasn't connected yet): then
  * the Heresay's own version can't be checked, and the rest still can.
  */
-export async function versionUpdates(conn, apps, { root = repoAt().root } = {}) {
+export async function versionUpdates(conn, apps, { root = repoAt().root, features = [] } = {}) {
   const ups = [];
   const [have, latest] = conn ? await Promise.all([instanceVersion(conn.url), latestOnNpm('create-heresay')]) : [null, null];
   if (have && latest && newer(latest, have)) {
     ups.push({
       id: `instance@${latest}`, kind: 'version', since: latest,
       title: `Update this team's Heresay from ${have} to ${latest}`,
-      summary: `The dashboard, the API and the web Report button (served by the Heresay, so every web app gets it with no code change) are on ${have}. See what changed: https://github.com/Sibhimanyu/heresay/blob/master/CHANGELOG.md`,
+      summary: `The dashboard, the API and the web Report button (served by the Heresay, so every web app gets it with no code change) are on ${have}. If notes lists changes, describe them to the person before applying: the web Report button their users see may change.`,
+      ...await withNotes(conn, have, latest, features, ['web']),
       how: 'Whoever set this Heresay up runs `npx create-heresay update` on their computer (it signs in to Google with their account). If that is the person you are talking to and they say yes, run it for them; otherwise tell them who needs to.',
     });
   }
@@ -138,11 +190,12 @@ export async function versionUpdates(conn, apps, { root = repoAt().root } = {}) 
     ups.push({
       id: `swift@${swift}`, kind: 'version', since: swift,
       title: `Update the Heresay Swift package from ${behind[0].version} to ${swift}`,
-      summary: `Pinned in ${behind.map((p) => p.file).join(', ')}. New Heresay features for iOS and macOS arrive with the package.`,
+      summary: `Pinned in ${behind.map((p) => p.file).join(', ')}. If notes lists changes, describe them to the person before applying: the Report panel their users see may change.`,
+      ...await withNotes(conn, behind.map((p) => p.version).reduce((m, v) => (newer(m, v) ? v : m)), swift, features, ['ios', 'macos']),
       how: (xcode.length
         ? `Xcode: File › Packages › Update to Latest Package Versions. From a terminal: remove the heresay-swift pin from ${xcode.map((p) => p.file).join(', ')} and run \`xcodebuild -resolvePackageDependencies\` for that project (the pin comes back at the newest version the project allows). `
         : 'Run `swift package update heresay-swift` in the package. ') +
-        'Then build, and commit Package.resolved. If the project pins an exact version or a range below it, raise that first. Read the CHANGELOG for anything to change in code.',
+        'Then build, and commit Package.resolved. If the project pins an exact version or a range below it, raise that first. Then do what notes.action says, if anything, and offer `then`.',
     });
   }
   const old = staleAgentFiles(root);
@@ -157,7 +210,11 @@ export async function versionUpdates(conn, apps, { root = repoAt().root } = {}) 
   return ups;
 }
 
-/** Version updates, then features, minus anything the team said no to. */
+/**
+ * Version updates, then features, minus anything the team said no to. A feature with offer
+ * "optional" is offered only right after a version update that introduced it (its id is in that
+ * update's `then`), never on its own.
+ */
 export async function allUpdates(conn = connection(), { root = repoAt().root } = {}) {
   let apps = [];
   let features = [];
@@ -168,13 +225,22 @@ export async function allUpdates(conn = connection(), { root = repoAt().root } =
     } catch { /* offline, or a revoked token: versions only */ }
   }
   const skipped = skippedIds(root);
-  const updates = [...await versionUpdates(conn, apps, { root }), ...features.map((f) => ({ kind: 'feature', ...f }))]
-    .filter((u) => !skipped[u.id]);
+  const versions = (await versionUpdates(conn, apps, { root, features })).filter((u) => !skipped[u.id]);
+  const chained = new Set(versions.flatMap((u) => u.then ?? []));
+  const offered = features.filter((f) => f.offer !== 'optional' || chained.has(f.id))
+    .map(({ platforms, ...f }) => ({ ...f, ...(chained.has(f.id) ? { after: 'a version update above' } : {}) }));
+  const updates = [...versions, ...offered.map((f) => ({ kind: 'feature', ...f }))].filter((u) => !skipped[u.id]);
   return {
     updates,
-    ...(updates.length ? { ask_first: 'Tell the person what each update does in a sentence and ask whether to apply it. Apply nothing without a yes. On a no, call skip_update (or `npx heresay updates --skip <id>`) and commit .claude/skills/heresay/decisions.json.' } : {}),
+    ...(updates.length ? { ask_first: ASK } : {}),
   };
 }
+
+const ASK = 'Do not apply anything yet. For each item tell the person in plain words: what the app\'s users will see, what code changes, ' +
+  'and your own recommendation for THIS app with a reason. A version update that changes what users see (see notes) must be described first, never just bumped. ' +
+  'Ask per item: Add it / Not now / Never. Apply nothing without a yes; apply via its guide, run check_install, commit each separately, then show where to see it ' +
+  '(screen and click; a screenshot if you can run the app). After a version update, offer the items in its `then`. ' +
+  'Never: call skip_update (or `npx heresay updates --skip <id>`) and commit .claude/skills/heresay/decisions.json. Not now: leave it, it is asked again later. Read `npx heresay guide whats-new`.';
 
 // ---- the session-start hook ------------------------------------------------------------------
 
@@ -198,7 +264,9 @@ export async function hookOutput({ root = repoAt().root, now = Date.now() } = {}
   seen[root] = { checked: now, mentioned: mention ? ids : last?.mentioned ?? [], mentioned_at: mention ? now : last?.mentioned_at ?? null };
   try { mkdirSync(HOME, { recursive: true, mode: 0o700 }); writeFileSync(SEEN(), JSON.stringify(seen, null, 2) + '\n'); } catch { /* read-only home */ }
   if (!mention) return null;
-  const list = updates.map((u, i) => `${i + 1}. [${u.id}] ${u.title}. ${u.summary} How: ${u.how}`).join('\n');
+  const list = updates.map((u, i) => `${i + 1}. [${u.id}] ${u.title}. ${u.summary} How: ${u.how}` +
+    (u.notes ? `\n   Changes: ${u.notes.map((n) => `${n.version}: ${[...(n.users ?? []).map((x) => `users see: ${x}`), ...(n.developers ?? []), ...(n.action ? [`action: ${n.action}`] : [])].join(' ')}`).join(' | ')}` : '') +
+    (u.then ? `\n   Then offer: ${u.then.join(', ')}` : '')).join('\n');
   return {
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
@@ -206,10 +274,8 @@ export async function hookOutput({ root = repoAt().root, now = Date.now() } = {}
         'Heresay (the in-app feedback tool connected to this repo) has updates for it:',
         list,
         '',
-        'Bring this up with the person once in this conversation, in a sentence or two, and ask whether to apply them. ' +
-        'If their first message is about something else, help with that first and mention it at the end of your reply. ' +
-        'Apply nothing without a yes. On a no, run `npx heresay updates --skip <id>` and commit .claude/skills/heresay/decisions.json, so nobody asks again. ' +
-        'Read `npx heresay guide whats-new` before applying.',
+        'Bring this up with the person once in this conversation. If their first message is about something else, help with that first and raise it at the end of your reply. ' +
+        ASK,
       ].join('\n'),
     },
   };
