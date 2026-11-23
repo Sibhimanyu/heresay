@@ -1,6 +1,6 @@
 import SwiftUI
 import OSLog
-import Heresay
+@_spi(Demo) import Heresay
 #if os(macOS)
 import AppKit
 #endif
@@ -50,9 +50,11 @@ struct ExampleApp: App {
     var body: some Scene {
         WindowGroup {
             #if os(macOS)
-            NotesView().heresay().frame(minWidth: 520, minHeight: 420)
+            NotesView().heresay().frame(minWidth: 640, minHeight: 420)
             #else
-            NotesView().heresayReportButton()
+            // HERESAY_ANCHOR=1: the app's own button (the toolbar's) instead of the floating one.
+            if ProcessInfo.processInfo.environment["HERESAY_ANCHOR"] == "1" { NotesView().heresay() }
+            else { NotesView().heresayReportButton() }
             #endif
         }
         #if os(macOS)
@@ -76,13 +78,39 @@ struct NotesView: View {
         log.error("Export failed: the server said 500 for /v1/notes/export")
     }
 
+    /// The app's own "Report a problem" button: `.heresayAnchor()` makes the report a popover
+    /// pointing at it on iPad and Mac, and a sheet on iPhone.
+    var reportButton: some View {
+        Button { Heresay.present() } label: { Label("Report a problem", systemImage: "exclamationmark.bubble") }
+            .heresayAnchor()
+    }
+
     var body: some View {
+        #if os(macOS)
+        // Like a real Mac app: a sidebar with the report button at the bottom.
+        NavigationSplitView {
+            List { Label("All notes", systemImage: "note.text") }
+                .safeAreaInset(edge: .bottom) {
+                    HStack { reportButton.buttonStyle(.plain).foregroundStyle(.secondary); Spacer() }
+                        .padding(12)
+                }
+                .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+        } detail: { notes }
+        #else
+        notes
+        #endif
+    }
+
+    var notes: some View {
         NavigationStack {
             List {
                 ForEach(["Groceries", "Trip to Ooty", "Quarterly plan", "Book list"], id: \.self) { Text($0) }
             }
             .safeAreaInset(edge: .bottom) {
                 HStack {
+                    #if os(iOS)
+                    if ProcessInfo.processInfo.environment["HERESAY_ANCHOR"] == "1" { reportButton }
+                    #endif
                     Spacer()
                     Button("Sync now") { log.error("Sync failed: the connection was lost") }
                         .background(GeometryReader { g in Color.clear.onAppear { Self.syncFrame = g.frame(in: .global) } })
@@ -129,6 +157,7 @@ struct NotesView: View {
                 if env["HERESAY_DEMO_SEND"] == "1" { try? await Heresay.send(.broken, text: "The export button does nothing.") }
                 switch env["HERESAY_OPEN"] {
                 case "1": try? await Task.sleep(for: .seconds(1)); Heresay.present()
+                case "anchor": try? await Task.sleep(for: .seconds(1)); Heresay.tapAnchorsForDemo(); Heresay.present()
                 case "typed": try? await Task.sleep(for: .seconds(1)); Heresay.present(type: .broken, text: "I tapped Export and nothing happened.")
                 case "preferences": try? await Task.sleep(for: .seconds(1)); Heresay.presentPreferences()
                 default: break

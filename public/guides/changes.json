@@ -1,6 +1,103 @@
 {
-  "about": "Features added to Heresay since apps were first installed. An agent in a connected repo checks these with whats_new, tells the person what's new, and asks before adding any. `detect` is what the code contains once a feature is in; `platforms` limits it to those apps; `sign_in` limits it to apps that answered that.",
+  "about": "Features added to Heresay since apps were first installed. An agent in a connected repo checks these with whats_new, tells the person what's new, and asks before adding any. `detect` is what the code contains once a feature is in; `platforms` limits it to those apps; `sign_in` limits it to apps that answered that. `when` (optional, strings, or an object keyed by web/swift): offer the feature only if the code contains any of them. `detect` may be keyed the same way. `offer`: recommended (offer on its own) or optional (offered only right after a version update that introduced it).",
   "changes": [
+    {
+      "id": "open-next-to-trigger",
+      "since": "0.2.51",
+      "offer": "optional",
+      "title": "Open the Report panel next to the app's own Report button (optional)",
+      "summary": "When the app opens Heresay from its own Report, Feedback or Help item, the panel opens as a centred window with the page dimmed. That is the recommended default, so most apps need nothing. If the person prefers it right beside that item, set data-panel=\"beside\" (web) or add .heresayAnchor() to the button (Swift). Ask: centred window (recommended) or next to your button?",
+      "platforms": [
+        "web",
+        "ios",
+        "macos"
+      ],
+      "when": {
+        "web": [
+          "data-position=\"none\"",
+          "data-position='none'",
+          "data-button=\"none\"",
+          "Heresay.open("
+        ],
+        "swift": [
+          "Heresay.present("
+        ]
+      },
+      "detect": {
+        "web": [
+          "data-heresay-open"
+        ],
+        "swift": [
+          "heresayAnchor"
+        ]
+      },
+      "how": {
+        "web": "guide customize-web, How it opens (data-panel=\"beside\" on the script tag)",
+        "ios": "guide customize-apple, Placement (.heresayAnchor())",
+        "macos": "guide customize-apple, Placement (.heresayAnchor())"
+      }
+    },
+    {
+      "id": "mark-in-own-button",
+      "since": "0.2.51",
+      "offer": "optional",
+      "title": "Put the Heresay mark in the app's own Report button (optional)",
+      "summary": "The app has its own Report, Feedback or Help button. Adding the Heresay mark to it (mark plus label, or a round mark-only button) makes it recognisable from app to app. Web: an empty <span data-heresay-mark></span> inside the button. Swift: HeresayMarkIcon() in a Label. Ask: add the mark to your button?",
+      "platforms": [
+        "web",
+        "ios",
+        "macos"
+      ],
+      "when": {
+        "web": [
+          "data-heresay-open",
+          "data-position=\"none\"",
+          "data-position='none'",
+          "Heresay.open("
+        ],
+        "swift": [
+          "Heresay.present("
+        ]
+      },
+      "detect": {
+        "web": [
+          "data-heresay-mark"
+        ],
+        "swift": [
+          "HeresayMark"
+        ]
+      },
+      "how": {
+        "web": "guide customize-web, The mark in your own button",
+        "ios": "guide customize-apple, The mark in your own button",
+        "macos": "guide customize-apple, The mark in your own button"
+      }
+    },
+    {
+      "id": "layouts",
+      "since": "0.2.50",
+      "offer": "optional",
+      "title": "Pick another Report panel layout",
+      "summary": "Three layouts exist: composer (type pills and a text box; the default and recommended for most apps), steps (guided rows; consumer apps) and bar (a compact floating bar; dense pro tools). Only worth changing if the app clearly fits another.",
+      "platforms": [
+        "web",
+        "ios",
+        "macos"
+      ],
+      "detect": {
+        "web": [
+          "data-layout"
+        ],
+        "swift": [
+          "layout:"
+        ]
+      },
+      "how": {
+        "web": "guide customize-web, Layout",
+        "ios": "guide customize-apple, Layout",
+        "macos": "guide customize-apple, Layout"
+      }
+    },
     {
       "id": "crash-reports",
       "since": "0.2.48",

@@ -27,7 +27,9 @@
  *                  data-placeholder, data-thanks, data-types ("broken,confusing,improvement,idea")
  *   Layout:        data-layout     composer (default: type pills and a text box) | steps (pick what it is,
  *                                  then say it) | bar (a compact floating composer beside the button)
- *   Panel:         data-panel      corner (default) | sheet | center  (bar ignores it)
+ *   Panel:         data-panel      corner (default beside the floating button) | sheet | center | beside
+ *                                  (beside: next to the app's own button; without it an app's own
+ *                                  button opens a centred window, or a docked bar. bar ignores the rest)
  *                  data-width      regular (default) | narrow | wide
  *                  data-backdrop   dim (default) | clear | blur
  *                  data-preferences show (default) | hide  ("Your name and email" in Your reports)
@@ -238,7 +240,7 @@
   var HIDE_ON = attr('hide-on').split(',').map(function (p) { return p.trim().replace(/\/+$/, ''); })
     .filter(function (p) { return p.charAt(0) === '/'; });
   var LAYOUT = pick('layout', ['composer', 'steps', 'bar'], 'composer');
-  var PANEL = pick('panel', ['corner', 'sheet', 'center'], 'corner');
+  var PANEL = pick('panel', ['corner', 'sheet', 'center', 'beside'], '');
   var WIDTH = ({ narrow: 320, wide: 460 })[attr('width').toLowerCase()] || 360;
   var BACKDROP = pick('backdrop', ['dim', 'clear', 'blur'], 'dim');
   var PREFS_ROW = pick('preferences', ['show', 'hide'], 'show') === 'show';
@@ -1096,6 +1098,9 @@
     '.panel{animation:fb-rise .2s ease-out}.scrim.t .panel{animation-name:fb-drop}.scrim.center .panel,.scrim.side .panel{animation-name:fb-fade}',
     '@keyframes fb-rise{from{opacity:0;transform:translateY(8px)}}@keyframes fb-drop{from{opacity:0;transform:translateY(-8px)}}',
     '.scrim.clear{background:none}',
+    '.scrim.anch{padding:0!important;display:block}.scrim.anch>.panel,.scrim.anch>.barbox{position:fixed;left:0;top:0}',
+    '.scrim.bar.center{pointer-events:auto;background:rgba(0,0,0,.35)}.scrim.bar.center.clear{background:none}',
+    '.scrim.bar.center.blur{background:rgba(0,0,0,.18);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}',
     '.scrim.blur{background:rgba(0,0,0,.18);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}',
     '.panel{width:min(var(--fb-w),100%);max-height:min(600px,calc(100vh - 32px));display:flex;flex-direction:column;overflow:hidden;background:var(--fb-bg);',
     'border-radius:16px;box-shadow:0 12px 40px rgba(16,24,40,.16),0 0 0 1px var(--fb-ring)}',
@@ -1247,15 +1252,53 @@
     return n;
   }
 
+  var MARK_BODY = 'M174 100L177 105L180 110L181 116L180 121L178 126L174 131L169 134L164 137L159 139L154 141L149 143L146 146L143 149L141 154L139 159L137 164L134 169L131 174L126 178L121 180L116 181L110 180L105 177L100 174L95 170L91 167L87 164L83 163L79 162L74 162L69 163L63 164L57 164L51 164L46 162L41 159L38 154L36 149L36 143L36 137L37 131L38 126L38 121L37 117L36 113L33 109L30 105L26 100L23 95L20 90L19 84L20 79L22 74L26 69L31 66L36 63L41 61L46 59L51 57L54 54L57 51L59 46L61 41L63 36L66 31L69 26L74 22L79 20L84 19L90 20L95 23L100 26L105 30L109 33L113 36L117 37L121 38L126 38L131 37L137 36L143 36L149 36L154 38L159 41L162 46L164 51L164 57L164 63L163 69L162 74L162 79L163 83L164 87L167 91L170 95Z';
+  var MARK_EYE = 'M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z';
+  var EYE_A = 'translate(80 106) rotate(-24) scale(1.25)', EYE_B = 'translate(124 101) rotate(-24) scale(1.25)';
+
   /** The Heresay mark, compact: a soft wave with quote-mark eyes. Drawn from a constant string.
    *  `glance` makes it the loader: the eyes look left, look right, blink. */
   function markEl(glance) {
     var s = document.createElement('span');
     s.className = glance ? 'mark glance' : 'mark';
-    s.innerHTML = '<svg viewBox="0 0 200 200" width="22" height="22" aria-hidden="true"><path d="M174 100L177 105L180 110L181 116L180 121L178 126L174 131L169 134L164 137L159 139L154 141L149 143L146 146L143 149L141 154L139 159L137 164L134 169L131 174L126 178L121 180L116 181L110 180L105 177L100 174L95 170L91 167L87 164L83 163L79 162L74 162L69 163L63 164L57 164L51 164L46 162L41 159L38 154L36 149L36 143L36 137L37 131L38 126L38 121L37 117L36 113L33 109L30 105L26 100L23 95L20 90L19 84L20 79L22 74L26 69L31 66L36 63L41 61L46 59L51 57L54 54L57 51L59 46L61 41L63 36L66 31L69 26L74 22L79 20L84 19L90 20L95 23L100 26L105 30L109 33L113 36L117 37L121 38L126 38L131 37L137 36L143 36L149 36L154 38L159 41L162 46L164 51L164 57L164 63L163 69L162 74L162 79L163 83L164 87L167 91L170 95Z" fill="currentColor"/><g class="eyes"><g class="e" style="transform-origin:80px 106px"><path class="eye" d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(80 106) rotate(-24) scale(1.25)"/></g><g class="e" style="transform-origin:124px 101px"><path class="eye" d="M-13 12 C-13 -8 -2 -24 17 -32 L20 -25 C8 -18 2 -9 3 -1 A13 13 0 1 1 -13 12 Z" transform="translate(124 101) rotate(-24) scale(1.25)"/></g></g></svg>';
+    s.innerHTML = '<svg viewBox="0 0 200 200" width="22" height="22" aria-hidden="true"><path d="' + MARK_BODY + '" fill="currentColor"/><g class="eyes">' +
+      '<g class="e" style="transform-origin:80px 106px"><path class="eye" d="' + MARK_EYE + '" transform="' + EYE_A + '"/></g>' +
+      '<g class="e" style="transform-origin:124px 101px"><path class="eye" d="' + MARK_EYE + '" transform="' + EYE_B + '"/></g></g></svg>';
     return s;
   }
 
+  /**
+   * `data-heresay-mark` on any element of the host page (an empty span inside the app's own
+   * button): filled with the Heresay mark, 1em square, hidden from screen readers. Coloured with
+   * the accent (data-accent, unless data-mark="heresay"), or with the text colour when the
+   * attribute is "currentColor". The eyes are real holes (a mask), so it sits on any background.
+   * Elements added later are filled too. Nothing without the attribute is touched.
+   */
+  var markSeq = 0;
+  function fillMark(n) {
+    if (n.getAttribute('data-heresay-filled') != null) return;
+    n.setAttribute('data-heresay-filled', '');
+    var id = 'heresay-m' + (++markSeq), acc = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(attr('accent')) && pick('mark', ['accent', 'heresay'], 'accent') === 'accent' ? attr('accent') : '#0b5e57';
+    var col = (n.getAttribute('data-heresay-mark') || '').trim().toLowerCase() === 'currentcolor' ? 'currentColor' : acc;
+    n.setAttribute('aria-hidden', 'true');
+    n.style.display = 'inline-flex'; n.style.width = '1em'; n.style.height = '1em'; n.style.verticalAlign = '-0.125em'; n.style.color = col;
+    n.innerHTML = '<svg viewBox="0 0 200 200" width="1em" height="1em" aria-hidden="true" focusable="false" style="display:block"><mask id="' + id + '"><rect width="200" height="200" fill="#fff"/>' +
+      '<path d="' + MARK_EYE + '" transform="' + EYE_A + '" fill="#000"/><path d="' + MARK_EYE + '" transform="' + EYE_B + '" fill="#000"/></mask>' +
+      '<path d="' + MARK_BODY + '" fill="currentColor" mask="url(#' + id + ')"/></svg>';
+  }
+  function fillMarks(root) {
+    if (root.nodeType !== 1) return;
+    if (root.hasAttribute('data-heresay-mark')) fillMark(root);
+    var all = root.querySelectorAll ? root.querySelectorAll('[data-heresay-mark]') : [];
+    for (var k = 0; k < all.length; k++) fillMark(all[k]);
+  }
+  function watchMarks() {
+    fillMarks(document.documentElement);
+    if (window.MutationObserver) new MutationObserver(function (ms) {
+      for (var a = 0; a < ms.length; a++) for (var b = 0; b < ms[a].addedNodes.length; b++) fillMarks(ms[a].addedNodes[b]);
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  }
+  watchMarks();
 
   var PLACE = POS.join(' ') + (STYLE === 'tab' ? ' side' : '');
   var fabDot = el('span', { class: 'dot', hidden: '' });
@@ -1263,7 +1306,7 @@
     class: ['fab', PLACE, 'st-' + STYLE, 'sz-' + SIZE, 'sh-' + pick('shadow', ['soft', 'none', 'strong'], 'soft'),
       pick('fill', ['neutral', 'accent'], 'neutral') === 'accent' ? 'fill' : '', BUTTON === 'desktop' ? 'desktop' : ''].join(' '),
     type: 'button', 'aria-haspopup': 'dialog', title: S.reportAria + ' · ' + S.powered,
-    onclick: function () { open(); },
+    onclick: function () { if (scrim) close(); else open(); },
   }, [markEl(), el('span', { class: 'lbl', text: LABEL }), fabDot]);
   if (BUTTON !== 'none') root.appendChild(fab);
 
@@ -1320,17 +1363,25 @@
     return top + 'px ' + (POS[0] === 'r' ? side : 12) + 'px ' + bottom + 'px ' + (POS[0] === 'l' ? side : 12) + 'px';
   }
 
-  function open(which) {
+  function open(which, o) {
     if (dead) return;
     if (scrim) { if (which) { view = which; renderPanel(); } return; }
     if (bubble) { bubble.remove(); bubble = null; }
     if (nudgeEl) { nudgeEl.remove(); nudgeEl = null; }
-    lastFocus = document.activeElement;
+    o = o || {};
+    anchor = o.corner ? null : detect(o.anchor);
+    cornerOpen = !!o.corner;
+    lastFocus = anchor && anchor.el ? anchor.el : document.activeElement;
     view = which || (unseen() ? 'mine' : 'new');
-    scrim = el('div', { class: surface(), onclick: function (e) { if (e.target === scrim && !barUp()) close(); } });
+    scrim = el('div', { class: surface(), onclick: function (e) {
+      if (e.target !== scrim || Date.now() - menuClosedAt < 600) return;
+      if (!barUp() || scrim.classList.contains('center')) close();
+    } });
     scrim.style.setProperty('--fb-pad', panelPad());
     scrim.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     root.appendChild(scrim);
+    window.addEventListener('scroll', queue, true);
+    window.addEventListener('resize', queue);
     if (LAYOUT === 'bar' && window.visualViewport) {
       window.visualViewport.addEventListener('resize', keyboard);
       window.visualViewport.addEventListener('scroll', keyboard);
@@ -1343,10 +1394,139 @@
   /** The bar is a small non-modal composer; Your reports (and everything else) is the panel. */
   function barUp() { return LAYOUT === 'bar' && view !== 'mine'; }
   function surface() {
-    if (barUp()) return 'scrim ' + PLACE + ' bar';
-    var cls = LAYOUT === 'bar' ? PLACE + ' corner' : PANEL === 'center' ? 'center' : PLACE + (PANEL === 'sheet' ? ' sheet' : ' corner');
-    return 'scrim ' + cls + ' ' + BACKDROP;
+    var m = opensAs();
+    if (barUp()) return 'scrim bar ' + (m === 'anchor' ? 'anch' : m === 'dock' ? 'c' : m === 'center' ? 'center ' + BACKDROP : PLACE);
+    var cls = LAYOUT === 'bar' ? '' : PANEL === 'center' ? 'center' : PANEL === 'sheet' ? PLACE + ' sheet' : '';
+    if (!cls) cls = m === 'anchor' ? 'anch' : m === 'center' ? 'center' : PLACE + ' corner';
+    return 'scrim ' + cls + ' ' + (cls === 'anch' ? 'clear' : BACKDROP);
   }
+
+  // ---- where the panel opens ---------------------------------------------------------------
+  // Beside the floating button. From the app's own trigger (the element just clicked, a
+  // [data-heresay-open] element, or open({ anchor })): a centred window with the page dimmed (the bar
+  // docks at the bottom centre), or next to the trigger with data-panel="beside". Centred when code
+  // opened it with no click and there is no button. A bottom sheet on phones.
+  // data-panel sheet, center and corner always win.
+  var recent = null;       // the last trusted pointer or key target: { el, rect, t }
+  var anchor = null;       // the trigger of the open panel: { el, rect }
+  var cornerOpen = false;  // opened from the nudge: the corner it sits in
+  var closedBy = null;     // an outside click just closed the panel: { el, t }
+  var menuClosedAt = 0;
+  var INTERACTIVE = 'a,button,[role=button],[role=menuitem],[data-heresay-open]';
+
+  function rectOf(n) {
+    var r = n.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+  }
+  function pathOf(e) { return e.composedPath ? e.composedPath() : [e.target]; }
+  function markTrigger(e) {
+    if (!e.isTrusted) return;
+    if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+    var p = pathOf(e);
+    if (p.indexOf(host) >= 0) { recent = null; return; }
+    var t = p[0];
+    if (!t || t.nodeType !== 1) t = e.target;
+    if (!t || !t.closest) return;
+    t = t.closest(INTERACTIVE) || t;
+    if (t === document.body || t === document.documentElement) { recent = null; return; }
+    recent = { el: t, rect: rectOf(t), t: Date.now() };
+  }
+  function anchorFrom(a) {
+    if (!a) return null;
+    if (a.nodeType === 1) return a === host ? null : { el: a, rect: rectOf(a) };
+    var l = +(a.left != null ? a.left : a.x), t = +(a.top != null ? a.top : a.y);
+    var w = a.width != null ? +a.width : +a.right - l, h = a.height != null ? +a.height : +a.bottom - t;
+    if (!isFinite(l + t + w + h)) return null;
+    return { el: null, rect: { left: l, top: t, right: l + w, bottom: t + h, width: w, height: h } };
+  }
+  function detect(explicit) {
+    var a = anchorFrom(explicit);
+    if (a) return a;
+    return recent && Date.now() - recent.t < 1000 ? { el: recent.el, rect: recent.rect } : null;
+  }
+  /** After an outside click closed the panel on this trigger, the click that follows must not reopen it. */
+  function toggledOff(el) {
+    var t = el || (recent && recent.el);
+    return !!(closedBy && closedBy.el && t === closedBy.el && Date.now() - closedBy.t < 700);
+  }
+  function opensAs() {
+    if (media('(max-width:599px)')) return 'corner';
+    if (anchor && PANEL !== 'corner') return PANEL === 'beside' ? 'anchor' : LAYOUT === 'bar' ? 'dock' : 'center';
+    return cornerOpen || fabShowing() ? 'corner' : 'center';
+  }
+  function rectNow() {
+    if (anchor.el && anchor.el.isConnected) {
+      var r = rectOf(anchor.el);
+      if (r.width || r.height) anchor.rect = r;
+    }
+    return anchor.rect;
+  }
+  var ro = null, raf = 0;
+  function queue() { if (!raf) raf = requestAnimationFrame(function () { raf = 0; place(); }); }
+  /** Put the panel beside the trigger, away from the nearest screen edge, fully on screen. */
+  function place() {
+    if (!scrim || !anchor || !scrim.classList.contains('anch')) return;
+    var box = scrim.firstElementChild;
+    if (!box) return;
+    var vw = document.documentElement.clientWidth || window.innerWidth, vh = window.innerHeight, M = 12, G = 10;
+    var w = Math.min(WIDTH, vw - 2 * M);
+    box.style.width = w + 'px';
+    box.style.maxHeight = Math.min(600, vh - 2 * M) + 'px';
+    var h = box.offsetHeight, r = rectNow();
+    var room = { right: vw - r.right, left: r.left, below: vh - r.bottom, above: r.top };
+    var away = { left: 'right', right: 'left', top: 'below', bottom: 'above' };
+    var edges = { left: r.left, right: vw - r.right, top: r.top, bottom: vh - r.bottom };
+    var near = Object.keys(edges).sort(function (a, b) { return edges[a] - edges[b]; })[0];
+    var sides = [away[near]].concat(['right', 'left', 'below', 'above'].filter(function (s) { return s !== away[near]; })
+      .sort(function (a, b) { return room[b] - room[a]; }));
+    var fits = function (s) { return room[s] >= ((s === 'right' || s === 'left') ? w : h) + G + M; };
+    var side = sides.filter(fits)[0] || sides.slice().sort(function (a, b) { return room[b] - room[a]; })[0];
+    var x, y;
+    if (side === 'right' || side === 'left') {
+      x = side === 'right' ? r.right + G : r.left - G - w;
+      y = r.top + r.height / 2 > vh / 2 ? r.bottom - h : r.top;
+    } else {
+      y = side === 'below' ? r.bottom + G : r.top - G - h;
+      x = r.left + r.width / 2 < vw / 2 ? r.left : r.right - w;
+    }
+    x = Math.max(M, Math.min(x, vw - M - w));
+    y = Math.max(M, Math.min(y, vh - M - h));
+    box.style.left = x + 'px';
+    box.style.top = y + 'px';
+    scrim.classList.toggle('t', y + h / 2 < vh / 2);
+    if (typeof ResizeObserver === 'function') {
+      if (!ro) ro = new ResizeObserver(queue);
+      ro.disconnect();
+      ro.observe(box);
+    }
+  }
+
+  ['pointerdown', 'click', 'keydown'].forEach(function (t) { document.addEventListener(t, markTrigger, true); });
+  // A press outside the panel closes it (the bar's type menu first). The draft and type are kept.
+  // Presses inside Heresay's own shadow DOM never count; its dimmed backdrop closes through its own click.
+  document.addEventListener('pointerdown', function (e) {
+    if (!scrim || !e.isTrusted) return;
+    var path = pathOf(e), mine = path.indexOf(host) >= 0;
+    if (barMenuClose) {
+      var inMenu = path.some(function (n) { return n && n.classList && (n.classList.contains('bmenu') || n.classList.contains('tchip')); });
+      if (!inMenu && barMenuClose()) { menuClosedAt = Date.now(); return; }
+    }
+    if (mine) return;
+    closedBy = { el: recent && recent.el, t: Date.now() };
+    close('outside');
+  }, true);
+  // Any element with data-heresay-open opens the panel from itself; the value may be a type.
+  document.addEventListener('click', function (e) {
+    var p = pathOf(e);
+    if (p.indexOf(host) >= 0) return;
+    var t = null;
+    for (var i = 0; i < p.length && !t; i++) if (p[i] && p[i].nodeType === 1 && p[i].hasAttribute('data-heresay-open')) t = p[i];
+    if (!t) return;
+    if (t.tagName === 'A' && (!t.hasAttribute('href') || t.getAttribute('href') === '#')) e.preventDefault();
+    if (scrim) { close(); return; }
+    if (toggledOff(t)) return;
+    window.Heresay.open({ type: (t.getAttribute('data-heresay-open') || '').toLowerCase().trim(), anchor: t });
+  }, true);
   /** On a phone the bar docks above the keyboard: lift it by what the keyboard covers. */
   function keyboard() {
     if (!scrim) return;
@@ -1354,7 +1534,7 @@
     scrim.style.setProperty('--fb-kb', Math.max(0, Math.round(window.innerHeight - v.height - v.offsetTop)) + 'px');
   }
 
-  function close() {
+  function close(how) {
     if (!scrim) return;
     if (view === 'mine') markSeen();
     if (window.visualViewport) {
@@ -1363,12 +1543,16 @@
     }
     scrim.remove();
     scrim = null;
+    window.removeEventListener('scroll', queue, true);
+    window.removeEventListener('resize', queue);
+    if (ro) ro.disconnect();
+    anchor = null;
     barMenuClose = null;
     listBox = null; hdDot = null; hdMine = null;
     state.justSent = false;
     prefsOpen = false;
     renderBadge();
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    if (how !== 'outside' && lastFocus && lastFocus.focus && lastFocus.isConnected !== false) lastFocus.focus();
   }
 
   var CLOSE_ICON = 'M6 6l12 12M18 6L6 18';
@@ -1396,7 +1580,7 @@
     scrim.className = surface();
     barMenuClose = null;
     hdDot = hdMine = null;
-    if (barUp()) { renderBar(); return; }
+    if (barUp()) { renderBar(); place(); return; }
     var body, first, picking = LAYOUT === 'steps' && view === 'new' && !state.type;
     if (view === 'sent') body = sentView();
     else if (view === 'mine') body = listView();
@@ -1405,6 +1589,7 @@
       el('div', { class: 'grab', 'aria-hidden': 'true' }, [el('i')]), body, foot(picking),
     ]);
     scrim.appendChild(panel);
+    place();
     renderBadge();
     first = panel.querySelector(view === 'sent' ? '.send' : view === 'mine' ? '.ib' : state.type ? 'textarea' : picking ? '.pick' : '[role=radio]');
     // On touch, a focused pill or row would look picked before anyone tapped it: focus the dialog itself.
@@ -1568,14 +1753,8 @@
     ]);
   }
 
-  // Closes the bar's type menu; set while the bar is showing, so a click elsewhere can close it.
+  // Closes the bar's type menu and says whether it was open; set while the bar is showing.
   var barMenuClose = null;
-  document.addEventListener('pointerdown', function (e) {
-    if (!barMenuClose) return;
-    var path = e.composedPath ? e.composedPath() : [];
-    var inside = path.some(function (n) { return n && n.classList && (n.classList.contains('bmenu') || n.classList.contains('tchip')); });
-    if (!inside) barMenuClose();
-  }, true);
 
   /** Bar: one compact composer. [Type v] [text.....] (send), then Your reports, Powered by, close. */
   function renderBar() {
@@ -1626,9 +1805,10 @@
         items.forEach(function (b) { b.setAttribute('aria-checked', String(b.getAttribute('data-type') === state.type)); });
       };
       var shut = function (back) {
-        if (menu.hidden) return;
+        if (menu.hidden) return false;
         menu.hidden = true; chip.setAttribute('aria-expanded', 'false');
         if (back) chip.focus();
+        return true;
       };
       var show = function (last) {
         menu.hidden = false; chip.setAttribute('aria-expanded', 'true');
@@ -1906,7 +2086,7 @@
           done();
           var as = stuck ? 'confusing' : 'broken';
           if (!state.type && OFFERED.some(function (t) { return t.id === as; })) state.type = as;
-          open('new');
+          open('new', { corner: true });
         } }),
       ]),
       foot(),
@@ -1943,9 +2123,10 @@
     /** Open the report form. { type, text } fill it in; the reporter still reviews and sends. */
     open: function (o) {
       o = o || {};
+      if (!o.anchor && toggledOff()) return;
       if (OFFERED.some(function (t) { return t.id === o.type; })) state.type = o.type;
       if (o.text != null) state.draft = String(o.text).slice(0, 2000);
-      open('new');
+      open('new', { anchor: o.anchor });
     },
     openPreferences: function () { if (PREFS_ROW) { prefsOpen = true; open('mine'); } },
     /** Show the one-time introduction now. False if it was already shown on this device. */
@@ -1960,6 +2141,6 @@
       listeners.push(fn);
       return function () { listeners = listeners.filter(function (f) { return f !== fn; }); };
     },
-    close: close,
+    close: function () { close(); },
   };
 })();

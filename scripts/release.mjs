@@ -1,10 +1,12 @@
 // Cut a release PR in one step:  node scripts/release.mjs 0.2.10
 // Bumps the Heresay version and create-heresay to it, bumps heresay (the agent package) by a patch
 // if its code changed since its last release, updates docs/plan/next.md, builds, tests, commits
-// on release-<version>, pushes and opens the PR. Merging it publishes, deploys and tags
+// on release-<version> (refusing if public/guides/releases.json has no entry for the version;
+// it regenerates CHANGELOG.md and apple/CHANGELOG.md from it), pushes and opens the PR. Merging it publishes, deploys and tags
 // (.github/workflows/release.yml).
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { checkRelease, readReleases, writeChangelogs } from './release-notes.mjs';
 
 const root = new URL('../', import.meta.url).pathname;
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit', ...opts });
@@ -18,6 +20,9 @@ const write = (p, j) => writeFileSync(`${root}${p}`, JSON.stringify(j, null, 2) 
 run('git', ['fetch', '-q', 'origin']);
 if (out('git', ['status', '--porcelain', '--untracked-files=no'])) { console.error('Commit or stash your changes first.'); process.exit(1); }
 run('git', ['checkout', '-q', '-B', `release-${version}`, 'origin/master']);
+
+// No release without notes: the Heresay's update flow explains each version from releases.json.
+try { checkRelease(readReleases(), version); } catch (e) { console.error(e.message); run('git', ['checkout', '-q', '-']); process.exit(1); }
 
 const vfile = 'functions/src/core/version.ts';
 writeFileSync(`${root}${vfile}`, readFileSync(`${root}${vfile}`, 'utf8').replace(/'\d+\.\d+\.\d+'/, `'${version}'`));
@@ -39,9 +44,10 @@ writeFileSync(`${root}${plan}`, readFileSync(`${root}${plan}`, 'utf8')
   .replace(/`create-heresay` [\d.]+/, `\`create-heresay\` ${version}`)
   .replace(/`heresay` [\d.]+/, `\`heresay\` ${h.version}`));
 
+const notes = writeChangelogs(version); // stamps today's date on the entry, rewrites both changelogs
 run('node', ['scripts/build-release.mjs']);
 run('npm', ['test']);
-run('git', ['add', vfile, 'packages/create-heresay/package.json', 'packages/heresay/package.json', plan]);
+run('git', ['add', vfile, 'packages/create-heresay/package.json', 'packages/heresay/package.json', plan, ...notes]);
 run('git', ['commit', '-qm', `Release ${version}\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`]);
 run('git', ['push', '-q', '-u', 'origin', `release-${version}`]);
 const body = `Heresay ${version}: create-heresay ${version}, heresay ${h.version}.\n\nMerging this publishes to npm, deploys the instance and tags the Swift package if \`apple/\` changed (\`.github/workflows/release.yml\`).\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n`;

@@ -591,7 +591,12 @@
       { a: 'thanks', label: 'Thank-you line after sending', c: [['', 'None']], text: 'e.g. Thanks! We read every one.', max: 160 },
     ]},
     { group: 'The panel', items: [
-      { a: 'panel', label: 'Where it opens', c: [['', 'Next to the button'], ['sheet', 'Side sheet'], ['center', 'Middle of the screen']], hint: 'The bar layout ignores this; its Your reports view opens next to the button.' },
+      { a: 'panel', label: 'Where it opens', c: [['', 'Next to the button'], ['sheet', 'Side sheet'], ['center', 'Middle of the screen']], hint: 'The bar layout ignores this; its Your reports view opens next to the button.',
+        when: function (c) { return c.button !== 'none'; } },
+      // Only for an app's own button. Not a tag attribute of its own: "beside" becomes data-panel="beside".
+      { a: 'opens', virtual: true, label: 'Opens', c: [['', 'Centred (recommended)'], ['beside', 'Next to your button']],
+        hint: 'From your own button the panel opens as a centred window with the page dimmed (the bar layout docks at the bottom centre). Next to your button puts it beside the button that was clicked.',
+        when: function (c) { return c.button === 'none'; } },
       { a: 'width', label: 'Width', c: [['', 'Regular'], ['narrow', 'Narrow'], ['wide', 'Wide']] },
       { a: 'backdrop', label: 'Behind it', c: [['', 'Dim the page'], ['clear', 'Leave the page clear'], ['blur', 'Blur']] },
       { a: 'preferences', label: 'Name and email row', c: [['', 'Show'], ['hide', 'Hide']], hint: 'Hide it if your app calls identify() and asks nothing else.' },
@@ -606,11 +611,11 @@
   function designAttrs(cfg) {
     var c = Object.assign({}, cfg);
     // One attribute says where the button goes: the tab and "no button" cases fold into data-position.
-    if (c.button === 'none') { c.position = 'none'; c.button = ''; c.style = ''; }
+    if (c.button === 'none') { c.position = 'none'; c.button = ''; c.style = ''; c.panel = c.opens === 'beside' ? 'beside' : ''; }
     else if (c.style === 'tab' && (!c.position || /^bottom-(left|right|center)$/.test(c.position))) {
       c.position = c.position === 'bottom-left' ? 'left-tab' : 'right-tab'; c.style = '';
     }
-    return DESIGN_ITEMS.filter(function (it) { return c[it.a]; }).map(function (it) { return ['data-' + it.a, c[it.a]]; });
+    return DESIGN_ITEMS.filter(function (it) { return !it.virtual && c[it.a]; }).map(function (it) { return ['data-' + it.a, c[it.a]]; });
   }
 
   function designTag(p, cfg) {
@@ -660,6 +665,8 @@
         if (cfg.button === 'none') {
           out.push(el('p', { class: 'hint', text: 'Then open it from your own menu item:' }));
           out.push(codeBlock('window.Heresay?.open();'));
+          out.push(el('p', { class: 'hint', text: 'Add our mark to your button, so people recognise it from app to app:' }));
+          out.push(codeBlock('<button data-heresay-open><span data-heresay-mark></span> Report a problem</button>'));
         }
         return out;
       },
@@ -669,7 +676,10 @@
           'Keep it where it is and keep the framework\'s own way of writing it (for example next/script in Next.js). ' +
           'Remove any other design attributes it has (data-layout, data-position, data-offset, data-button, data-label, data-style, data-size, data-fill, data-shadow, data-hide-on, data-accent, data-mark, data-theme, data-font, data-lang, data-placeholder, data-types, data-thanks, data-panel, data-width, data-backdrop, data-preferences, data-intro); keep data-key, data-version and anything about the signed-in user.\n\n' +
           designTag(p, cfg) + '\n' +
-          (cfg.button === 'none' ? '\nThere is no floating button now, so add a "Send feedback" item to the app\'s own help or account menu that calls window.Heresay?.open().\n' : '') +
+          (cfg.button === 'none' ? '\nThere is no floating button now, so add a "Send feedback" item to the app\'s own help or account menu that calls window.Heresay?.open(). ' +
+            (cfg.opens === 'beside'
+              ? 'It opens next to that item (data-panel="beside").'
+              : 'It opens as a centred window with the page dimmed; that is the default, so there is no data-panel attribute. Add data-panel="beside" only if it should open next to the item.') + '\n' : '') +
           (a.some(function (x) { return x[0] === 'data-intro'; }) ? '' : '\nIf the app doesn\'t call window.Heresay?.introduce() yet, call it once the main screen appears.\n') +
           '\nFor what each option does, read the Heresay guide customize-web (heresay_guide, or npx -y heresay@latest guide customize-web).';
       },
@@ -700,8 +710,10 @@
     var changed = el('span', { class: 'hint' });
 
     function save() { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { /* private mode */ } }
+    var whens = [];
     function redraw() {
       save();
+      whens.forEach(function (f) { f(); });
       preview.draw(cfg, show, dark);
       var n = kit.changes(cfg);
       changed.textContent = n ? n + ' change' + (n === 1 ? '' : 's') + ' from the recommended setup' : 'The recommended setup';
@@ -740,7 +752,9 @@
           };
           chips.appendChild(input);
         }
-        controls.appendChild(el('div', { class: 'design-item' }, [el('b', { text: it.label }), chips, it.hint ? el('p', { class: 'hint', text: it.hint }) : null]));
+        var item = el('div', { class: 'design-item' }, [el('b', { text: it.label }), chips, it.hint ? el('p', { class: 'hint', text: it.hint }) : null]);
+        controls.appendChild(item);
+        if (it.when) whens.push(function () { item.hidden = !it.when(cfg); });
         sync();
       });
     });
@@ -869,8 +883,13 @@
         return { el: box, draw: function (cfg, show, dark) { box.innerHTML = appleMock(p, cfg, show, dark); fit(); } };
       },
       code: function (cfg) {
-        return [el('p', { class: 'hint', text: 'In your App’s init():' }), codeBlock(swiftConfigure(p, cfg)),
+        var out = [el('p', { class: 'hint', text: 'In your App’s init():' }), codeBlock(swiftConfigure(p, cfg)),
           el('p', { class: 'hint', text: 'And on the root view:' }), codeBlock(swiftAttach(p, cfg))];
+        if (cfg.entry === 'none') {
+          out.push(el('p', { class: 'hint', text: 'Add our mark to your button, so people recognise it from app to app:' }));
+          out.push(codeBlock('Button { Heresay.present() } label: {\n    Label { Text("Report a problem") } icon: { HeresayMarkIcon() }\n}'));
+        }
+        return out;
       },
       prompt: function (cfg) {
         return 'Update how Heresay is set up in this ' + (mac ? 'macOS' : 'iOS') + ' app (the Heresay.configure call with key "' + p.key + '") so it matches this. ' +

@@ -18,7 +18,7 @@ struct ReportBar: View {
     init(heresay: Heresay, openMine: @escaping () -> Void) {
         self.heresay = heresay
         self.openMine = openMine
-        let d = heresay.draft
+        let d = KeptDraft.start(asked: heresay.draft, kept: heresay.kept)
         _type = State(initialValue: d.type.flatMap { heresay.style.types.contains($0) ? $0 : nil })
         _text = State(initialValue: d.text)
     }
@@ -46,6 +46,7 @@ struct ReportBar: View {
             if type != nil || !text.isEmpty { focused = true } else { DispatchQueue.main.async { focused = true } }
         }
         .task { await heresay.refresh() }
+        .onDisappear { if !sent { heresay.keep(type: type, text: text) } }
         .accessibilityElement(children: .contain)
     }
 

@@ -27,7 +27,15 @@ public final class Heresay: ObservableObject {
     public static let shared = Heresay(boxDir: BlackBox.defaultDir())
 
     @Published public private(set) var reports: [SentReport] = []
-    @Published public var isPresented = false
+    @Published public var isPresented = false {
+        didSet { if !isPresented { presentedAnchor = nil } }
+    }
+    /// What the open panel is a popover on; nil for a sheet.
+    @Published var presentedAnchor: AnchorTarget?
+    /// The `.heresayAnchor()` views on screen and which was tapped last.
+    var anchors = AnchorBook()
+    /// What was typed when the panel was closed without sending.
+    var kept: KeptDraft?
     /// Reports whose outcome this device hasn't looked at yet. Drives the dot on the button.
     @Published public private(set) var unseen = 0
     /// The server doesn't know this key (a 404): the app was deleted from the dashboard, or the
@@ -207,10 +215,39 @@ public final class Heresay: ObservableObject {
     /// thank people or count it in your analytics.
     public static func onSent(_ handler: @escaping @MainActor (SentEvent) -> Void) { shared.sentHandlers.append(handler) }
 
-    func present(_ tab: SheetTab? = nil) {
+    /// Where a presentation comes from. `auto` points at the anchor tapped a moment ago, if any.
+    enum Origin { case auto, floating, window }
+
+    func present(_ tab: SheetTab? = nil, from origin: Origin = .auto) {
         guard !isDisabled else { return }
         requestedTab = tab
+        switch origin {
+        case .window: presentedAnchor = nil
+        case .floating: presentedAnchor = Self.popoversAvailable ? .floating : nil
+        case .auto:
+            presentedAnchor = pickAnchor()
+            if presentedAnchor == nil, Self.popoversAvailable, anchors.hasLive, !isPresented {
+                // The anchor's tap may be delivered just after the button's action: look once more.
+                DispatchQueue.main.async { [self] in
+                    presentedAnchor = pickAnchor()
+                                isPresented = true
+                }
+                return
+            }
+        }
         isPresented = true
+    }
+
+    private func pickAnchor() -> AnchorTarget? {
+        guard Self.popoversAvailable, let id = anchors.pick() else { return nil }
+        anchors.consume()
+        return .view(id)
+    }
+
+    func touchAnchor(_ id: UUID) { anchors.touch(id) }
+
+    func popoverIsOn(_ target: AnchorTarget) -> Bool {
+        isPresented && !isDisabled && presentedAnchor == target && style.layout != .bar
     }
 
     /// Once per install: tell people Heresay is there and how to reach it. Call it where the app
@@ -392,6 +429,7 @@ public final class Heresay: ObservableObject {
             if events?.contains(where: { $0.detail?.hasPrefix(Trail.crashMark) == true }) == true { Trail.forgetCrash(defaults) }
             if events?.contains(where: { $0.run == "last" }) == true { blackBox?.forgetLastRun() }
             reports.insert(r, at: 0)
+            kept = nil
             for h in sentHandlers { h(SentEvent(id: r.id, type: r.type)) }
             return r
         } catch let f as Client.Failure where f.status == 404 {

@@ -26,7 +26,7 @@ public struct HeresayCommands: Commands {
     public init() { Heresay.hasMenuCommand = true }
     public var body: some Commands {
         CommandGroup(after: .help) {
-            Button(Heresay.shared.words[.menuItem]) { Heresay.present() }
+            Button(Heresay.shared.words[.menuItem]) { Heresay.shared.present(.report, from: .window) }
                 .keyboardShortcut("r", modifiers: [.command, .option])
         }
     }
@@ -54,6 +54,16 @@ struct ReportButtonModifier: ViewModifier {
         #endif
     }
 
+    /// Hidden while the sheet is up; kept while the popover is on it, which needs it as its anchor.
+    private var buttonShown: Bool { !heresay.isPresented || heresay.popoverIsOn(.floating) }
+
+    private func floatingButton(top: Bool) -> some View {
+        ReportButton(heresay: heresay)
+            .heresayPopover(Binding(get: { Heresay.popoversAvailable && heresay.popoverIsOn(.floating) },
+                                    set: { if !$0 { heresay.isPresented = false } }),
+                            heresay: heresay, edge: top ? .top : .bottom)
+    }
+
     func body(content: Content) -> some View {
         let corner = alignment ?? heresay.style.alignment
         let top = corner.vertical == .top
@@ -61,12 +71,12 @@ struct ReportButtonModifier: ViewModifier {
             .overlay(alignment: corner) {
                 // The note sits by the button: above it, or below one at the top.
                 VStack(alignment: corner.horizontal, spacing: 10) {
-                    if top && showsButton && heresay.buttonVisible && !heresay.isPresented { ReportButton(heresay: heresay) }
+                    if top && showsButton && heresay.buttonVisible && buttonShown { floatingButton(top: true) }
                     if let offer {
                         NudgeCard(heresay: heresay, offer: offer)
                             .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: top ? .top : .bottom)))
                     }
-                    if !top && showsButton && heresay.buttonVisible && !heresay.isPresented { ReportButton(heresay: heresay) }
+                    if !top && showsButton && heresay.buttonVisible && buttonShown { floatingButton(top: false) }
                 }
                 .padding(heresay.style.offset)
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: heresay.offer)
@@ -215,7 +225,7 @@ struct SheetPresenter: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isBar: Bool { heresay.style.layout == .bar }
-    private var active: Bool { heresay.isPresented && !heresay.isDisabled }
+    private var active: Bool { heresay.isPresented && !heresay.isDisabled && (heresay.presentedAnchor == nil || isBar) }
     private var barShown: Bool { active && isBar && !mineOpen }
 
     private var shown: Binding<Bool> {
@@ -236,7 +246,13 @@ struct SheetPresenter: ViewModifier {
     private var bar: some View {
         let edge = barEdge
         return ZStack(alignment: barAlignment) {
-            Color.clear.allowsHitTesting(false)
+            // A tap anywhere outside the bar closes it (a menu open on it takes that tap first).
+            if barShown {
+                Color.clear.contentShape(Rectangle()).onTapGesture { heresay.isPresented = false }
+                    .accessibilityHidden(true)
+            } else {
+                Color.clear.allowsHitTesting(false)
+            }
             if barShown {
                 ReportBar(heresay: heresay) { mineOpen = true }
                     #if os(macOS)
@@ -293,7 +309,7 @@ struct ReportButton: View {
         let m = metrics
         let filled = st.fill == .accent
         let shape = st.button == .icon ? AnyShape(Circle()) : AnyShape(Capsule())
-        Button { heresay.present() } label: {
+        Button { heresay.present(from: .floating) } label: {
             HStack(spacing: 7) {
                 HeresayMark.filled(filled ? .white : heresay.markColor).frame(width: m.mark, height: m.mark)
                 if st.button == .pill { Text(heresay.buttonLabel).fontWeight(.semibold) }
@@ -400,6 +416,8 @@ struct ReportSheet: View {
     @State private var error: String?
     @State private var sent = false
     @FocusState private var textFocused: Bool
+    /// Shown in a popover (iPad, Mac): a fixed width, sized to its content.
+    let inPopover: Bool
     /// The natural height of the form, measured, so the sheet can fit it.
     @State private var fitHeight: CGFloat = 380
     @State private var keyboard: CGFloat = 0
@@ -407,13 +425,14 @@ struct ReportSheet: View {
 
     enum Page { case report, mine }
 
-    init(heresay: Heresay) {
+    init(heresay: Heresay, inPopover: Bool = false) {
         self.heresay = heresay
+        self.inPopover = inPopover
         let asked = heresay.requestedTab
         let prefs = asked == .preferences && heresay.style.showsPreferences
         _page = State(initialValue: asked == .mine || prefs ? .mine : .report)
         _prefsOpen = State(initialValue: prefs)
-        let d = heresay.draft
+        let d = KeptDraft.start(asked: heresay.draft, kept: heresay.kept)
         let preset = d.type.flatMap { heresay.style.types.contains($0) ? $0 : nil }
         _type = State(initialValue: preset)
         _picked = State(initialValue: preset != nil)
@@ -451,12 +470,12 @@ struct ReportSheet: View {
         }
         .onPreferenceChange(FitHeight.self) { if page == .report && !sent && $0 > 0 { fitHeight = $0 } }
         #if os(macOS)
-        .frame(width: macWidth, height: page == .report && !sent ? min(max(fitHeight, 300), 620) : 540)
+        .frame(width: inPopover ? 380 : macWidth, height: page == .report && !sent ? min(max(fitHeight + (inPopover ? 28 : 0), 300), 620) : 540)
         .glassBackdrop()
         #else
-        .modifier(PhoneSheetSizing(page: page == .mine ? .mine : sent ? .sent : .report,
-                                   fit: fitHeight, keyboard: keyboard, pulled: $pulled,
-                                   fixed: heresay.style.sheet == .compact))
+        .modifier(PopoverOrPhoneSizing(inPopover: inPopover, page: page == .mine ? .mine : sent ? .sent : .report,
+                                       fit: fitHeight, keyboard: keyboard, pulled: $pulled,
+                                       fixed: heresay.style.sheet == .compact))
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { n in
             let end = (n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect) ?? .zero
             let screen = UIScreen.main.bounds.height
@@ -465,6 +484,8 @@ struct ReportSheet: View {
         #endif
         .onChange(of: page) { _ in pulled = false }
         .onChange(of: sent) { _ in pulled = false }
+        // Closed any way but sending (tap outside, swipe down, Escape): keep what was typed.
+        .onDisappear { if !sent { heresay.keep(type: type, text: text) } }
         .task { await heresay.refresh() }
         .onAppear {
             heresay.requestedTab = nil
@@ -898,6 +919,24 @@ extension View {
 }
 
 #if os(iOS)
+/// A popover is 360 wide and as tall as its content; a sheet is sized by `PhoneSheetSizing`.
+struct PopoverOrPhoneSizing: ViewModifier {
+    let inPopover: Bool
+    let page: PhoneSheetSizing.Page
+    let fit: CGFloat
+    let keyboard: CGFloat
+    @Binding var pulled: Bool
+    let fixed: Bool
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if inPopover {
+            content.frame(width: 380, height: page == .report ? min(max(fit + 28, 300), 620) : 540)
+        } else {
+            content.modifier(PhoneSheetSizing(page: page, fit: fit, keyboard: keyboard, pulled: $pulled, fixed: fixed))
+        }
+    }
+}
+
 /// How tall the sheet is on iPhone: as tall as the form (plus the keyboard, when it is up), Your
 /// reports taller. On iPad the system's form sheet sets the size.
 struct PhoneSheetSizing: ViewModifier {

@@ -69,15 +69,44 @@ and `.bottom` dock at the bottom, top ones at the top).
 macOS Help › Report a Problem… with `HeresayCommands`) every layout works the same. Every
 `position` works with every layout.
 
+## How it opens
+
+| How it's opened | iPhone | iPad / Mac |
+| --- | --- | --- |
+| The floating button (`.heresayReportButton()`, any position) | bottom sheet (bar layout: docked bar) | popover beside the button |
+| Your own button calling `Heresay.present()`, no `.heresayAnchor()` (recommended) | bottom sheet (bar layout: docked bar) | centred sheet on the window (iPad: form sheet) |
+| Your own button with `.heresayAnchor()` (opt-in), which calls `Heresay.present()` | bottom sheet (bar layout: docked bar) | popover pointing at that button |
+| `Heresay.present()` from code with no anchor (an error screen, say) | bottom sheet | sheet on the window (iPad: form sheet) |
+| Mac menu bar Help › Report a Problem… / ⌥⌘R (`HeresayCommands`) | n/a | sheet on the key window |
+
+Tapping or clicking outside a popover, or swiping down a sheet, closes it; what was typed and the
+chosen type are kept for next time (cleared after sending). A Mac window sheet can't be closed by
+clicking outside, so use Escape or the close button. The bar layout stays a docked bar everywhere.
+
 ## When to change what
 
 | The app has... | Do this |
 | --- | --- |
-| Its own feedback or help button | `.heresay()` instead of `.heresayReportButton()`; that button calls `Heresay.present()` |
+| Its own feedback or help button | `.heresay()` (no floating button) and the button calls `Heresay.present()`: a centred sheet (recommended). Add `.heresayAnchor()` to that button only if the person wants it next to the button (iPad and Mac popover). Ask: "Open Heresay as a centred window (recommended) or next to your button?" |
 | macOS | the default: `.heresay()` plus `.commands { HeresayCommands() }` (Help › Report a Problem…, ⌥⌘R) |
 | A tab bar or toolbar in the bottom right | `position: .bottomLeading`, or `offset: 80` |
 | Screens where the button is in the way | `hiddenOnScreens: ["Checkout"]`, and those screens call `Heresay.setScreen("Checkout")` |
 | An error screen | a button calling `Heresay.present(type: .broken, text: "<what failed>")` |
+
+## The mark in your own button
+
+`HeresayMarkIcon()` is the mark sized to the surrounding text and tinted (`HeresayMarkIcon(color: .primary)`
+follows the text). `HeresayMark()` is the bare `Shape` for a custom size.
+
+```swift
+Button { Heresay.present() } label: {
+    Label { Text("Report a problem") } icon: { HeresayMarkIcon() }
+}
+```
+
+## What to recommend
+
+The design choices worth proposing to the person (own-button mark, wording, where, error screens, brand) are listed with their reasons in guide `install-apple`, "What to recommend". Propose, explain in a sentence, accept their answer; never apply a design change unasked.
 
 ## Calls
 
