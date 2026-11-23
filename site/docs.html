@@ -64,7 +64,7 @@
       <p class="note">That's the whole setup. Everything below is optional.</p>
 
       <h2 id="what-users-see">What your users see</h2>
-      <p>A small Report button in the corner. Tapping it opens a panel with two tabs:</p>
+      <p>A small Report button in the corner. Tapping it opens a small panel:</p>
       <ul>
         <li><b>Report:</b> pick what it is (Broken, Confusing, Could be better, Idea), write a sentence, and send. The current page and app version are attached automatically.</li>
         <li><b>Your reports:</b> everything they've sent from this device and what happened to it. When you answer, a dot appears on the button until they've seen it.</li>
@@ -89,7 +89,7 @@
         <tr><td><code>data-user-label</code></td><td><code>Asha K.</code></td><td>A name to show in your dashboard.</td></tr>
         <tr><td><code>data-user-email</code></td><td><code>asha@example.com</code></td><td>Their email, so you can reply. Or use <code>identify</code> below.</td></tr>
         <tr><td><code>data-accent</code></td><td><code>#6d28d9</code></td><td>Your brand colour for the Send button, selected states and the logo. Hex only. Text on it switches to white or black automatically.</td></tr>
-        <tr><td><code>data-position</code></td><td><code>left</code></td><td>Put the button in the bottom-left corner instead of the right. More in <a href="#design">Look and placement</a>.</td></tr>
+        <tr><td><code>data-position</code></td><td><code>bottom-left</code></td><td>Put the button in the bottom-left corner instead of the right. More in <a href="#design">Look and placement</a>.</td></tr>
         <tr><td><code>data-api</code></td><td><code>https://…/v1</code></td><td>Rarely needed. Where your Heresay API lives, if it is not at the same address as <code>sdk.js</code>.</td></tr></table>
 <pre><code><span class="k">&lt;script</span> src="https://&lt;your-heresay&gt;.web.app/sdk/v1.js"
         data-key="pk_your_key"
@@ -100,30 +100,26 @@
       <h2 id="design">Look and placement</h2>
       <p>The defaults are what we recommend: change only what your app needs. The easiest way is the dashboard: open an app and choose <b>Design</b> to try each option on the real widget and copy the tag. The first value is the default.</p>
       <table><tr><th>Attribute</th><th>Values</th></tr>
-        <tr><td><code>data-position</code></td><td><code>right</code> · <code>left</code> · <code>top-right</code> · <code>top-left</code> · <code>center</code></td></tr>
-        <tr><td><code>data-offset</code></td><td><code>20</code> px from the edges, or <code>x,y</code> like <code>24,96</code> to clear a chat bubble</td></tr>
-        <tr><td><code>data-button</code></td><td><code>always</code> · <code>none</code> (open it from your own menu with <code>Heresay.open()</code>) · <code>desktop</code> (not on phones) · <code>scroll</code> (after the first scroll)</td></tr>
-        <tr><td><code>data-label</code></td><td><code>Report</code>, or your own words up to 40 characters</td></tr>
-        <tr><td><code>data-style</code></td><td><code>pill</code> · <code>icon</code> · <code>tab</code> (on the side edge)</td></tr>
-        <tr><td><code>data-size</code></td><td><code>regular</code> · <code>small</code> · <code>large</code></td></tr>
-        <tr><td><code>data-fill</code></td><td><code>neutral</code> · <code>accent</code> (filled with your colour)</td></tr>
-        <tr><td><code>data-shadow</code></td><td><code>soft</code> · <code>none</code> · <code>strong</code></td></tr>
+        <tr><td><code>data-layout</code></td><td><code>composer</code> (default: type pills and a text box) · <code>steps</code> (pick what it is, then say it) · <code>bar</code> (a compact box beside the button). See <a href="#layouts">Layouts</a>.</td></tr>
+        <tr><td><code>data-position</code></td><td><code>bottom-right</code> · <code>bottom-left</code> · <code>top-right</code> · <code>top-left</code> · <code>bottom-center</code> · <code>left-tab</code> · <code>right-tab</code> (a tab on the side edge) · <code>none</code> (no button: your own feedback or help menu item calls <code>Heresay.open()</code>)</td></tr>
+        <tr><td><code>data-offset</code></td><td><code>20</code> px from the edges, or <code>x,y</code> like <code>24,96</code> (at most 400), to sit above a chat bubble, cookie banner or tab bar</td></tr>
         <tr><td><code>data-hide-on</code></td><td>paths where the button stays hidden, like <code>/checkout,/login</code></td></tr>
-        <tr><td><code>data-mark</code></td><td><code>accent</code> (the logo follows your colour) · <code>heresay</code> (keep the Heresay teal)</td></tr>
+        <tr><td><code>data-label</code></td><td><code>Report</code>, or your own words up to 40 characters</td></tr>
+        <tr><td><code>data-accent</code></td><td>your brand colour as hex; the logo follows it</td></tr>
         <tr><td><code>data-theme</code></td><td><code>auto</code> (follows the device) · <code>light</code> · <code>dark</code></td></tr>
-        <tr><td><code>data-font</code></td><td><code>system</code> · <code>inherit</code> (your page's font)</td></tr>
         <tr><td><code>data-lang</code></td><td>your page's <code>&lt;html lang&gt;</code> · <code>auto</code> (the browser's) · <code>en</code> · <code>fr</code> · <code>ta</code> (Tamil) · <code>hi</code> (Hindi)</td></tr>
-        <tr><td><code>data-placeholder</code></td><td>the question in the text box</td></tr>
-        <tr><td><code>data-types</code></td><td>all four, or some of <code>broken,confusing,improvement,idea</code>. Their names don't change: the type sets the priority.</td></tr>
-        <tr><td><code>data-thanks</code></td><td>a line shown after sending</td></tr>
-        <tr><td><code>data-panel</code></td><td><code>corner</code> · <code>sheet</code> (full height on that side) · <code>center</code></td></tr>
-        <tr><td><code>data-width</code></td><td><code>regular</code> · <code>narrow</code> · <code>wide</code></td></tr>
-        <tr><td><code>data-backdrop</code></td><td><code>dim</code> · <code>clear</code> · <code>blur</code></td></tr>
-        <tr><td><code>data-preferences</code></td><td><code>show</code> · <code>hide</code></td></tr>
-        <tr><td><code>data-trail</code></td><td>on · <code>off</code> · the parts to keep, like <code>pages errors requests</code>. What happened before a report: pages, clicks, failed requests, errors. The reporter sees it and can take it off. Never what anyone typed.</td></tr>
-        <tr><td><code>data-heresay-private</code></td><td>on any element of your app: clicks on it are recorded without its text</td></tr>
-        <tr><td><code>data-nudge</code></td><td>off · <code>on</code> · the signals to watch, like <code>clicks errors</code>. When something failed (a button pressed again and again with nothing happening, an error right after a click, requests failing), a small note by the button asks “Something not working?”. When someone seems unsure (<code>stalled</code>: typing that stopped; <code>circles</code>: the same few pages over and over; <code>refused</code>: a field refused 3 times), it asks “Stuck on something?” and opens as Confusing. Watched on the device, never sent. Once per tab; quiet for 7 days after “Not now”.</td></tr></table>
-      <p>Always there, whatever you choose: the Heresay mark on the button, the <b>Your reports</b> tab (people read why a report was declined), and <b>Powered by Heresay</b> in the panel and the introduction, so people can tell your app uses an outside tool. The widget lives in a shadow root, so your CSS can't restyle it.</p>
+        <tr><td><code>data-intro</code></td><td><code>auto</code>: the one-time introduction bubble, a few seconds after the first visit</td></tr></table>
+      <h3 id="layouts">Layouts</h3>
+      <p><code>data-layout</code> chooses how the report form looks. All three need a type and some text before Send, work with every position (including <code>none</code>) and offset, and share the same Your reports view and the same four languages.</p>
+      <ul>
+        <li><b><code>composer</code></b> (default, right for most apps): a panel beside the button with four type pills, a text box and Send. On phones it is a bottom sheet.</li>
+        <li><b><code>steps</code></b> (consumer or mobile-first apps, people who don't know what to write): "What's going on?" with four large rows, then a second screen with a text box for the one they picked. Fewer rows if you set <code>data-types</code>.</li>
+        <li><b><code>bar</code></b> (dashboards, editors and other dense tools where a panel would cover the work): a compact floating bar with a Type menu, a one-line text input that grows, and a send arrow. The page behind stays usable. On phones it docks to the bottom edge above the keyboard.</li>
+      </ul>
+      <pre><code><span class="k">&lt;script</span> src="…" data-key="pk_your_key" data-layout="steps" defer<span class="k">&gt;&lt;/script&gt;</span></code></pre>
+      <p>With each report the widget attaches what happened in the app in the last few minutes (pages, clicks, failed requests, errors), never what anyone typed. It is collected without being shown to the reporter; you control it with <code>data-trail</code> (<code>off</code>, or the parts to keep) and <code>data-heresay-private</code> on elements whose labels are personal data.</p>
+      <p>Older attributes (<code>data-button</code>, <code>data-style</code>, <code>data-size</code>, <code>data-fill</code>, <code>data-shadow</code>, <code>data-mark</code>, <code>data-font</code>, <code>data-panel</code>, <code>data-width</code>, <code>data-backdrop</code>, <code>data-preferences</code>, <code>data-placeholder</code>, <code>data-types</code>, <code>data-thanks</code>, <code>data-trail</code>, <code>data-nudge</code>) still work.</p>
+      <p>Always there, whatever you choose: the Heresay mark on the button, the <b>Your reports</b> link (people read why a report was declined), and <b>Powered by Heresay</b> in the panel and the introduction, so people can tell your app uses an outside tool. The widget lives in a shadow root, so your CSS can't restyle it.</p>
 
       <h2 id="api">JavaScript API</h2>
       <p>The script creates <code>window.Heresay</code> (also available as <code>window.Feedback</code>). Call these any time after it loads.</p>
@@ -135,7 +131,7 @@
         <tr><td><code>Heresay.on("sent", fn)</code></td><td>Calls <code>fn({ id, type })</code> after each report is sent, to thank people or count it in your analytics. Returns a function that stops it.</td></tr>
         <tr><td><code>Heresay.introduce({ title, body })</code></td><td>Once per device, a small bubble over the button says what it's for, so people know it exists. Call it when your main screen is up (after sign-in or onboarding), or add <code>data-intro="auto"</code> to the tag. Later calls do nothing. <code>title</code> and <code>body</code> are optional, to use your own words.</td></tr>
         <tr><td><code>Heresay.nudge()</code></td><td>Your app saw trouble itself, such as an error screen or a retry that failed: a small note by the button offers to report it. <code>nudge({ stuck: true })</code> for someone who seems unsure. Works without <code>data-nudge</code>; the same limits apply. Returns whether it showed.</td></tr>
-        <tr><td><code>Heresay.openPreferences()</code></td><td>Open the Preferences tab: a note about their setup, sent with every report. People who aren't signed in can also add a name and an email for replies. It's all optional and saved on their device. Where the button sits is yours to choose, with <code>data-position</code>.</td></tr>
+        <tr><td><code>Heresay.openPreferences()</code></td><td>Open Your reports with &ldquo;Your name and email&rdquo; expanded. People who aren't signed in can add a name and an email for replies. Both are optional and saved on their device.</td></tr>
         <tr><td><code>Heresay.close()</code></td><td>Close the panel.</td></tr></table>
       <p>Each report also carries the page it came from: its title, its address without the query string, and the window size.</p>
 <pre><code><span class="k">// after your user signs in</span>

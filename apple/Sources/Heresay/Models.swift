@@ -10,7 +10,7 @@ public enum ReportType: String, Codable, CaseIterable, Sendable, Identifiable {
         switch self {
         case .broken: "exclamationmark.triangle"
         case .confusing: "questionmark.circle"
-        case .improvement: "wand.and.stars"
+        case .improvement: "chart.line.uptrend.xyaxis"
         case .idea: "lightbulb"
         }
     }
@@ -86,7 +86,8 @@ struct ReportContext: Codable, Sendable, Equatable {
 public struct ReporterPrefs: Codable, Sendable, Equatable {
     public var name: String = ""
     public var email: String = ""
-    /// Sent with every report: "I use VoiceOver", "usually on slow Wi-Fi".
+    /// Retired: there is no longer anywhere to see or clear it, so it is never sent, and an old
+    /// stored value is wiped at launch.
     public var note: String = ""
 
     public init(name: String = "", email: String = "", note: String = "") {
@@ -94,12 +95,12 @@ public struct ReporterPrefs: Codable, Sendable, Equatable {
     }
 
     /// What goes to the server, or nil when there's nothing to say. When the app has said who is
-    /// signed in, it speaks for them: only the note is theirs to add.
+    /// signed in, it speaks for them.
     func reporter(signedIn: Bool = false) -> Reporter? {
         let r = Reporter(name: signedIn ? nil : name.trimmed.nilIfEmpty,
                          email: signedIn || !emailLooksValid ? nil : email.trimmed.nilIfEmpty,
-                         note: note.trimmed.nilIfEmpty)
-        return r.name == nil && r.email == nil && r.note == nil ? nil : r
+                         note: nil)
+        return r.name == nil && r.email == nil ? nil : r
     }
 
     var emailLooksValid: Bool {

@@ -85,10 +85,10 @@ try {
   await app.goto(`${BASE}/demo.html?key=${key}#/settings/billing`);
   const sdk = app.locator('[data-feedback-sdk]');
   await sdk.getByRole('button', { name: /Report a problem/ }).click();
-  await sdk.getByRole('button', { name: /Confusing/ }).click();
-  await sdk.getByLabel('What happened?').fill('I could not work out how to cancel my plan.');
+  await sdk.getByRole('radio', { name: 'Confusing' }).click();
+  await sdk.getByRole('textbox', { name: 'Your report' }).fill('I could not work out how to cancel my plan.');
   await sdk.getByRole('button', { name: 'Send' }).click();
-  await sdk.getByText('Waiting for the developer').waitFor();
+  await sdk.getByText('Sent. You’ll see the reply under Your reports.').waitFor();
   await app.screenshot({ path: `${SHOTS}lite-2-reported.png` });
 
   step('owner declines it with a reason');

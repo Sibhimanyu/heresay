@@ -84,7 +84,14 @@ public final class Heresay: ObservableObject {
         self.defaults = defaults
         blackBox = boxDir.map(BlackBox.init(dir:))
         if let data = defaults.data(forKey: Keys.prefs),
-           let saved = try? JSONDecoder().decode(ReporterPrefs.self, from: data) { prefs = saved }
+           var saved = try? JSONDecoder().decode(ReporterPrefs.self, from: data) {
+            // The old "about your setup" note can't be seen or cleared any more: drop it.
+            if !saved.note.isEmpty {
+                saved.note = ""
+                if let clean = try? JSONEncoder().encode(saved) { defaults.set(clean, forKey: Keys.prefs) }
+            }
+            prefs = saved
+        }
     }
 
     // MARK: Setup
@@ -347,19 +354,15 @@ public final class Heresay: ObservableObject {
     /// Where to find it, in this app, and who it's from.
     var introMessage: String { introBody + "\n\n" + words[.powered] }
 
-    /// Where to find it, in this app.
+    /// Short and plain; on the Mac it also says where the menu item lives.
     var introBody: String {
-        let label = style.label.map { "“\($0)”" } ?? words[.report]
-        let reach: String
         #if os(macOS)
-        reach = Self.hasMenuCommand ? words[.reachMenu] : words(hasButton ? .reachClick : .reachUse, ["label": label])
-        #else
-        reach = words(hasButton ? .reachTap : .reachUse, ["label": label])
+        if Self.hasMenuCommand { return introWords.message ?? words[.introBodyMenu] }
         #endif
-        return introWords.message ?? words(.introBody, ["reach": reach])
+        return introWords.message ?? words[.introBody]
     }
 
-    /// Open straight to Preferences: name, email for replies, a note about their setup.
+    /// Open Your reports with “Your name and email” already expanded.
     public static func presentPreferences() { shared.present(.preferences) }
 
     /// Keep what the person chose. Sent with their next report, never before.
@@ -578,7 +581,7 @@ public struct SentEvent: Sendable, Equatable {
     public let type: ReportType
 }
 
-/// The sheet's three tabs.
+/// Where the sheet opens: the report form, Your reports, or Your reports with the name and email row open.
 enum SheetTab: Hashable { case report, mine, preferences }
 
 extension Color {

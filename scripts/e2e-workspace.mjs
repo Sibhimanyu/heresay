@@ -21,12 +21,18 @@ const context = await browser.newContext({ viewport: { width: 1536, height: 1024
 await context.addInitScript(() => {
   const interval = window.setInterval.bind(window);
   window.setInterval = (fn, ms, ...args) => {
-    if (ms === 30000) window.__refreshInbox = fn;
+    if (ms === 8000 || ms === 30000) window.__refreshInbox = fn;
     return interval(fn, ms, ...args);
   };
 });
 const page = await context.newPage();
 const errors = [];
+// The poller fetches deltas; a 404 from one makes the dashboard do a full reload (everything, repos too).
+async function fullRefresh() {
+  await page.route('**/reports?since=*', r => r.fulfill({ status: 404, json: { error: 'gone' } }), { times: 1 });
+  await page.evaluate(() => window.__refreshInbox());
+}
+
 page.on('pageerror', e => errors.push(e.message));
 await page.route('https://registry.npmjs.org/create-heresay/latest', r => r.fulfill({ json: { version: '0.0.0' } }));
 try {
@@ -101,6 +107,7 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement.dataset.status), 'accepted', 'status activation preserves keyboard focus');
   await page.getByRole('button', { name: /^Open/ }).click();
   await page.locator('.report-preview').first().focus();
+  await report(other, 'A new report for the poll to find'); // the poller only redraws when something changed
   await page.evaluate(() => { window.__focusedPreview = document.activeElement; window.__focusedKey = document.activeElement.dataset.report; window.__refreshInbox(); });
   await page.waitForFunction(() => document.activeElement !== window.__focusedPreview && document.activeElement.dataset.report === window.__focusedKey);
   console.log('PASS: search, filters, and keyboard focus across status changes and polling');
@@ -134,26 +141,27 @@ try {
   await page.locator('.report-preview').filter({ hasText: 'Cannot find' }).click();
   await api('POST', '/agent-tokens', { repo: 'github.com/fieldnotes/web', app_ids: [web.id] });
   await api('POST', '/agent-tokens', { repo: 'github.com/fieldnotes/shared', app_ids: [web.id] });
-  await page.locator('.report-preview').first().focus();
-  await page.evaluate(() => window.__refreshInbox());
+  // Delta polling (#77) fetches reports only, so new repositories show up on the next full load.
+  await page.reload();
+  await page.locator('.report-preview').filter({ hasText: 'Cannot find' }).click();
   await page.getByLabel('Where the fix goes').waitFor();
-  assert.equal(await page.getByLabel('Where the fix goes').locator('option').count(), 2, 'polling refreshes destinations in preserved details');
-  console.log('PASS: changed repository destinations refresh the selected report');
+  assert.equal(await page.getByLabel('Where the fix goes').locator('option').count(), 2, 'a full load lists the new destinations');
+  console.log('PASS: connected repository destinations appear on the selected report');
   const mac = (await api('POST', '/projects', { name: 'Fieldnotes', platform: 'macos', product_id: web.id })).project;
   const failedRepo = `**/projects/${mac.id}/repos`;
   await page.route(failedRepo, r => r.fulfill({ status: 503, json: { error: 'Temporary test outage' } }));
-  await page.evaluate(() => window.__refreshInbox());
+  await fullRefresh();
   await page.getByText('Could not refresh reports. Temporary test outage').waitFor();
   await page.getByLabel('Product', { exact: true }).selectOption('all');
   await page.getByLabel('Product', { exact: true }).selectOption(web.id);
   await page.getByRole('heading', { name: 'Fieldnotes', exact: true }).waitFor();
   await page.unroute(failedRepo);
-  await page.evaluate(() => window.__refreshInbox());
+  await fullRefresh();
   await page.getByText('Manage app', { exact: true }).click();
   await page.locator('.app-tool-row b', { hasText: 'macOS' }).waitFor();
   console.log('PASS: failed refresh retains a complete snapshot; retry adds new platforms');
   await report(web, 'Newly reported problem to merge');
-  await page.evaluate(() => window.__refreshInbox());
+  await fullRefresh();
   await page.locator('.report-preview', { hasText: 'Newly reported problem to merge' }).waitFor();
   await page.getByRole('button', { name: 'Merge into…', exact: true }).click();
   assert.match(await page.getByLabel('Merge into', { exact: true }).textContent(), /Newly reported problem to merge/, 'preserved details use the newest merge candidates');
@@ -170,7 +178,7 @@ try {
   await page.getByRole('link', { name: 'Team', exact: true }).click();
   await page.getByRole('heading', { name: 'Team', exact: true }).waitFor();
   await page.goto(`${BASE}/app/#/notifications`);
-  await page.getByRole('heading', { name: 'When to notify', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor();
   await page.screenshot({ animations: 'disabled', style: '.firebase-emulator-warning { visibility: hidden !important; }', path: `${shot}heresay-workspace-notifications.png` });
   console.log('PASS: app management, design, team and notification pages');
   await page.setViewportSize({ width: 390, height: 844 });

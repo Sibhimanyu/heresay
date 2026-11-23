@@ -16,7 +16,7 @@ Add Package Dependencies; in a `Package.swift`,
 `.package(url: "SWIFT_PACKAGE", from: "0.2.0")`. If the project uses XcodeGen or Tuist, add it
 there instead of editing the `.xcodeproj` by hand.
 
-## 3. Configure it once, and put it on screen
+## 3. Configure once, and put it on screen
 
 In the `App` struct:
 
@@ -26,7 +26,7 @@ import Heresay
 @main
 struct MyApp: App {
     init() {
-        Heresay.configure(key: "KEY", url: URL(string: "HERESAY_URL")!)
+        Heresay.configure(key: "KEY", url: URL(string: "HERESAY_URL")!)   // first line of init
     }
     var body: some Scene {
         WindowGroup {
@@ -36,9 +36,12 @@ struct MyApp: App {
 }
 ```
 
-On macOS use `ContentView().heresay()` and add `.commands { HeresayCommands() }` to the
-`WindowGroup`: that adds Help › Report a Problem… (⌥⌘R). Apps with their own feedback button
-call `Heresay.present()` from it and use `.heresay()` instead of the corner button.
+| Platform or case | Do this |
+| --- | --- |
+| iOS | `.heresayReportButton()` on the root view |
+| macOS | `.heresay()` on the root view, and `.commands { HeresayCommands() }` on the `WindowGroup` (Help › Report a Problem…, ⌥⌘R) |
+| The app has its own feedback or help button | `.heresay()` (no corner button); that button calls `Heresay.present()` |
+| Something in the bottom-right corner, or a tab bar | `HeresayStyle(position: .bottomLeading)` or `offset: 80`: see `customize-apple` |
 
 ## 4. Who is signed in (required if people sign in)
 
@@ -49,33 +52,24 @@ Heresay.identify(id: user.id, label: user.name, email: user.email)
 Heresay.identify()   // after sign-out
 ```
 
-Then nobody is asked their name to send a report, and the team can reply to them.
-
 ## 5. Tell people it's there (required)
 
-On macOS the report window lives under Help, and on iOS it's a small button; people who have never
-seen it won't go looking. Call `Heresay.introduce()` once the person reaches the app's main
-screen: after sign-in and after any onboarding, never over a login or first-run screen. Once per
-install it shows a welcome sheet on iOS, or a small window of its own on macOS, that says where to find it (Help › Report a Problem… (⌥⌘R) on
-macOS, the Report button on iOS) and offers to open it. Later calls do nothing, so this is fine:
+Call `Heresay.introduce()` once the main screen shows, after sign-in and onboarding, never over a
+login or first-run screen. Once per install it shows where to find Heresay and offers to open
+it. Later calls do nothing. Don't build your own dialog. If the app has a "What's new" screen,
+add a line there too.
 
 ```swift
-MainView()
-    .onAppear { Heresay.introduce() }
+MainView().onAppear { Heresay.introduce() }
 ```
-
-If the app already has a "What's new" or announcements screen, add a line there too. Don't
-build a custom dialog for this; `introduce()` is the one.
 
 ## 6. Optional
 
-- Screens: `Heresay.setScreen("Checkout")` in `.onAppear` of the main screens.
-- The app version is read from the bundle (`CFBundleShortVersionString` and build).
-- A brand colour: `Heresay.configure(key:url:accent: .purple)`. The mark follows it.
+- `Heresay.setScreen("Checkout")` in `.onAppear` of the main screens.
+- `accent: .purple` on `configure` for a brand colour.
+- The version is read from the bundle.
 
-Everything else about the look (corner, text, size, theme, language, sheet size) is optional and
-has a recommended default: leave it unless the person asks. Guide `customize-apple` lists every
-option; the dashboard's **Design** page shows them. Change nothing else in the app.
+Leave everything else; the defaults are recommended. Change nothing else in the app.
 
 ## 7. Prove it
 

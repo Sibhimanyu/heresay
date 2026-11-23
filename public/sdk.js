@@ -7,7 +7,9 @@
  * what each is for, is public/guides/customize-web.md.
  *
  *   Who and what:  data-version, data-user-id, data-user-label, data-user-email
- *   Button:        data-position   right (default) | left | top-right | top-left | center
+ *   Button:        data-position   bottom-right (default) | bottom-left | top-right | top-left | bottom-center
+ *                                  | left-tab | right-tab (a tab on the side edge) | none (no button; call Heresay.open())
+ *                                  (older right, left, center still work)
  *                  data-offset     "20" or "x,y" in px from the edges
  *                  data-button     always (default) | none (open it from the app's own menu)
  *                                  | desktop (not on phones) | scroll (after the first scroll)
@@ -23,10 +25,12 @@
  *                  data-font       system (default) | inherit (the page's font)
  *   Words:         data-lang       the page's <html lang> (default) | auto (the browser) | en | fr | ta | hi
  *                  data-placeholder, data-thanks, data-types ("broken,confusing,improvement,idea")
- *   Panel:         data-panel      corner (default) | sheet | center
+ *   Layout:        data-layout     composer (default: type pills and a text box) | steps (pick what it is,
+ *                                  then say it) | bar (a compact floating composer beside the button)
+ *   Panel:         data-panel      corner (default) | sheet | center  (bar ignores it)
  *                  data-width      regular (default) | narrow | wide
  *                  data-backdrop   dim (default) | clear | blur
- *                  data-preferences show (default) | hide
+ *                  data-preferences show (default) | hide  ("Your name and email" in Your reports)
  *                  data-intro      "auto": introduce the button a few seconds after the first load
  *   Trail:         data-trail      on (default) | off | the parts to keep, e.g. "pages errors requests"
  *                                  (pages, clicks, requests, errors). What happened in the app before
@@ -45,15 +49,17 @@
  *   Feedback.introduce({ title, body })   once per device: a bubble saying the button is there
  *   Feedback.nudge({ stuck })         the app saw trouble itself: offer to report it, as data-nudge does
  *   data-preview                      for the dashboard's designer: nothing is sent or stored
- *   Feedback.openPreferences()        a note about their setup, and a name and email if not signed in
+ *   Feedback.openPreferences()        opens Your reports with "Your name and email" expanded (if not signed in)
  *
  * Not configurable, on purpose: the Heresay mark on the button, the report types' names (they set
- * the priority), the "Your reports" tab (reporters read why a report was declined), and the
+ * the priority), the "Your reports" view (reporters read why a report was declined), and the
  * "Powered by Heresay" line, so people can tell the app uses an outside tool.
  *
  * No account, no cookies. The reporter is a random per-device id kept in localStorage, and
  * that id is also what lets them see what happened to their own reports. Their preferences are
  * kept on the device too, and sent with each report only if they filled them in.
+ * The panel is quiet: no tabs and no trail on show. The trail is collected for the team and the
+ * reporter is not asked about it; the developer controls it (data-trail, data-heresay-private).
  */
 (function () {
   'use strict';
@@ -84,162 +90,110 @@
     en: {
       report: 'Report', reportAria: 'Report a problem',
       update: 'Report a problem. {n} of your reports have an update',
-      close: 'Close', dialog: 'Feedback',
-      tabNew: 'Report', tabMine: 'Your reports', tabPrefs: 'Preferences',
-      what: 'What is it?', whatHappened: 'What happened?', ph: 'What happened, or what would you change?',
-      send: 'Send', sending: 'Sending…',
-      pickType: 'Pick what kind of report this is.', sayWhat: 'Say what happened.', cantSend: 'Could not send. Try again.',
-      attachedPrefs: 'This page, the app version, device details and your preferences are attached.',
-      attached: 'This page, the app version and device details are attached.',
+      close: 'Close', dialog: 'Feedback', back: 'Back to Report',
+      mine: 'Your reports', mineAria: 'Your reports, {n} with an update', kindAria: 'What kind of report is this?', reportLabel: 'Your report',
+      phNone: 'What’s on your mind?',
+      send: 'Send', sending: 'Sending…', cantSend: 'Could not send. Try again.',
+      sentMsg: 'Sent. You’ll see the reply under Your reports.', done: 'Done',
       types: {
-        broken: ['Broken', 'Something does not work'],
-        confusing: ['Confusing', 'I could not tell how to do something'],
-        improvement: ['Could be better', 'It works, but it could be better'],
-        idea: ['Idea', 'Something that does not exist yet'],
+        broken: ['Broken', 'What went wrong?'],
+        confusing: ['Confusing', 'What were you trying to do?'],
+        improvement: ['Could be better', 'What would make it better?'],
+        idea: ['Idea', 'What would you like?'],
       },
       status: { open: 'Waiting for the developer', accepted: 'Accepted, being worked on', fixed: 'Fixed', declined: 'Declined', withdrawn: 'You took this back' },
       takeBack: 'Take back', takeBackAsk: 'Take this back? It isn’t deleted: the team sees you withdrew it.', takeBackWhy: 'Why? (optional)', takeBackYes: 'Take it back', keep: 'Keep it', yourWhy: 'Your reason: ',
-      optional: '(optional)', yourName: 'Your name', email: 'Email',
-      emailHint: 'Only if you are happy for the team to reply to you.',
-      setup: 'About your setup', setupHint: 'Sent with every report, so you only say it once.',
-      setupPh: 'For example: I use a screen reader, or I am usually on slow Wi-Fi.',
+      fresh: 'New update', nameEmail: 'Your name and email', nameOpt: 'Name (optional)', emailOpt: 'Email (optional)',
       signedAs: 'Signed in as {who}', yourAccount: 'your account',
-      seesReply: '{email}. The team sees this with each report and can reply.',
-      sees: 'The team sees this with each report.',
       badEmail: 'That email does not look right.', saved: 'Saved on this device.',
-      clear: 'Clear all', save: 'Save',
-      kept: 'Kept in this browser and sent only with reports you choose to send.',
       none: 'Nothing sent from this device yet.', why: 'Why: ',
-      introAria: 'About the Report button', introTitle: 'Help make this app better',
-      introBody: 'Use {label} any time to share an idea or tell the team what you would change. A real person reads every report, and you will see what happens to yours right here.',
-      got: 'Got it', tryIt: 'Try it',
-      attachTrail: 'Attach what happened',
-      trailHint: 'Recent pages, clicks and errors in this app. Never what you typed.',
-      seeTrail: 'See it', alsoSent: 'Also sent: ',
-      trail: { page: ['page', 'pages'], click: ['click', 'clicks'], request: ['failed request', 'failed requests'], error: ['error', 'errors'], warn: ['warning', 'warnings'], state: ['device event', 'device events'] },
+      introAria: 'About the Report button', introTitle: 'Spotted something off?', introBody: 'Tell the team here.',
+      got: 'Got it',
       nudgeStuckTitle: 'Stuck on something?', nudgeStuckBody: 'If something here isn’t clear, tell the team. A real person reads it.', nudgeAria: 'Offer to report a problem', nudgeTitle: 'Something not working?', nudgeBody: 'Tell the team what happened. A real person reads it.', nudgeYes: 'Tell the team', nudgeNo: 'Not now',
       fixedIn: 'Fixed in version {v}.', updateTo: 'Update to {v} to get it.',
       sentTo: 'Sent to this app’s team', powered: 'Powered by Heresay',
+      whatsGoing: 'What’s going on?', typeChip: 'Type', tellTeam: 'Tell the team…', sentBar: 'Sent. Replies show under Your reports.', backType: 'Back to choose a type',
     },
     fr: {
       report: 'Signaler', reportAria: 'Signaler un problème',
       update: 'Signaler un problème. {n} de vos signalements ont du nouveau',
-      close: 'Fermer', dialog: 'Signalement',
-      tabNew: 'Signaler', tabMine: 'Vos signalements', tabPrefs: 'Préférences',
-      what: 'De quoi s’agit-il ?', whatHappened: 'Que s’est-il passé ?', ph: 'Que s’est-il passé, ou que changeriez-vous ?',
-      send: 'Envoyer', sending: 'Envoi…',
-      pickType: 'Choisissez le type de signalement.', sayWhat: 'Dites ce qui s’est passé.', cantSend: 'Envoi impossible. Réessayez.',
-      attachedPrefs: 'Cette page, la version de l’app, les détails de l’appareil et vos préférences sont joints.',
-      attached: 'Cette page, la version de l’app et les détails de l’appareil sont joints.',
+      close: 'Fermer', dialog: 'Signalement', back: 'Retour à Signaler',
+      mine: 'Vos signalements', mineAria: 'Vos signalements, {n} avec du nouveau', kindAria: 'De quel type de signalement s’agit-il ?', reportLabel: 'Votre signalement',
+      phNone: 'Qu’avez-vous en tête ?',
+      send: 'Envoyer', sending: 'Envoi…', cantSend: 'Envoi impossible. Réessayez.',
+      sentMsg: 'Envoyé. Vous verrez la réponse dans Vos signalements.', done: 'Terminé',
       types: {
-        broken: ['Cassé', 'Quelque chose ne marche pas'],
-        confusing: ['Déroutant', 'Je ne voyais pas comment faire'],
-        improvement: ['Pourrait être mieux', 'Ça marche, mais ça pourrait être mieux'],
-        idea: ['Idée', 'Quelque chose qui n’existe pas encore'],
+        broken: ['Cassé', 'Que s’est-il passé ?'],
+        confusing: ['Déroutant', 'Que cherchiez-vous à faire ?'],
+        improvement: ['À améliorer', 'Qu’est-ce qui serait mieux ?'],
+        idea: ['Idée', 'Que souhaiteriez-vous ?'],
       },
       status: { open: 'En attente de l’équipe', accepted: 'Accepté, en cours', fixed: 'Corrigé', declined: 'Refusé', withdrawn: 'Vous l’avez retiré' },
       takeBack: 'Retirer', takeBackAsk: 'Retirer ce signalement ? Il n’est pas supprimé : l’équipe voit que vous l’avez retiré.', takeBackWhy: 'Pourquoi ? (facultatif)', takeBackYes: 'Le retirer', keep: 'Le garder', yourWhy: 'Votre raison : ',
-      optional: '(facultatif)', yourName: 'Votre nom', email: 'E-mail',
-      emailHint: 'Seulement si vous acceptez que l’équipe vous réponde.',
-      setup: 'Votre configuration', setupHint: 'Envoyé avec chaque signalement, pour ne le dire qu’une fois.',
-      setupPh: 'Par exemple : j’utilise un lecteur d’écran, ou mon Wi-Fi est souvent lent.',
+      fresh: 'Nouveauté', nameEmail: 'Votre nom et e-mail', nameOpt: 'Nom (facultatif)', emailOpt: 'E-mail (facultatif)',
       signedAs: 'Connecté en tant que {who}', yourAccount: 'votre compte',
-      seesReply: '{email}. L’équipe le voit avec chaque signalement et peut vous répondre.',
-      sees: 'L’équipe le voit avec chaque signalement.',
       badEmail: 'Cette adresse e-mail ne semble pas correcte.', saved: 'Enregistré sur cet appareil.',
-      clear: 'Tout effacer', save: 'Enregistrer',
-      kept: 'Conservé dans ce navigateur, et envoyé seulement avec les signalements que vous envoyez.',
       none: 'Aucun signalement envoyé depuis cet appareil.', why: 'Pourquoi : ',
-      introAria: 'À propos du bouton Signaler', introTitle: 'Aidez à améliorer cette app',
-      introBody: 'Utilisez {label} à tout moment pour partager une idée ou dire à l’équipe ce que vous changeriez. Une vraie personne lit chaque signalement, et vous verrez ici ce qu’il devient.',
-      got: 'Compris', tryIt: 'Essayer',
-      attachTrail: 'Joindre ce qui s’est passé',
-      trailHint: 'Pages, clics et erreurs récents dans cette app. Jamais ce que vous avez saisi.',
-      seeTrail: 'Voir', alsoSent: 'Aussi envoyé : ',
-      trail: { page: ['page', 'pages'], click: ['clic', 'clics'], request: ['requête échouée', 'requêtes échouées'], error: ['erreur', 'erreurs'], warn: ['avertissement', 'avertissements'], state: ['événement de l’appareil', 'événements de l’appareil'] },
+      introAria: 'À propos du bouton Signaler', introTitle: 'Vous avez repéré un souci ?', introBody: 'Dites-le à l’équipe ici.',
+      got: 'Compris',
       nudgeStuckTitle: 'Bloqué quelque part ?', nudgeStuckBody: 'Si quelque chose n’est pas clair ici, dites-le à l’équipe. Une vraie personne le lit.', nudgeAria: 'Proposition de signaler un problème', nudgeTitle: 'Quelque chose ne marche pas ?', nudgeBody: 'Dites à l’équipe ce qui s’est passé. Une vraie personne le lit.', nudgeYes: 'Signaler', nudgeNo: 'Pas maintenant',
       fixedIn: 'Corrigé dans la version {v}.', updateTo: 'Passez à la {v} pour en profiter.',
       sentTo: 'Envoyé à l’équipe de cette app', powered: 'Propulsé par Heresay',
+      whatsGoing: 'Que se passe-t-il ?', typeChip: 'Type', tellTeam: 'Dites-le à l’équipe…', sentBar: 'Envoyé. Les réponses s’affichent dans Vos signalements.', backType: 'Retour au choix du type',
     },
     ta: {
       report: 'தெரிவி', reportAria: 'சிக்கலைத் தெரிவிக்கவும்',
       update: 'சிக்கலைத் தெரிவிக்கவும். உங்கள் {n} புகார்களில் புதிய தகவல் உள்ளது',
-      close: 'மூடு', dialog: 'கருத்து',
-      tabNew: 'தெரிவி', tabMine: 'உங்கள் புகார்கள்', tabPrefs: 'விருப்பங்கள்',
-      what: 'இது என்ன வகை?', whatHappened: 'என்ன நடந்தது?', ph: 'என்ன நடந்தது, அல்லது எதை மாற்ற விரும்புகிறீர்கள்?',
-      send: 'அனுப்பு', sending: 'அனுப்புகிறது…',
-      pickType: 'இது எந்த வகைப் புகார் என்பதைத் தேர்ந்தெடுக்கவும்.', sayWhat: 'என்ன நடந்தது என்று சொல்லுங்கள்.', cantSend: 'அனுப்ப முடியவில்லை. மீண்டும் முயலவும்.',
-      attachedPrefs: 'இந்தப் பக்கம், ஆப் பதிப்பு, சாதன விவரங்கள் மற்றும் உங்கள் விருப்பங்கள் இணைக்கப்படும்.',
-      attached: 'இந்தப் பக்கம், ஆப் பதிப்பு மற்றும் சாதன விவரங்கள் இணைக்கப்படும்.',
+      close: 'மூடு', dialog: 'கருத்து', back: 'தெரிவி பக்கத்துக்குத் திரும்பு',
+      mine: 'உங்கள் புகார்கள்', mineAria: 'உங்கள் புகார்கள், {n} இல் புதிய தகவல் உள்ளது', kindAria: 'இது எந்த வகைப் புகார்?', reportLabel: 'உங்கள் புகார்',
+      phNone: 'உங்கள் மனதில் என்ன இருக்கிறது?',
+      send: 'அனுப்பு', sending: 'அனுப்புகிறது…', cantSend: 'அனுப்ப முடியவில்லை. மீண்டும் முயலவும்.',
+      sentMsg: 'அனுப்பப்பட்டது. பதிலை “உங்கள் புகார்கள்” பகுதியில் பார்க்கலாம்.', done: 'முடிந்தது',
       types: {
-        broken: ['வேலை செய்யவில்லை', 'ஏதோ ஒன்று சரியாக இயங்கவில்லை'],
-        confusing: ['குழப்பமாக உள்ளது', 'எப்படிச் செய்வது என்று புரியவில்லை'],
-        improvement: ['இன்னும் சிறப்பாக்கலாம்', 'வேலை செய்கிறது, ஆனால் மேம்படுத்தலாம்'],
-        idea: ['யோசனை', 'இன்னும் இல்லாத ஒன்று'],
+        broken: ['பழுது', 'என்ன தவறு நடந்தது?'],
+        confusing: ['குழப்பம்', 'என்ன செய்ய முயன்றீர்கள்?'],
+        improvement: ['மேம்படுத்த', 'எப்படி மேம்படுத்தலாம்?'],
+        idea: ['யோசனை', 'உங்களுக்கு என்ன வேண்டும்?'],
       },
       status: { open: 'டெவலப்பருக்காகக் காத்திருக்கிறது', accepted: 'ஏற்கப்பட்டது, வேலை நடக்கிறது', fixed: 'சரிசெய்யப்பட்டது', declined: 'நிராகரிக்கப்பட்டது', withdrawn: 'நீங்கள் திரும்பப் பெற்றீர்கள்' },
       takeBack: 'திரும்பப் பெறு', takeBackAsk: 'இதைத் திரும்பப் பெறவா? இது நீக்கப்படாது: நீங்கள் திரும்பப் பெற்றதைக் குழு பார்க்கும்.', takeBackWhy: 'ஏன்? (விருப்பத்தேர்வு)', takeBackYes: 'திரும்பப் பெறு', keep: 'வைத்திரு', yourWhy: 'உங்கள் காரணம்: ',
-      optional: '(விருப்பத்தேர்வு)', yourName: 'உங்கள் பெயர்', email: 'மின்னஞ்சல்',
-      emailHint: 'குழு உங்களுக்குப் பதில் அனுப்பலாம் என்றால் மட்டும்.',
-      setup: 'உங்கள் அமைப்பு பற்றி', setupHint: 'ஒவ்வொரு புகாருடனும் அனுப்பப்படும், எனவே ஒருமுறை சொன்னால் போதும்.',
-      setupPh: 'உதாரணமாக: நான் ஸ்கிரீன் ரீடர் பயன்படுத்துகிறேன், அல்லது என் Wi-Fi பெரும்பாலும் மெதுவாக இருக்கும்.',
+      fresh: 'புதிய தகவல்', nameEmail: 'உங்கள் பெயர் மற்றும் மின்னஞ்சல்', nameOpt: 'பெயர் (விருப்பத்தேர்வு)', emailOpt: 'மின்னஞ்சல் (விருப்பத்தேர்வு)',
       signedAs: '{who} ஆக உள்நுழைந்துள்ளீர்கள்', yourAccount: 'உங்கள் கணக்கு',
-      seesReply: '{email}. ஒவ்வொரு புகாருடனும் குழு இதைப் பார்க்கும், பதிலும் அனுப்பலாம்.',
-      sees: 'ஒவ்வொரு புகாருடனும் குழு இதைப் பார்க்கும்.',
       badEmail: 'இந்த மின்னஞ்சல் சரியாகத் தெரியவில்லை.', saved: 'இந்தச் சாதனத்தில் சேமிக்கப்பட்டது.',
-      clear: 'அனைத்தையும் அழி', save: 'சேமி',
-      kept: 'இந்த உலாவியில் வைக்கப்படும்; நீங்கள் அனுப்பும் புகார்களுடன் மட்டுமே அனுப்பப்படும்.',
       none: 'இந்தச் சாதனத்திலிருந்து இன்னும் எதுவும் அனுப்பப்படவில்லை.', why: 'காரணம்: ',
-      introAria: 'தெரிவி பொத்தான் பற்றி', introTitle: 'இந்த ஆப்பை இன்னும் சிறப்பாக்க உதவுங்கள்',
-      introBody: 'ஒரு யோசனையைப் பகிர அல்லது நீங்கள் எதை மாற்ற விரும்புகிறீர்கள் என்று குழுவிடம் சொல்ல, எப்போது வேண்டுமானாலும் {label} ஐப் பயன்படுத்துங்கள். ஒவ்வொரு கருத்தையும் ஒருவர் படிக்கிறார்; உங்களுடையதற்கு என்ன ஆனது என்பதை இங்கேயே பார்க்கலாம்.',
-      got: 'சரி', tryIt: 'முயன்று பாருங்கள்',
-      attachTrail: 'என்ன நடந்தது என்பதையும் இணை',
-      trailHint: 'இந்த ஆப்பில் சமீபத்திய பக்கங்கள், கிளிக்குகள், பிழைகள். நீங்கள் தட்டச்சு செய்தது ஒருபோதும் இல்லை.',
-      seeTrail: 'பார்', alsoSent: 'இவையும் அனுப்பப்படும்: ',
-      trail: { page: ['பக்கம்', 'பக்கங்கள்'], click: ['கிளிக்', 'கிளிக்குகள்'], request: ['தோல்வியடைந்த கோரிக்கை', 'தோல்வியடைந்த கோரிக்கைகள்'], error: ['பிழை', 'பிழைகள்'], warn: ['எச்சரிக்கை', 'எச்சரிக்கைகள்'], state: ['சாதன நிகழ்வு', 'சாதன நிகழ்வுகள்'] },
+      introAria: 'தெரிவி பொத்தான் பற்றி', introTitle: 'ஏதாவது சரியில்லையா?', introBody: 'குழுவிடம் இங்கேயே சொல்லுங்கள்.',
+      got: 'சரி',
       nudgeStuckTitle: 'எங்காவது சிக்கிக்கொண்டீர்களா?', nudgeStuckBody: 'இங்கே ஏதாவது புரியவில்லை என்றால், குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.', nudgeAria: 'சிக்கலைத் தெரிவிக்க ஒரு அழைப்பு', nudgeTitle: 'ஏதாவது வேலை செய்யவில்லையா?', nudgeBody: 'என்ன நடந்தது என்று குழுவிடம் சொல்லுங்கள். ஒருவர் அதைப் படிப்பார்.', nudgeYes: 'குழுவிடம் சொல்', nudgeNo: 'இப்போது வேண்டாம்',
       fixedIn: 'பதிப்பு {v} இல் சரிசெய்யப்பட்டது.', updateTo: 'இதைப் பெற {v} க்குப் புதுப்பிக்கவும்.',
       sentTo: 'இந்த ஆப்பின் குழுவுக்கு அனுப்பப்படும்', powered: 'Heresay மூலம் இயங்குகிறது',
+      whatsGoing: 'என்ன நடக்கிறது?', typeChip: 'வகை', tellTeam: 'குழுவிடம் சொல்லுங்கள்…', sentBar: 'அனுப்பப்பட்டது. பதில்கள் “உங்கள் புகார்கள்” பகுதியில் தெரியும்.', backType: 'வகையைத் தேர்வுசெய்ய திரும்பு',
     },
     hi: {
       report: 'रिपोर्ट करें', reportAria: 'समस्या की रिपोर्ट करें',
       update: 'समस्या की रिपोर्ट करें। आपकी {n} रिपोर्ट में नई जानकारी है',
-      close: 'बंद करें', dialog: 'फ़ीडबैक',
-      tabNew: 'रिपोर्ट', tabMine: 'आपकी रिपोर्ट', tabPrefs: 'प्राथमिकताएँ',
-      what: 'यह क्या है?', whatHappened: 'क्या हुआ?', ph: 'क्या हुआ, या आप क्या बदलना चाहेंगे?',
-      send: 'भेजें', sending: 'भेजा जा रहा है…',
-      pickType: 'चुनें कि यह किस तरह की रिपोर्ट है।', sayWhat: 'बताइए क्या हुआ।', cantSend: 'भेजा नहीं जा सका। फिर से कोशिश करें।',
-      attachedPrefs: 'यह पेज, ऐप का वर्शन, डिवाइस की जानकारी और आपकी प्राथमिकताएँ साथ भेजी जाती हैं।',
-      attached: 'यह पेज, ऐप का वर्शन और डिवाइस की जानकारी साथ भेजी जाती है।',
+      close: 'बंद करें', dialog: 'फ़ीडबैक', back: 'रिपोर्ट पर वापस जाएँ',
+      mine: 'आपकी रिपोर्ट', mineAria: 'आपकी रिपोर्ट, {n} में नई जानकारी है', kindAria: 'यह किस तरह की रिपोर्ट है?', reportLabel: 'आपकी रिपोर्ट',
+      phNone: 'आपके मन में क्या है?',
+      send: 'भेजें', sending: 'भेजा जा रहा है…', cantSend: 'भेजा नहीं जा सका। फिर से कोशिश करें।',
+      sentMsg: 'भेज दिया गया। जवाब आपको “आपकी रिपोर्ट” में दिखेगा।', done: 'हो गया',
       types: {
-        broken: ['टूटा हुआ', 'कुछ काम नहीं कर रहा'],
-        confusing: ['उलझन भरा', 'समझ नहीं आया कि कैसे करें'],
-        improvement: ['बेहतर हो सकता है', 'काम करता है, पर बेहतर हो सकता है'],
-        idea: ['सुझाव', 'कुछ ऐसा जो अभी नहीं है'],
+        broken: ['टूटा हुआ', 'क्या गड़बड़ हुई?'],
+        confusing: ['उलझन', 'आप क्या करने की कोशिश कर रहे थे?'],
+        improvement: ['बेहतर हो', 'क्या बेहतर हो सकता है?'],
+        idea: ['सुझाव', 'आप क्या चाहेंगे?'],
       },
       status: { open: 'डेवलपर का इंतज़ार', accepted: 'स्वीकार, इस पर काम चल रहा है', fixed: 'ठीक हो गया', declined: 'अस्वीकार', withdrawn: 'आपने इसे वापस ले लिया' },
       takeBack: 'वापस लें', takeBackAsk: 'इसे वापस लें? यह हटाया नहीं जाएगा: टीम देखेगी कि आपने इसे वापस लिया।', takeBackWhy: 'क्यों? (वैकल्पिक)', takeBackYes: 'वापस लें', keep: 'रहने दें', yourWhy: 'आपकी वजह: ',
-      optional: '(वैकल्पिक)', yourName: 'आपका नाम', email: 'ईमेल',
-      emailHint: 'सिर्फ़ तब, जब आप चाहते हैं कि टीम आपको जवाब दे।',
-      setup: 'आपके सेटअप के बारे में', setupHint: 'हर रिपोर्ट के साथ भेजा जाता है, ताकि आपको एक ही बार बताना पड़े।',
-      setupPh: 'जैसे: स्क्रीन रीडर के साथ इस्तेमाल, या अक्सर धीमा Wi-Fi।',
+      fresh: 'नई जानकारी', nameEmail: 'आपका नाम और ईमेल', nameOpt: 'नाम (वैकल्पिक)', emailOpt: 'ईमेल (वैकल्पिक)',
       signedAs: '{who} के रूप में साइन इन', yourAccount: 'आपका खाता',
-      seesReply: '{email}. टीम हर रिपोर्ट के साथ इसे देखती है और जवाब दे सकती है।',
-      sees: 'टीम हर रिपोर्ट के साथ इसे देखती है।',
       badEmail: 'यह ईमेल सही नहीं लग रहा।', saved: 'इस डिवाइस पर सेव हो गया।',
-      clear: 'सब हटाएँ', save: 'सेव करें',
-      kept: 'इसी ब्राउज़र में रखा जाता है, और सिर्फ़ आपकी भेजी रिपोर्ट के साथ जाता है।',
       none: 'इस डिवाइस से अभी तक कुछ नहीं भेजा गया।', why: 'वजह: ',
-      introAria: 'रिपोर्ट बटन के बारे में', introTitle: 'इस ऐप को और बेहतर बनाने में मदद करें',
-      introBody: 'कोई आइडिया बताने या टीम को यह बताने के लिए कि आप क्या बदलना चाहेंगे, कभी भी {label} का इस्तेमाल करें। हर रिपोर्ट कोई इंसान पढ़ता है, और आपकी रिपोर्ट का क्या हुआ, यह आप यहीं देखेंगे।',
-      got: 'ठीक है', tryIt: 'आज़माएँ',
-      attachTrail: 'क्या हुआ, वह भी भेजें',
-      trailHint: 'इस ऐप में हाल के पेज, क्लिक और त्रुटियाँ। आपने जो टाइप किया, वह कभी नहीं।',
-      seeTrail: 'देखें', alsoSent: 'यह भी भेजा जाता है: ',
-      trail: { page: ['पेज', 'पेज'], click: ['क्लिक', 'क्लिक'], request: ['विफल अनुरोध', 'विफल अनुरोध'], error: ['त्रुटि', 'त्रुटियाँ'], warn: ['चेतावनी', 'चेतावनियाँ'], state: ['डिवाइस घटना', 'डिवाइस घटनाएँ'] },
+      introAria: 'रिपोर्ट बटन के बारे में', introTitle: 'कुछ गड़बड़ दिखी?', introBody: 'टीम को यहीं बताइए।',
+      got: 'ठीक है',
       nudgeStuckTitle: 'कहीं अटक गए?', nudgeStuckBody: 'अगर यहाँ कुछ साफ़ नहीं है, तो टीम को बताइए। इसे कोई इंसान पढ़ता है।', nudgeAria: 'समस्या बताने का सुझाव', nudgeTitle: 'कुछ काम नहीं कर रहा?', nudgeBody: 'टीम को बताइए क्या हुआ। इसे कोई इंसान पढ़ता है।', nudgeYes: 'टीम को बताएँ', nudgeNo: 'अभी नहीं',
       fixedIn: 'वर्शन {v} में ठीक किया गया।', updateTo: 'इसे पाने के लिए {v} पर अपडेट करें।',
       sentTo: 'इस ऐप की टीम को भेजा जाता है', powered: 'Heresay द्वारा संचालित',
+      whatsGoing: 'क्या हो रहा है?', typeChip: 'प्रकार', tellTeam: 'टीम को बताइए…', sentBar: 'भेज दिया गया। जवाब “आपकी रिपोर्ट” में दिखेंगे।', backType: 'प्रकार चुनने पर वापस जाएँ',
     },
   };
   /** The page's own language by default, so the widget speaks like the app around it. */
@@ -259,12 +213,18 @@
 
   // ---- the developer's choices -----------------------------------------------------------
 
-  /** Where the button sits is the developer's choice (data-position), not the reporter's. */
+  /**
+   * Where the button sits is the developer's choice (data-position), not the reporter's:
+   * bottom-right (default) | bottom-left | top-right | top-left | bottom-center
+   * | left-tab | right-tab (a tab on the side edge) | none (no button; call Heresay.open()).
+   * The older right, left and center still work. An explicit data-style or data-button wins.
+   */
+  var POSITION = attr('position').toLowerCase().trim();
   var POS = ({
     left: ['l', 'b'], 'bottom-left': ['l', 'b'], 'top-right': ['r', 't'], 'top-left': ['l', 't'],
-    center: ['c', 'b'], 'bottom-center': ['c', 'b'],
-  })[attr('position').toLowerCase()] || ['r', 'b'];
-  var STYLE = pick('style', ['pill', 'icon', 'tab'], 'pill');
+    center: ['c', 'b'], 'bottom-center': ['c', 'b'], 'left-tab': ['l', 'b'], 'right-tab': ['r', 'b'],
+  })[POSITION] || ['r', 'b'];
+  var STYLE = pick('style', ['pill', 'icon', 'tab'], POSITION === 'left-tab' || POSITION === 'right-tab' ? 'tab' : 'pill');
   if (STYLE === 'tab' && POS[0] === 'c') POS = ['r', 'b'];
   var LEFT = POS[0] === 'l';
   var OFFSET = (function () {
@@ -272,20 +232,22 @@
     var clamp = function (n) { return Math.min(400, +n); };
     return m ? [clamp(m[1]), clamp(m[2] != null ? m[2] : m[1])] : [20, 20];
   })();
-  var BUTTON = pick('button', ['always', 'none', 'desktop', 'scroll'], 'always');
+  var BUTTON = pick('button', ['always', 'none', 'desktop', 'scroll'], POSITION === 'none' ? 'none' : 'always');
   var SIZE = pick('size', ['regular', 'small', 'large'], 'regular');
   var LABEL = words(attr('label'), 40) || S.report;
   var HIDE_ON = attr('hide-on').split(',').map(function (p) { return p.trim().replace(/\/+$/, ''); })
     .filter(function (p) { return p.charAt(0) === '/'; });
+  var LAYOUT = pick('layout', ['composer', 'steps', 'bar'], 'composer');
   var PANEL = pick('panel', ['corner', 'sheet', 'center'], 'corner');
-  var WIDTH = ({ narrow: 320, wide: 460 })[attr('width').toLowerCase()] || 380;
+  var WIDTH = ({ narrow: 320, wide: 460 })[attr('width').toLowerCase()] || 360;
   var BACKDROP = pick('backdrop', ['dim', 'clear', 'blur'], 'dim');
-  var PREFS_TAB = pick('preferences', ['show', 'hide'], 'show') === 'show';
-  var PLACEHOLDER = words(attr('placeholder'), 120) || S.ph;
+  var PREFS_ROW = pick('preferences', ['show', 'hide'], 'show') === 'show';
+  // data-placeholder, if set, replaces the line that follows the type.
+  var PLACEHOLDER = words(attr('placeholder'), 120);
   var THANKS = words(attr('thanks'), 160);
 
   var TYPES = ['broken', 'confusing', 'improvement', 'idea'].map(function (id) {
-    return { id: id, label: S.types[id][0], hint: S.types[id][1] };
+    return { id: id, label: S.types[id][0], ph: S.types[id][1] };
   });
   /** The types the reporter can pick. Names and priorities never change; a developer can only leave some out. */
   var OFFERED = (function () {
@@ -304,9 +266,6 @@
     draft: '',
     justSent: false,
     reports: [],
-    // The reporter's say over the trail: all of it off, or some kinds left out.
-    trailOff: false,
-    trailSkip: {},
   };
   var listeners = [];
 
@@ -368,8 +327,8 @@
   function reporter() {
     var p = prefs();
     var mine = !identified();
-    var r = { name: mine && p.name || null, email: mine && p.email || null, note: p.note || null };
-    return r.name || r.email || r.note ? r : null;
+    var r = { name: mine && p.name || null, email: mine && p.email || null };
+    return r.name || r.email ? r : null;
   }
 
   // ---- context ---------------------------------------------------------------------------
@@ -471,7 +430,8 @@
   /**
    * What happened in the app before a report: pages, clicks, requests that failed, errors. Kept
    * on this device only, in memory and this tab's sessionStorage (the newest 50, for 5 minutes),
-   * and sent only with a report, only if the reporter leaves "Attach what happened" on. Never what anyone typed, never request
+   * and sent with every report; the reporter is not shown it, and the developer controls it (data-trail,
+   * data-heresay-private). Never what anyone typed, never request
    * or response bodies or headers, never query strings. Nothing is recorded inside the widget.
    */
   var TRAIL_PARTS = { pages: 'page', clicks: 'click', requests: 'request', errors: 'error' };
@@ -570,11 +530,10 @@
     var cut = Date.now() - TRAIL_AGE;
     return trail.filter(function (e) { return e.at >= cut; });
   }
-  /** What goes with the report: the kinds the reporter kept, ages in seconds before now. */
+  /** What goes with the report: ages in seconds before now. */
   function trailToSend() {
-    if (state.trailOff) return null;
     var now = Date.now();
-    var t = recentTrail().filter(function (e) { return !state.trailSkip[e.kind]; }).map(function (e) {
+    var t = recentTrail().map(function (e) {
       return { kind: e.kind, ago: Math.round((now - e.at) / 1000), text: e.text, detail: e.detail, n: e.n };
     });
     return t.length ? t : null;
@@ -1077,12 +1036,12 @@
 
   // ---- ui --------------------------------------------------------------------------------
 
-  var DARK = '--fb-bg:#16181d;--fb-fg:#eceef1;--fb-mute:#9aa1ad;--fb-line:#2c313a;--fb-acc:#2dd4bf;--fb-acc-fg:#0b1f1d;--fb-bad:#f2b8b5;--fb-mark:#2dd4bf';
+  var DARK = '--fb-bg:#16181d;--fb-fg:#eceef1;--fb-mute:#9aa1ad;--fb-line:#2c313a;--fb-acc:#2dd4bf;--fb-acc-fg:#0b1f1d;--fb-bad:#f2b8b5;--fb-mark:#2dd4bf;--fb-soft:#22262d;--fb-on:#343a45;--fb-ph:#7d8591;--fb-ring:rgba(255,255,255,.1)';
   var THEME = pick('theme', ['auto', 'light', 'dark'], 'auto');
   var FAB_H = { small: 40, regular: 48, large: 58 }[SIZE];
 
   var CSS = [
-    ':host{all:initial;--fb-bg:#fff;--fb-fg:#15171c;--fb-mute:#5b6472;--fb-line:#e3e6ea;--fb-acc:#0f766e;--fb-acc-fg:#fff;--fb-bad:#b42318;--fb-mark:#0b5e57;--fb-eye:#fff;',
+    ':host{all:initial;--fb-bg:#fff;--fb-fg:#15171c;--fb-mute:#5b6472;--fb-line:#e3e6ea;--fb-acc:#0f766e;--fb-acc-fg:#fff;--fb-bad:#b42318;--fb-mark:#0b5e57;--fb-eye:#fff;--fb-soft:#f4f5f6;--fb-on:#fff;--fb-pick:var(--fb-acc);--fb-ph:#78818e;--fb-ring:rgba(16,24,40,.06);--fb-dot:#14b8a6;',
     '--fb-x:' + OFFSET[0] + 'px;--fb-y:' + OFFSET[1] + 'px;--fb-h:' + FAB_H + 'px;--fb-w:' + WIDTH + 'px;',
     'font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--fb-fg)}',
     THEME === 'dark' ? ':host{' + DARK + '}' : THEME === 'light' ? '' : '@media (prefers-color-scheme:dark){:host{' + DARK + '}}',
@@ -1110,7 +1069,7 @@
 
     // the introduction
     '.intro{position:fixed;z-index:2147483000;width:min(300px,calc(100vw - 40px));padding:14px 16px;',
-    'background:var(--fb-bg);border:1px solid var(--fb-line);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.22);animation:fb-in .25s ease-out}',
+    'background:var(--fb-bg);border:1px solid var(--fb-line);border-radius:16px;box-shadow:0 12px 40px rgba(16,24,40,.22);animation:fb-in .25s ease-out}',
     '.intro.r{right:var(--fb-x)}.intro.l{left:var(--fb-x)}.intro.c{left:50%;margin-left:min(-150px,calc(20px - 50vw))}',
     '.intro.b{bottom:calc(var(--fb-y) + var(--fb-h) + 8px)}.intro.t{top:calc(var(--fb-y) + var(--fb-h) + 8px)}',
     '.intro:after{content:"";position:absolute;bottom:-7px;right:36px;width:12px;height:12px;background:var(--fb-bg);',
@@ -1121,7 +1080,7 @@
     '.intro b{display:block;margin-bottom:4px;font-weight:700}',
     '.intro p{margin:0 0 12px;color:var(--fb-mute);font-size:13px}',
     '.intro .row{margin-top:0;justify-content:flex-end}',
-    '.intro .by{margin-top:12px;padding-top:8px}',
+    '.intro .foot{margin-top:12px;padding:8px 0 0;border-top:1px solid var(--fb-line);text-align:left}',
     '@keyframes fb-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}',
     '@media (prefers-reduced-motion:reduce){.intro{animation:none}}',
     // offering help: the introduction's bubble; with no button to point at, it sits in its place
@@ -1130,82 +1089,117 @@
     '.dot{width:8px;height:8px;border-radius:50%;background:var(--fb-acc)}',
 
     // the panel
-    '.scrim{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:flex-end;padding:16px}',
+    '.scrim{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:flex-end;padding:var(--fb-pad,16px)}',
     '.scrim.l{justify-content:flex-start}.scrim.c{justify-content:center}.scrim.t{align-items:flex-start}.scrim.side{align-items:center}',
-    '.scrim.center{align-items:center;justify-content:center}',
+    '.scrim.center{align-items:center;justify-content:center;padding:16px}',
     '.scrim.sheet{padding:0;align-items:stretch}',
+    '.panel{animation:fb-rise .2s ease-out}.scrim.t .panel{animation-name:fb-drop}.scrim.center .panel,.scrim.side .panel{animation-name:fb-fade}',
+    '@keyframes fb-rise{from{opacity:0;transform:translateY(8px)}}@keyframes fb-drop{from{opacity:0;transform:translateY(-8px)}}',
     '.scrim.clear{background:none}',
     '.scrim.blur{background:rgba(0,0,0,.18);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}',
-    '.panel{width:min(var(--fb-w),100%);max-height:min(600px,calc(100vh - 32px));overflow:auto;background:var(--fb-bg);',
-    'border:1px solid var(--fb-line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.3);padding:16px;display:flex;flex-direction:column}',
-    '.sheet .panel{max-height:none;height:100%;border-radius:0;border-width:0 0 0 1px}',
-    '.sheet.l .panel{border-width:0 1px 0 0}',
-    '.main{flex:1}',
-    '.head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}',
-    '.tabs{display:flex;gap:4px;flex-wrap:wrap}',
-    '.tab{border:0;background:none;padding:6px 10px;border-radius:8px;cursor:pointer;color:var(--fb-mute);font-weight:600}',
-    '.tab[aria-selected=true]{background:var(--fb-line);color:var(--fb-fg)}',
-    '.x{border:0;background:none;cursor:pointer;font-size:20px;line-height:1;padding:4px 8px;color:var(--fb-mute)}',
-    'fieldset{border:0;padding:0;margin:0 0 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}',
-    'legend{margin-bottom:8px;font-weight:600}',
-    '.type{text-align:left;padding:10px;border:1px solid var(--fb-line);border-radius:10px;background:none;cursor:pointer}',
-    '.type b{display:block;font-weight:600}',
-    '.type span{display:block;font-size:12px;color:var(--fb-mute)}',
-    '.type[aria-pressed=true]{border-color:var(--fb-acc);box-shadow:inset 0 0 0 1px var(--fb-acc)}',
-    'textarea{width:100%;min-height:96px;resize:vertical;padding:10px;border:1px solid var(--fb-line);border-radius:10px;background:none}',
-    'input[type=text],input[type=email]{width:100%;padding:9px 10px;border:1px solid var(--fb-line);border-radius:10px;background:none}',
-    'textarea:focus,input:focus,.type:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--fb-acc);outline-offset:1px}',
-    '.field{display:block;margin:0 0 12px}',
-    '.field>span{display:block;font-weight:600;margin-bottom:4px}',
-    '.field>span i{font-style:normal;font-weight:400;color:var(--fb-mute)}',
-    '.field textarea{min-height:64px}',
-    '.hint{display:block;font-size:12px;color:var(--fb-mute);margin-top:4px}',
-    '.who{display:flex;gap:10px;align-items:center;padding:10px 12px;margin:0 0 12px;border-radius:10px;background:var(--fb-line)}',
-    '.who b{display:block}',
-    '.avatar{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--fb-acc);color:var(--fb-acc-fg);font-weight:700;font-size:13px}',
-    '.link{border:0;background:none;padding:0;cursor:pointer;color:var(--fb-mute);text-decoration:underline;font-size:12px}',
-    '.row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px}',
-    '.small{font-size:12px;color:var(--fb-mute)}',
-    '.send{padding:9px 16px;border:0;border-radius:10px;background:var(--fb-acc);color:var(--fb-acc-fg);font-weight:600;cursor:pointer}',
-    '.send[disabled]{opacity:.5;cursor:default}',
-    '.send.busy{opacity:1;display:inline-flex;align-items:center;gap:7px}.send .mark{color:var(--fb-acc-fg)}.send .mark svg{width:20px;height:20px}.send .eye{fill:var(--fb-acc)}',
+    '.panel{width:min(var(--fb-w),100%);max-height:min(600px,calc(100vh - 32px));display:flex;flex-direction:column;overflow:hidden;background:var(--fb-bg);',
+    'border-radius:16px;box-shadow:0 12px 40px rgba(16,24,40,.16),0 0 0 1px var(--fb-ring)}',
+    '.sheet .panel{max-height:none;height:100%;border-radius:0}',
+    '.grab{display:none;flex:none;height:22px}.grab i{display:block;width:40px;height:5px;border-radius:3px;background:var(--fb-line);margin:10px auto 0}',
+    '@media (max-width:599px){.scrim.corner{padding:0!important;align-items:flex-end}.scrim.corner .panel{width:100%;max-height:92%;border-radius:22px 22px 0 0;animation-name:fb-sheet}.scrim.corner .grab{display:block}.scrim.sheet .panel{width:100%}}',
+    '@keyframes fb-sheet{from{transform:translateY(40px)}}',
+    '.view{display:flex;flex-direction:column;min-height:0;animation:fb-fade .16s}@keyframes fb-fade{from{opacity:0}}',
+    '.hd{display:flex;align-items:center;flex:none;gap:8px;padding:14px 12px 8px 18px;min-height:56px}.hd.back{padding-left:8px}',
+    '.hd h2{margin:0;font-size:16px;font-weight:650}.hd .mark svg{width:24px;height:24px}.sp{flex:1}',
+    '.ib{flex:none;width:32px;height:32px;border:0;padding:0;border-radius:10px;display:grid;place-items:center;background:none;color:var(--fb-mute);cursor:pointer}',
+    '.ib:hover,.quiet:hover{background:var(--fb-soft)}',
+    '.quiet{display:flex;align-items:center;gap:6px;border:0;background:none;font-size:13px;font-weight:550;color:var(--fb-mute);padding:6px 9px;border-radius:9px;cursor:pointer}',
+    '.ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;display:block}',
+    '.udot{width:7px;height:7px;border-radius:50%;background:var(--fb-dot);flex:none}',
+    'form.pad{padding:4px 18px;min-height:0;overflow-y:auto}',
+    '.seg{display:flex;gap:2px;padding:3px;background:var(--fb-soft);border-radius:12px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none}.seg::-webkit-scrollbar{display:none}',
+    '.seg button{flex:1 0 auto;white-space:nowrap;border:0;background:none;cursor:pointer;font-size:13px;font-weight:550;color:var(--fb-mute);padding:8px 9px;border-radius:9px}',
+    '.seg button[aria-checked=true]{background:var(--fb-on);color:var(--fb-pick);font-weight:650;box-shadow:0 1px 3px rgba(16,24,40,.14)}',
+    '@media (max-width:440px){.seg button{padding:8px 6px;font-size:12.5px}}',
+    'textarea{display:block;width:100%;min-height:112px;resize:none;border:1px solid var(--fb-line);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.45;background:none}',
+    'textarea::placeholder,input::placeholder{color:var(--fb-ph);opacity:1}',
+    'textarea:focus,input:focus{outline:0;border-color:var(--fb-acc);box-shadow:0 0 0 3px rgba(15,118,110,.14);box-shadow:0 0 0 3px color-mix(in srgb,var(--fb-acc) 16%,transparent)}',
+    '.panel:focus{outline:0}',
+    'button:focus:not(:focus-visible){outline:0}',
+    'button:focus-visible,a:focus-visible{outline:2px solid var(--fb-acc);outline-offset:2px}',
+    '.seg button:focus-visible{outline-offset:-2px}',
+    '.send{display:grid;place-items:center;width:100%;height:46px;margin-top:12px;border:0;border-radius:12px;background:var(--fb-acc);color:var(--fb-acc-fg);font-weight:600;font-size:15px;cursor:pointer}',
+    '.send:disabled{background:var(--fb-soft);color:var(--fb-ph);cursor:not-allowed}',
+    '.send.busy{display:flex;align-items:center;justify-content:center;gap:7px;background:var(--fb-acc);color:var(--fb-acc-fg);cursor:default}',
+    '.send .mark{color:var(--fb-acc-fg)}.send .mark svg{width:20px;height:20px}.send .eye{fill:var(--fb-acc)}',
+    '.send.sm{display:inline-block;width:auto;height:auto;margin:0;padding:8px 14px;font-size:13px;border-radius:10px}',
     // The loader: the mark's eyes look left, look right, blink (brand/svg/loaders/heresay-loader-glance.svg, faster).
     '.glance svg *{transform-box:view-box}.glance .eyes{animation:fb-look 1.6s ease-in-out infinite}.glance .e{animation:fb-blink 1.6s infinite}',
     '@keyframes fb-look{0%,10%{transform:none}25%,40%{transform:translate(-9px,1px)}55%,70%{transform:translate(9px,-1px)}85%,100%{transform:none}}',
     '@keyframes fb-blink{0%,88%,96%,100%{transform:none}92%{transform:scaleY(.1)}}',
-    '@media (prefers-reduced-motion:reduce){.glance .eyes,.glance .e{animation:none}}',
-    '.err{color:var(--fb-bad);font-size:13px;margin-top:8px}',
-    // the trail
-    '.trail{margin-top:10px}',
-    '.switch{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600}',
-    '.switch input{appearance:none;-webkit-appearance:none;margin:0;flex:none;width:30px;height:18px;border-radius:999px;background:var(--fb-line);position:relative;cursor:pointer;transition:background .15s}',
-    '.switch input:after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}',
-    '.switch input:checked{background:var(--fb-acc)}.switch input:checked:after{left:14px}',
-    '.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}',
-    '.chip{border:1px solid var(--fb-line);background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--fb-mute);text-decoration:line-through}',
-    '.chip[aria-pressed=true]{border-color:var(--fb-acc);color:var(--fb-fg);text-decoration:none}',
-    '.trail.off .chips,.trail.off details{display:none}',
-    '.trail summary{cursor:pointer;font-size:12px;color:var(--fb-mute)}',
-    '.trail details .small{margin:6px 0}',
-    '.tlist{list-style:none;margin:0;padding:0;max-height:140px;overflow:auto;font-size:12px}',
-    '.tlist li{display:flex;gap:8px;padding:2px 0;word-break:break-word}.tlist li.skip{opacity:.4;text-decoration:line-through}',
-    '.tlist .ago{flex:none;color:var(--fb-mute);font-variant-numeric:tabular-nums}',
-    '@media (prefers-reduced-motion:reduce){.switch input,.switch input:after{transition:none}}',
-    '.thanks{padding:10px 12px;margin:0 0 8px;border-radius:10px;background:var(--fb-line)}',
-    '.item{border-top:1px solid var(--fb-line);padding:10px 0}',
-    '.item:first-child{border-top:0}',
-    '.take-back{margin-top:6px}.take-back input{width:100%;padding:7px 9px;border:1px solid var(--fb-line);border-radius:8px;background:none;margin:4px 0}',
-    '.take-back .row{margin-top:4px;justify-content:flex-end}',
-    '.status{font-size:12px;font-weight:600}',
-    '.status.fixed,.status.accepted{color:var(--fb-fg)}',
-    '.reason{margin-top:4px;padding:8px;border-radius:8px;background:var(--fb-line);font-size:13px}',
-    '.text{margin:2px 0;white-space:pre-wrap;word-break:break-word}',
-    '.empty{color:var(--fb-mute);padding:12px 0}',
-    // Always shown: people should be able to tell this is an outside tool, and who reads it.
-    '.by{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:14px;padding-top:10px;',
-    'border-top:1px solid var(--fb-line);font-size:11.5px;color:var(--fb-mute)}',
-    '.by a{display:inline-flex;align-items:center;gap:4px;margin-left:auto;color:inherit;text-decoration:none;font-weight:600;white-space:nowrap}',
-    '.by a:hover{text-decoration:underline}.by .mark svg{width:16px;height:16px}',
+    '.err{color:var(--fb-bad);font-size:13px;margin-top:8px}.err:empty{display:none}',
+    '.foot{flex:none;text-align:center;font-size:12px;color:var(--fb-mute);padding:12px 18px 14px}',
+    '.foot a{color:inherit;text-decoration:none;font-weight:600}.foot a:hover{text-decoration:underline}',
+    // sent
+    '.sent{align-items:center;text-align:center;padding:10px 28px 6px}',
+    '.chk{width:68px;height:68px;border-radius:50%;background:var(--fb-acc);display:grid;place-items:center;animation:fb-pop .35s cubic-bezier(.2,1.3,.4,1) both}',
+    '.chk svg{width:36px;height:36px;fill:none;stroke:var(--fb-acc-fg);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}',
+    '.chk path{stroke-dasharray:30;stroke-dashoffset:30;animation:fb-draw .3s .22s forwards}',
+    '@keyframes fb-pop{from{transform:scale(.6);opacity:0}}@keyframes fb-draw{to{stroke-dashoffset:0}}',
+    '.sent p{margin:18px 0 0;font-size:17px;font-weight:550;max-width:250px}',
+    '.sent p.thanks{margin-top:8px;font-size:14px;font-weight:400;color:var(--fb-mute)}',
+    '.sent .send{margin:20px 0 0}',
+    // your reports
+    '.cards{display:grid;gap:10px;padding:6px 18px;overflow-y:auto;min-height:0;align-content:start}',
+    '.card{border:1px solid var(--fb-line);border-radius:14px;padding:13px 14px}',
+    '.top{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fb-mute);margin-bottom:6px}.top b{color:var(--fb-fg)}.top .udot{margin-left:auto}',
+    '.card .t{margin:0;font-size:14px;white-space:pre-wrap;word-break:break-word}',
+    '.chip{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-size:12px;font-weight:600;padding:4px 9px 4px 7px;border-radius:999px;background:var(--fb-soft);color:var(--fb-mute)}',
+    '.chip .ic{width:13px;height:13px}.chip.fx{background:rgba(15,118,110,.1);background:color-mix(in srgb,var(--fb-acc) 12%,transparent);color:var(--fb-pick)}',
+    '.n2{margin:8px 0 0;font-size:13px;color:var(--fb-mute)}.n2 b{color:var(--fb-fg)}',
+    '.empty{color:var(--fb-mute);padding:12px 2px}',
+    '.take-back{margin-top:8px}.take-back input{width:100%;height:36px;padding:0 10px;border:1px solid var(--fb-line);border-radius:10px;background:none;margin:4px 0}',
+    '.take-back .row{margin-top:4px}',
+    '.link{border:0;background:none;padding:0;cursor:pointer;color:var(--fb-mute);text-decoration:underline;font-size:12px}',
+    '.row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px}',
+    '.small{font-size:12px;color:var(--fb-mute);margin:0}',
+    '.prefs{flex:none;margin:8px 18px 0;border-top:1px solid var(--fb-line)}',
+    '.prefs>button{display:flex;align-items:center;width:100%;border:0;background:none;cursor:pointer;padding:12px 2px;font-size:13px;font-weight:550;color:var(--fb-mute)}',
+    '.prefs>button .ic{width:15px;height:15px;margin-left:auto;transition:transform .2s}.prefs>button[aria-expanded=true] .ic{transform:rotate(180deg)}',
+    '.prefs>.signed{padding:12px 2px;font-size:13px;font-weight:550;color:var(--fb-mute)}',
+    '.pb{padding-bottom:4px}',
+    '.pb label{display:block;font-size:12px;color:var(--fb-mute);margin:0 0 4px 2px}',
+    '.pb input{display:block;width:100%;height:40px;border:1px solid var(--fb-line);border-radius:10px;padding:0 12px;margin-bottom:10px;background:none}',
+    '.pb .err{margin:-4px 0 8px}.pb .small{margin:-4px 0 8px 2px}',
+    // layout: steps (what's going on? rows, then the text)
+    '.ibd{position:relative}.ibd .udot{position:absolute;top:3px;right:3px;width:9px;height:9px;box-shadow:0 0 0 2px var(--fb-bg)}',
+    '.hd h2.q{font-size:17px}',
+    '.rows{list-style:none;margin:0;padding:4px 18px 2px;display:grid;gap:10px;overflow-y:auto;min-height:0}',
+    '.pick{display:flex;align-items:center;gap:14px;width:100%;padding:9px 14px 9px 9px;border:1px solid var(--fb-line);border-radius:16px;background:none;cursor:pointer;font-size:16px;font-weight:600;text-align:left}',
+    '@media (hover:hover){.pick:hover{background:var(--fb-soft)}}',
+    '.pick .tile{flex:none;width:42px;height:42px;border-radius:12px;background:var(--fb-soft);display:grid;place-items:center}',
+    '.pick .tile .ic{width:22px;height:22px}.pick .nm{flex:1;min-width:0}.pick .chev{color:var(--fb-mute);display:flex}.pick .chev .ic{width:18px;height:18px}',
+    '.tpill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px 6px 9px;border-radius:999px;background:var(--fb-soft);font-size:13px;font-weight:650}.tpill .ic{width:16px;height:16px}',
+    'form.big textarea{min-height:132px}',
+    // layout: bar (a compact composer beside the button; a docked bar on phones)
+    '.scrim.bar{background:none;pointer-events:none;inset:0 0 var(--fb-kb,0px) 0}.scrim.bar>*{pointer-events:auto}',
+    '.barbox{position:relative;width:min(var(--fb-w),100%);background:var(--fb-bg);border-radius:22px;padding:8px 8px 4px;box-shadow:0 12px 40px rgba(16,24,40,.18),0 0 0 1px var(--fb-ring);animation:fb-rise .2s ease-out}',
+    '.barbox:focus{outline:0}.scrim.t .barbox{animation-name:fb-drop}',
+    '.bin{display:flex;align-items:flex-end;gap:8px;margin:0}',
+    '.tchip{display:flex;align-items:center;gap:6px;flex:none;max-width:52%;height:40px;padding:0 9px 0 12px;border:0;border-radius:14px;background:var(--fb-soft);font-size:14px;font-weight:650;cursor:pointer;white-space:nowrap}',
+    '.tchip span{overflow:hidden;text-overflow:ellipsis}.tchip .ic{width:16px;height:16px;flex:none}.tchip .caret{color:var(--fb-mute)}',
+    '.bin textarea{flex:1;min-width:0;height:40px;min-height:40px;max-height:120px;border:0;border-radius:0;padding:9px 2px;font-size:15px;line-height:22px;overflow-y:auto}',
+    '.bin textarea:focus{box-shadow:none;border:0}',
+    '.bsend{flex:none;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:var(--fb-acc);color:var(--fb-acc-fg);cursor:pointer}',
+    '.bsend:disabled{background:var(--fb-soft);color:var(--fb-ph);cursor:not-allowed}.bsend.busy{cursor:default}.bsend .ic{width:20px;height:20px;stroke-width:2.2}',
+    '.bsend .mark{color:var(--fb-acc-fg)}.bsend .mark svg{width:22px;height:22px}.bsend .eye{fill:var(--fb-acc)}',
+    '.bmeta{display:flex;align-items:center;gap:4px;padding:2px 0 0}.bmeta .ib{width:32px;height:32px}.bmeta .foot2{font-size:12px;color:var(--fb-mute);padding-right:4px}',
+    '.bmeta .foot2 a{color:inherit;text-decoration:none;font-weight:600}.bmeta .foot2 a:hover{text-decoration:underline}',
+    '.barbox .err{margin:2px 4px 0}',
+    '.bmenu{position:absolute;left:0;bottom:calc(100% + 8px);min-width:210px;max-width:100%;padding:6px;background:var(--fb-bg);border-radius:18px;box-shadow:0 12px 40px rgba(16,24,40,.18),0 0 0 1px var(--fb-ring);animation:fb-fade .12s}',
+    '.scrim.t .bmenu{bottom:auto;top:calc(100% + 8px)}',
+    '.bmenu button{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;padding:10px 12px;border-radius:12px;font-size:15px;font-weight:550;text-align:left;cursor:pointer}',
+    '@media (hover:hover){.bmenu button:hover{background:var(--fb-soft)}}',
+    '.bmenu button:focus-visible{outline:0;background:var(--fb-soft);box-shadow:inset 0 0 0 2px var(--fb-acc)}.bmenu button[aria-checked=true]{font-weight:700}.bmenu .ic{width:20px;height:20px}',
+    '.bsent{display:flex;align-items:center;gap:12px;padding:6px 6px 6px 8px}.bsent .chk{width:36px;height:36px;flex:none}.bsent .chk svg{width:20px;height:20px}',
+    '.bsent p{flex:1;margin:0;font-size:14px;font-weight:550;min-width:0}.bsent .send.sm{flex:none}',
+    '@media (max-width:599px){.scrim.bar{padding:0!important;align-items:flex-end}.scrim.bar .barbox{width:100%;border-radius:22px 22px 0 0;padding-bottom:calc(6px + env(safe-area-inset-bottom));animation-name:fb-sheet}.scrim.t.bar .bmenu{top:auto;bottom:calc(100% + 8px)}}',
+    '@media (prefers-reduced-motion:reduce){.panel,.barbox,.bmenu,.view,.chk,.chk path,.glance .eyes,.glance .e,.intro{animation:none!important}.chk path{stroke-dashoffset:0}.prefs>button .ic{transition:none}}',
   ].join('');
 
   /**
@@ -1262,13 +1256,6 @@
     return s;
   }
 
-  /** "Powered by Heresay", on every view. Not configurable. */
-  function byline(sentTo) {
-    return el('div', { class: 'by' }, [
-      sentTo ? el('span', { text: S.sentTo }) : null,
-      el('a', { href: HERESAY_URL, target: '_blank', rel: 'noopener' }, [markEl(), document.createTextNode(S.powered)]),
-    ]);
-  }
 
   var PLACE = POS.join(' ') + (STYLE === 'tab' ? ' side' : '');
   var fabDot = el('span', { class: 'dot', hidden: '' });
@@ -1307,14 +1294,31 @@
   // Single-page apps change the path without reloading; check cheaply, only when paths are listed.
   if (HIDE_ON.length) setInterval(function () { if (location.pathname !== lastPath) placeFab(); }, 500);
 
-  var scrim = null, view = 'new', listBox = null, lastFocus = null;
+  var scrim = null, view = 'new', listBox = null, lastFocus = null, hdDot = null, hdMine = null;
+  // Whether "Your name and email" is expanded. Only openPreferences() or the reporter opens it.
+  var prefsOpen = false;
 
   function renderBadge() {
     var n = unseen();
     if (n) fabDot.removeAttribute('hidden'); else fabDot.setAttribute('hidden', '');
     fab.setAttribute('aria-label', n ? fmt(S.update, { n: n }) : S.reportAria);
+    if (hdDot) { hdDot.hidden = !n; if (hdMine) hdMine.setAttribute('aria-label', n ? fmt(S.mineAria, { n: n }) : S.mine); }
   }
   renderBadge();
+
+  /**
+   * Where the panel sits follows the button: the same corner or edge, with room left for the button
+   * so it never covers it, and the same offset. With no button (none, data-button="none") it takes
+   * the corner the position names, bottom-right by default.
+   */
+  function panelPad() {
+    var shown = fabShowing(), tab = shown && STYLE === 'tab';
+    var gap = shown && !tab ? FAB_H + 8 : 0;
+    var x = Math.max(12, OFFSET[0]), y = Math.max(12, OFFSET[1]);
+    var side = tab ? 48 : POS[0] === 'c' ? 12 : x;
+    var top = POS[1] === 't' && !tab ? y + gap : 12, bottom = POS[1] === 'b' && !tab ? y + gap : 12;
+    return top + 'px ' + (POS[0] === 'r' ? side : 12) + 'px ' + bottom + 'px ' + (POS[0] === 'l' ? side : 12) + 'px';
+  }
 
   function open(which) {
     if (dead) return;
@@ -1323,221 +1327,457 @@
     if (nudgeEl) { nudgeEl.remove(); nudgeEl = null; }
     lastFocus = document.activeElement;
     view = which || (unseen() ? 'mine' : 'new');
-    var cls = PANEL === 'center' ? 'center' : PLACE + (PANEL === 'sheet' ? ' sheet' : '');
-    scrim = el('div', { class: 'scrim ' + cls + ' ' + BACKDROP, onclick: function (e) { if (e.target === scrim) close(); } });
+    scrim = el('div', { class: surface(), onclick: function (e) { if (e.target === scrim && !barUp()) close(); } });
+    scrim.style.setProperty('--fb-pad', panelPad());
     scrim.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     root.appendChild(scrim);
+    if (LAYOUT === 'bar' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', keyboard);
+      window.visualViewport.addEventListener('scroll', keyboard);
+      keyboard();
+    }
     renderPanel();
     refresh();
+  }
+
+  /** The bar is a small non-modal composer; Your reports (and everything else) is the panel. */
+  function barUp() { return LAYOUT === 'bar' && view !== 'mine'; }
+  function surface() {
+    if (barUp()) return 'scrim ' + PLACE + ' bar';
+    var cls = LAYOUT === 'bar' ? PLACE + ' corner' : PANEL === 'center' ? 'center' : PLACE + (PANEL === 'sheet' ? ' sheet' : ' corner');
+    return 'scrim ' + cls + ' ' + BACKDROP;
+  }
+  /** On a phone the bar docks above the keyboard: lift it by what the keyboard covers. */
+  function keyboard() {
+    if (!scrim) return;
+    var v = window.visualViewport;
+    scrim.style.setProperty('--fb-kb', Math.max(0, Math.round(window.innerHeight - v.height - v.offsetTop)) + 'px');
   }
 
   function close() {
     if (!scrim) return;
     if (view === 'mine') markSeen();
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', keyboard);
+      window.visualViewport.removeEventListener('scroll', keyboard);
+    }
     scrim.remove();
     scrim = null;
-    listBox = null;
+    barMenuClose = null;
+    listBox = null; hdDot = null; hdMine = null;
     state.justSent = false;
+    prefsOpen = false;
     renderBadge();
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
 
+  var CLOSE_ICON = 'M6 6l12 12M18 6L6 18';
+  /** A small line icon. The path is always one of the constants in this file. */
+  function icon(d) {
+    var s = document.createElement('span');
+    s.style.display = 'contents';
+    s.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + (d.charAt(0) === '<' ? d : '<path d="' + d + '"/>') + '</svg>';
+    return s.firstChild;
+  }
+  function closeBtn() {
+    return el('button', { class: 'ib', type: 'button', 'aria-label': S.close, onclick: close }, [icon(CLOSE_ICON)]);
+  }
+  /** One line, on every view: who reads it, and the outside tool. Not configurable. */
+  function foot(short) {
+    return el('div', { class: 'foot' }, [
+      short ? null : document.createTextNode(S.sentTo + ' · '),
+      el('a', { href: HERESAY_URL, target: '_blank', rel: 'noopener', text: S.powered }),
+    ]);
+  }
+
   function renderPanel() {
+    if (view === 'sent' && !state.justSent) view = 'new';
     scrim.textContent = '';
-    if (view === 'prefs' && !PREFS_TAB) view = 'new';
-    var tab = function (id, label) {
-      return el('button', {
-        class: 'tab', type: 'button', role: 'tab', 'aria-selected': String(view === id),
-        onclick: function () { if (view === 'mine') markSeen(); state.justSent = false; view = id; renderPanel(); },
-      }, [document.createTextNode(label)]);
-    };
-    var panel = el('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': S.dialog }, [
-      el('div', { class: 'head' }, [
-        el('div', { class: 'tabs', role: 'tablist' }, [tab('new', S.tabNew), tab('mine', S.tabMine), PREFS_TAB ? tab('prefs', S.tabPrefs) : null]),
-        el('button', { class: 'x', type: 'button', 'aria-label': S.close, text: '×', onclick: close }),
-      ]),
-      el('div', { class: 'main' }, [view === 'new' ? formView() : view === 'prefs' ? prefsView() : listView()]),
-      byline(view === 'new'),
+    scrim.className = surface();
+    barMenuClose = null;
+    hdDot = hdMine = null;
+    if (barUp()) { renderBar(); return; }
+    var body, first, picking = LAYOUT === 'steps' && view === 'new' && !state.type;
+    if (view === 'sent') body = sentView();
+    else if (view === 'mine') body = listView();
+    else body = LAYOUT === 'steps' ? stepsView() : formView();
+    var panel = el('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': S.dialog, tabindex: '-1' }, [
+      el('div', { class: 'grab', 'aria-hidden': 'true' }, [el('i')]), body, foot(picking),
     ]);
     scrim.appendChild(panel);
-    var first = panel.querySelector(view === 'new' ? (state.type ? 'textarea' : '.type') : view === 'prefs' ? 'input,textarea' : '.tab[aria-selected=true]');
+    renderBadge();
+    first = panel.querySelector(view === 'sent' ? '.send' : view === 'mine' ? '.ib' : state.type ? 'textarea' : picking ? '.pick' : '[role=radio]');
+    // On touch, a focused pill or row would look picked before anyone tapped it: focus the dialog itself.
+    if (first && (first.getAttribute('role') === 'radio' || first.classList.contains('pick')) && media('(pointer: coarse)')) first = panel;
     if (first) first.focus();
   }
+
+  /** A report goes: the same for every layout. `busy` and `idle` change the send control. */
+  function submit(text, err, busy, idle) {
+    err.textContent = '';
+    busy();
+    var type = state.type;
+    send(type, text.value.trim()).then(function (b) {
+      state.type = null;
+      state.draft = '';
+      state.reports = [b.report].concat(state.reports);
+      rememberMine();
+      state.justSent = true;
+      view = 'sent';
+      renderPanel();
+      listeners.forEach(function (fn) { try { fn({ id: b.report && b.report.id, type: type }); } catch (x) { console.error(x); } });
+    }).catch(function (x) {
+      err.textContent = x.message || S.cantSend;
+      idle();
+    });
+  }
+  function typeOf(id) { return OFFERED.filter(function (x) { return x.id === id; })[0]; }
 
   function formView() {
     var err = el('div', { class: 'err', role: 'alert' });
     var text = el('textarea', {
-      'aria-label': S.whatHappened, maxlength: '2000',
-      placeholder: PLACEHOLDER,
-      oninput: function () { state.draft = text.value; },
+      'aria-label': S.reportLabel, maxlength: '2000', rows: '4',
+      oninput: function () { state.draft = text.value; sync(); },
     });
     text.value = state.draft;
     var sendBtn = el('button', { class: 'send', type: 'submit', text: S.send });
-    var types = OFFERED.map(function (t) {
+    function sync() {
+      var t = typeOf(state.type);
+      text.placeholder = PLACEHOLDER || (t ? t.ph : S.phNone);
+      sendBtn.disabled = !(state.type && text.value.trim());
+    }
+    function choose(i, focusText) {
+      state.type = OFFERED[i].id;
+      pills.forEach(function (b, j) { b.setAttribute('aria-checked', String(j === i)); b.tabIndex = j === i ? 0 : -1; });
+      sync();
+      pills[i].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      if (focusText) text.focus();
+    }
+    var picked = OFFERED.map(function (t) { return t.id; }).indexOf(state.type);
+    var pills = OFFERED.map(function (t, i) {
       return el('button', {
-        class: 'type', type: 'button', 'aria-pressed': String(state.type === t.id), 'data-type': t.id,
-        onclick: function () {
-          state.type = t.id;
-          types.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-type') === t.id)); });
-          text.focus();
-        },
-      }, [el('b', { text: t.label }), el('span', { text: t.hint })]);
-    });
-    var form = el('form', {
-      onsubmit: function (e) {
-        e.preventDefault();
-        err.textContent = '';
-        if (!state.type) { err.textContent = S.pickType; return; }
-        if (!text.value.trim()) { err.textContent = S.sayWhat; text.focus(); return; }
-        sendBtn.disabled = true;
-        sendBtn.className = 'send busy';
-        sendBtn.replaceChildren(markEl(true), document.createTextNode(S.sending));
-        var type = state.type;
-        send(type, text.value.trim()).then(function (b) {
-          state.type = null;
-          state.draft = '';
-          state.reports = [b.report].concat(state.reports);
-          rememberMine();
-          markSeen();
-          state.justSent = true;
-          view = 'mine';
-          renderPanel();
-          listeners.forEach(function (fn) { try { fn({ id: b.report && b.report.id, type: type }); } catch (x) { console.error(x); } });
-        }).catch(function (x) {
-          err.textContent = x.message || S.cantSend;
-          sendBtn.disabled = false;
-          sendBtn.className = 'send';
-          sendBtn.textContent = S.send;
-        });
-      },
-    }, [
-      el('fieldset', {}, [el('legend', { text: S.what })].concat(types)),
-      text,
-      trailView(),
-      el('div', { class: 'row' }, [
-        el('span', { class: 'small', text: reporter() ? S.attachedPrefs : S.attached }),
-        sendBtn,
-      ]),
-      err,
-    ]);
-    return form;
-  }
-
-  /**
-   * "Attach what happened": the reporter sees what the trail holds, can look at every line of it,
-   * and can switch it off or leave a part out. Nothing shows when there is nothing to attach.
-   */
-  function trailView() {
-    var ev = recentTrail();
-    if (!ev.length) return null;
-    var count = {};
-    ev.forEach(function (e) { count[e.kind] = (count[e.kind] || 0) + e.n; });
-    var box = el('div', { class: 'trail' + (state.trailOff ? ' off' : '') });
-    var on = el('input', { type: 'checkbox', role: 'switch', onchange: function () {
-      state.trailOff = !on.checked;
-      box.className = 'trail' + (state.trailOff ? ' off' : '');
-    } });
-    on.checked = !state.trailOff;
-    var chips = ['page', 'click', 'request', 'error', 'warn', 'state'].filter(function (k) { return count[k]; }).map(function (k) {
-      var n = count[k];
-      var b = el('button', {
-        class: 'chip', type: 'button', 'aria-pressed': String(!state.trailSkip[k]),
-        text: n + ' ' + S.trail[k][n === 1 ? 0 : 1],
-        onclick: function () {
-          state.trailSkip[k] = !state.trailSkip[k];
-          b.setAttribute('aria-pressed', String(!state.trailSkip[k]));
-          list.querySelectorAll('[data-k="' + k + '"]').forEach(function (li) { li.classList.toggle('skip', !!state.trailSkip[k]); });
-        },
+        type: 'button', role: 'radio', 'aria-checked': String(i === picked), tabindex: i === (picked < 0 ? 0 : picked) ? '0' : '-1',
+        'data-type': t.id, text: t.label,
+        onclick: function () { choose(i, true); },
       });
-      return b;
     });
-    var now = Date.now();
-    var list = el('ol', { class: 'tlist' }, ev.map(function (e) {
-      var secs = Math.round((now - e.at) / 1000);
-      return el('li', { 'data-k': e.kind, class: state.trailSkip[e.kind] ? 'skip' : '' }, [
-        el('span', { class: 'ago', text: '-' + Math.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2) }),
-        el('span', { text: e.text + (e.n > 1 ? ' ×' + e.n : '') }),
-      ]);
-    }));
-    box.appendChild(el('label', { class: 'switch' }, [on, el('span', { text: S.attachTrail })]));
-    box.appendChild(el('div', { class: 'chips' }, chips));
-    var c = context();
-    var device = [c.device, c.screen, c.theme, c.locale, c.timezone, c.network, c.settings].filter(Boolean).join(' · ');
-    box.appendChild(el('details', {}, [el('summary', { text: S.seeTrail }), el('p', { class: 'small', text: S.trailHint }), list,
-      device ? el('p', { class: 'small', text: S.alsoSent + device }) : null]));
-    return box;
+    var seg = el('div', {
+      class: 'seg', role: 'radiogroup', 'aria-label': S.kindAria,
+      onkeydown: function (e) {
+        var i = pills.indexOf(root.activeElement), n = pills.length, k = e.key;
+        if (i < 0) return;
+        var to = k === 'ArrowRight' || k === 'ArrowDown' ? (i + 1) % n : k === 'ArrowLeft' || k === 'ArrowUp' ? (i + n - 1) % n : -1;
+        if (to < 0) return;
+        e.preventDefault();
+        pills[to].focus();
+        choose(to);
+      },
+    }, pills);
+    sync();
+    return el('div', { class: 'view' }, [
+      el('div', { class: 'hd' }, [
+        markEl(), el('h2', { text: S.report }), el('span', { class: 'sp' }),
+        mineBtn(), closeBtn(),
+      ]),
+      el('form', {
+        class: 'pad', novalidate: '',
+        onsubmit: function (e) {
+          e.preventDefault();
+          if (sendBtn.disabled) return;
+          submit(text, err, function () {
+            sendBtn.disabled = true;
+            sendBtn.className = 'send busy';
+            sendBtn.replaceChildren(markEl(true), document.createTextNode(S.sending));
+          }, function () {
+            sendBtn.className = 'send';
+            sendBtn.textContent = S.send;
+            sync();
+          });
+        },
+      }, [seg, text, sendBtn, err]),
+    ]);
   }
 
-  function prefsView() {
-    var p = prefs();
-    var signedIn = identified();
-    var status = el('span', { class: 'small', role: 'status' });
-    var field = function (label, input, hint) {
-      return el('label', { class: 'field' }, [
-        el('span', {}, [document.createTextNode(label + ' '), el('i', { text: S.optional })]),
-        input, hint ? el('span', { class: 'hint', text: hint }) : null,
-      ]);
-    };
-    var name = el('input', { type: 'text', maxlength: '80', autocomplete: 'name' });
-    var email = el('input', { type: 'email', maxlength: '200', autocomplete: 'email' });
-    var note = el('textarea', { maxlength: '500', placeholder: S.setupPh });
-    name.value = p.name || ''; email.value = p.email || ''; note.value = p.note || '';
-    var err = el('div', { class: 'err', role: 'alert' });
+  // ---- the layouts -----------------------------------------------------------------------
 
-    // Signed in: the app already told the team who this is. Say so, and ask nothing twice.
-    var who = null;
-    if (signedIn) {
-      var shown = state.userLabel || state.userEmail || S.yourAccount;
-      var initials = (state.userLabel || state.userEmail || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2)
-        .map(function (w) { return w[0].toUpperCase(); }).join('');
-      who = el('div', { class: 'who' }, [
-        el('span', { class: 'avatar', 'aria-hidden': 'true', text: initials }),
-        el('div', {}, [
-          el('b', { text: fmt(S.signedAs, { who: shown }) }),
-          el('span', { class: 'small', text: state.userEmail && state.userLabel
-            ? fmt(S.seesReply, { email: state.userEmail }) : S.sees }),
-        ]),
+  var TYPE_ICON = {
+    broken: '<path d="M12 4 21.2 19.5H2.8z"/><path d="M12 10v4M12 17h.01"/>',
+    confusing: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.6a2.6 2.6 0 1 1 3.6 2.4c-.8.4-1.1 1-1.1 1.8M12 17h.01"/>',
+    improvement: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+    idea: '<path d="M9.6 18h4.8M10.2 21h3.6"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1.1 1.2 1.1 2.2h5c0-1 .5-1.7 1.1-2.2A6 6 0 0 0 12 3z"/>',
+  };
+  function typeIcon(id) { return icon(TYPE_ICON[id] || TYPE_ICON.idea); }
+
+  /** The "Your reports" icon (a clock) with a dot when something has an update. Steps and bar. */
+  function mineIcon() {
+    hdDot = el('i', { class: 'udot', hidden: '' });
+    hdMine = el('button', { class: 'ib ibd', type: 'button', 'aria-label': S.mine, title: S.mine,
+      onclick: function () { view = 'mine'; renderPanel(); } }, [icon(DONE_ICON.open), hdDot]);
+    return hdMine;
+  }
+
+  /** Steps: first "What's going on?" with a row for each type, then the text box for the one picked. */
+  function stepsView() {
+    if (!state.type) {
+      return el('div', { class: 'view' }, [
+        el('div', { class: 'hd' }, [markEl(), el('h2', { class: 'q', text: S.whatsGoing }), el('span', { class: 'sp' }), mineIcon(), closeBtn()]),
+        el('ul', { class: 'rows', role: 'list', 'aria-label': S.kindAria }, OFFERED.map(function (t) {
+          return el('li', {}, [el('button', {
+            class: 'pick', type: 'button', 'data-type': t.id,
+            onclick: function () { state.type = t.id; renderPanel(); },
+          }, [
+            el('span', { class: 'tile' }, [typeIcon(t.id)]), el('span', { class: 'nm', text: t.label }),
+            el('span', { class: 'chev', 'aria-hidden': 'true' }, [icon('M9 6l6 6-6 6')]),
+          ])]);
+        })),
       ]);
     }
-
-    return el('form', {
-      role: 'tabpanel', novalidate: '',
-      onsubmit: function (e) {
-        e.preventDefault();
-        err.textContent = '';
-        var em = email.value.trim();
-        if (!signedIn && em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { err.textContent = S.badEmail; email.focus(); return; }
-        savePrefs(signedIn ? { name: p.name, email: p.email, note: note.value.trim() }
-          : { name: name.value.trim(), email: em, note: note.value.trim() });
-        status.textContent = S.saved;
-      },
-    }, [
-      who,
-      signedIn ? null : field(S.yourName, name),
-      signedIn ? null : field(S.email, email, S.emailHint),
-      field(S.setup, note, S.setupHint),
-      el('div', { class: 'row' }, [
-        el('button', { class: 'link', type: 'button', text: S.clear, onclick: function () {
-          savePrefs({});
-          renderPanel();
-        } }),
-        el('span', {}, [status, document.createTextNode(' '), el('button', { class: 'send', type: 'submit', text: S.save })]),
+    var t = typeOf(state.type);
+    var err = el('div', { class: 'err', role: 'alert' });
+    var text = el('textarea', {
+      'aria-label': S.reportLabel, maxlength: '2000', rows: '4',
+      placeholder: PLACEHOLDER || t.ph,
+      oninput: function () { state.draft = text.value; sync(); },
+    });
+    text.value = state.draft;
+    var sendBtn = el('button', { class: 'send', type: 'submit', text: S.send });
+    function sync() { sendBtn.disabled = !text.value.trim(); }
+    sync();
+    return el('div', { class: 'view' }, [
+      el('div', { class: 'hd back' }, [
+        el('button', { class: 'ib', type: 'button', 'aria-label': S.backType, title: S.backType, onclick: function () { state.type = null; renderPanel(); } }, [icon('M15 5l-7 7 7 7')]),
+        el('span', { class: 'tpill' }, [typeIcon(t.id), document.createTextNode(t.label)]),
+        el('span', { class: 'sp' }), mineIcon(), closeBtn(),
       ]),
-      err,
-      el('p', { class: 'small', text: S.kept }),
+      el('form', {
+        class: 'pad big', novalidate: '',
+        onsubmit: function (e) {
+          e.preventDefault();
+          if (sendBtn.disabled) return;
+          submit(text, err, function () {
+            sendBtn.disabled = true;
+            sendBtn.className = 'send busy';
+            sendBtn.replaceChildren(markEl(true), document.createTextNode(S.sending));
+          }, function () {
+            sendBtn.className = 'send';
+            sendBtn.textContent = S.send;
+            sync();
+          });
+        },
+      }, [text, sendBtn, err]),
+    ]);
+  }
+
+  // Closes the bar's type menu; set while the bar is showing, so a click elsewhere can close it.
+  var barMenuClose = null;
+  document.addEventListener('pointerdown', function (e) {
+    if (!barMenuClose) return;
+    var path = e.composedPath ? e.composedPath() : [];
+    var inside = path.some(function (n) { return n && n.classList && (n.classList.contains('bmenu') || n.classList.contains('tchip')); });
+    if (!inside) barMenuClose();
+  }, true);
+
+  /** Bar: one compact composer. [Type v] [text.....] (send), then Your reports, Powered by, close. */
+  function renderBar() {
+    var box, focus;
+    var wrap = function (kids) {
+      return el('div', { class: 'barbox', role: 'dialog', 'aria-modal': 'false', 'aria-label': S.dialog, tabindex: '-1' }, kids);
+    };
+    if (view === 'sent') {
+      box = wrap([el('div', { class: 'bsent', role: 'status' }, [
+        el('div', { class: 'chk', 'aria-hidden': 'true' }, [icon('M5 12.5l4.5 4.5L19 7.5')]),
+        el('p', { text: THANKS || S.sentBar }),
+        el('button', { class: 'send sm', type: 'button', text: S.done, onclick: close }),
+      ])]);
+      scrim.appendChild(box);
+      focus = box.querySelector('.send');
+    } else {
+      var err = el('div', { class: 'err', role: 'alert' });
+      var text = el('textarea', {
+        'aria-label': S.reportLabel, maxlength: '2000', rows: '1',
+        oninput: function () { state.draft = text.value; grow(); sync(); },
+        onkeydown: function (e) {
+          if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit ? form.requestSubmit() : go(); }
+        },
+      });
+      text.value = state.draft;
+      var go = function () { form.dispatchEvent(new Event('submit', { cancelable: true })); };
+      var sendBtn = el('button', { class: 'bsend', type: 'submit', 'aria-label': S.send, title: S.send }, [icon('M12 19V5M5 12l7-7 7 7')]);
+      var chip = el('button', { class: 'tchip', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+      var menu = el('div', { class: 'bmenu', role: 'menu', 'aria-label': S.kindAria, hidden: '' });
+      var items = OFFERED.map(function (t) {
+        return el('button', { type: 'button', role: 'menuitemradio', tabindex: '-1', 'data-type': t.id, 'aria-checked': 'false' },
+          [typeIcon(t.id), document.createTextNode(t.label)]);
+      });
+      items.forEach(function (b, i) { b.addEventListener('click', function () { choose(i); }); menu.appendChild(b); });
+      var grow = function () {
+        text.style.height = 'auto';
+        text.style.height = Math.min(text.scrollHeight, 120) + 'px';
+      };
+      var sync = function () {
+        var t = typeOf(state.type);
+        text.placeholder = PLACEHOLDER || (t ? t.ph : S.tellTeam);
+        sendBtn.disabled = !(state.type && text.value.trim());
+        chip.textContent = '';
+        if (t) chip.appendChild(typeIcon(t.id));
+        chip.appendChild(el('span', { text: t ? t.label : S.typeChip }));
+        chip.appendChild(el('span', { class: 'caret' }, [icon('M6 9l6 6 6-6')]));
+        chip.setAttribute('aria-label', S.kindAria + (t ? ': ' + t.label : ''));
+        items.forEach(function (b) { b.setAttribute('aria-checked', String(b.getAttribute('data-type') === state.type)); });
+      };
+      var shut = function (back) {
+        if (menu.hidden) return;
+        menu.hidden = true; chip.setAttribute('aria-expanded', 'false');
+        if (back) chip.focus();
+      };
+      var show = function (last) {
+        menu.hidden = false; chip.setAttribute('aria-expanded', 'true');
+        var at = Math.max(0, OFFERED.map(function (t) { return t.id; }).indexOf(state.type));
+        items[last ? items.length - 1 : at].focus();
+      };
+      barMenuClose = shut;
+      var choose = function (i) {
+        state.type = OFFERED[i].id;
+        shut(false); sync(); text.focus();
+      };
+      chip.addEventListener('click', function () { if (menu.hidden) show(); else shut(true); });
+      chip.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); show(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); show(true); }
+      });
+      menu.addEventListener('keydown', function (e) {
+        var i = items.indexOf(root.activeElement), n = items.length, k = e.key;
+        if (k === 'Escape') { e.preventDefault(); e.stopPropagation(); shut(true); }
+        else if (k === 'Tab') shut(false);
+        else if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Home' || k === 'End') {
+          e.preventDefault();
+          items[k === 'Home' ? 0 : k === 'End' ? n - 1 : k === 'ArrowDown' ? (i + 1) % n : (i + n - 1) % n].focus();
+        }
+      });
+      var form = el('form', {
+        class: 'bin', novalidate: '',
+        onsubmit: function (e) {
+          e.preventDefault();
+          if (sendBtn.disabled) return;
+          submit(text, err, function () {
+            sendBtn.disabled = true; sendBtn.classList.add('busy'); text.readOnly = true;
+            sendBtn.replaceChildren(markEl(true));
+            sendBtn.setAttribute('aria-label', S.sending);
+          }, function () {
+            sendBtn.classList.remove('busy'); text.readOnly = false;
+            sendBtn.replaceChildren(icon('M12 19V5M5 12l7-7 7 7'));
+            sendBtn.setAttribute('aria-label', S.send);
+            sync();
+          });
+        },
+      }, [chip, text, sendBtn]);
+      box = wrap([menu, form, err, el('div', { class: 'bmeta' }, [
+        mineIcon(), el('span', { class: 'sp' }),
+        el('span', { class: 'foot2' }, [el('a', { href: HERESAY_URL, target: '_blank', rel: 'noopener', text: S.powered })]),
+        closeBtn(),
+      ])]);
+      scrim.appendChild(box);
+      sync(); grow();
+      // On touch, a focused chip would look pressed before anyone tapped it: focus the bar itself.
+      focus = state.type ? text : media('(pointer: coarse)') ? box : chip;
+    }
+    renderBadge();
+    if (focus) focus.focus();
+  }
+
+  /** The quiet "Your reports" button in the header, with a dot when something has an update. */
+  function mineBtn() {
+    hdDot = el('i', { class: 'udot', hidden: '' });
+    hdMine = el('button', { class: 'quiet', type: 'button', onclick: function () { view = 'mine'; renderPanel(); } },
+      [document.createTextNode(S.mine), hdDot]);
+    return hdMine;
+  }
+
+  function sentView() {
+    return el('div', { class: 'view' }, [
+      el('div', { class: 'hd' }, [el('span', { class: 'sp' }), closeBtn()]),
+      el('div', { class: 'view sent', role: 'status' }, [
+        el('div', { class: 'chk', 'aria-hidden': 'true' }, [icon('M5 12.5l4.5 4.5L19 7.5')]),
+        el('p', { text: S.sentMsg }),
+        THANKS ? el('p', { class: 'thanks', text: THANKS }) : null,
+        el('button', { class: 'send', type: 'button', text: S.done, onclick: close }),
+      ]),
     ]);
   }
 
   function listView() {
-    listBox = el('div', { role: 'tabpanel' });
+    listBox = el('div', { class: 'cards' });
     renderList();
-    return listBox;
+    return el('div', { class: 'view' }, [
+      el('div', { class: 'hd back' }, [
+        el('button', { class: 'ib', type: 'button', 'aria-label': S.back, onclick: function () { markSeen(); view = 'new'; renderPanel(); } }, [icon('M15 5l-7 7 7 7')]),
+        el('h2', { text: S.mine }), el('span', { class: 'sp' }), closeBtn(),
+      ]),
+      listBox,
+      PREFS_ROW ? prefsRow() : null,
+    ]);
+  }
+
+  /**
+   * "Your name and email": two optional fields, kept on this device and sent with each report.
+   * Signed in (the app called identify), it only says who, and asks for nothing.
+   */
+  function prefsRow() {
+    if (identified()) {
+      return el('div', { class: 'prefs' }, [el('div', { class: 'signed', text: fmt(S.signedAs, { who: state.userLabel || state.userEmail || S.yourAccount }) })]);
+    }
+    var p = prefs();
+    var name = el('input', { id: 'fb-name', type: 'text', maxlength: '80', autocomplete: 'name' });
+    var email = el('input', { id: 'fb-email', type: 'email', maxlength: '200', autocomplete: 'email' });
+    var status = el('p', { class: 'small', role: 'status' });
+    var err = el('div', { class: 'err', role: 'alert' });
+    name.value = p.name || ''; email.value = p.email || '';
+    function keep() {
+      var em = email.value.trim(), ok = !em || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
+      err.textContent = ok ? '' : S.badEmail;
+      if (!ok) { status.textContent = ''; return; }
+      var q = prefs();
+      savePrefs({ name: name.value.trim(), email: em, note: q.note });
+      status.textContent = S.saved;
+    }
+    name.addEventListener('change', keep);
+    email.addEventListener('change', keep);
+    var box = el('div', { class: 'pb', id: 'fb-pb', hidden: '' }, [
+      el('label', { for: 'fb-name', text: S.nameOpt }), name,
+      el('label', { for: 'fb-email', text: S.emailOpt }), email, err, status,
+    ]);
+    var btn = el('button', { type: 'button', 'aria-expanded': 'false', 'aria-controls': 'fb-pb' }, [
+      document.createTextNode(S.nameEmail), icon('M6 9l6 6 6-6'),
+    ]);
+    function setOpen(o, focus) {
+      prefsOpen = o;
+      btn.setAttribute('aria-expanded', String(o));
+      if (o) box.removeAttribute('hidden'); else box.setAttribute('hidden', '');
+      if (o && focus) name.focus();
+    }
+    btn.addEventListener('click', function () { setOpen(!prefsOpen, true); });
+    setOpen(prefsOpen, false);
+    return el('div', { class: 'prefs' }, [btn, box]);
+  }
+
+  var DONE_ICON = { open: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>', fixed: 'M5 12.5l4.5 4.5L19 7.5', declined: 'M7 7l10 10M17 7L7 17', withdrawn: 'M7 12h10' };
+  /** "Today", "Yesterday", or the date, in the reporter's language. */
+  function when(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    var days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 864e5);
+    try {
+      if (days >= 0 && days <= 1) {
+        var w = new Intl.RelativeTimeFormat(LANG, { numeric: 'auto' }).format(-days, 'day');
+        return w.charAt(0).toLocaleUpperCase(LANG) + w.slice(1);
+      }
+    } catch (e) { /* older browser: the date */ }
+    return d.toLocaleDateString(LANG);
   }
 
   function renderList() {
     if (!listBox) return;
     listBox.textContent = '';
-    if (state.justSent && THANKS) listBox.appendChild(el('div', { class: 'thanks', role: 'status', text: THANKS }));
     if (!state.reports.length) {
       listBox.appendChild(el('div', { class: 'empty', text: S.none }));
       return;
@@ -1546,21 +1786,25 @@
     state.reports.forEach(function (r) {
       var label = (TYPES.filter(function (t) { return t.id === r.type; })[0] || {}).label || r.type;
       var fresh = r.status !== 'open' && r.status !== 'withdrawn' && s[r.id] !== mark(r);
-      listBox.appendChild(el('div', { class: 'item' }, [
-        el('div', { class: 'status ' + r.status, text: (fresh ? '● ' : '') + (S.status[r.status] || r.status) }),
-        el('div', { class: 'text', text: r.text }),
-        el('div', { class: 'small', text: label + ' · ' + new Date(r.created_at).toLocaleDateString(LANG) }),
+      var d = DONE_ICON[r.status === 'accepted' ? 'open' : r.status];
+      listBox.appendChild(el('article', { class: 'card' }, [
+        el('div', { class: 'top' }, [
+          el('b', { text: label }), el('span', { text: '·' }), el('span', { text: when(r.created_at) }),
+          fresh ? el('i', { class: 'udot', role: 'img', 'aria-label': S.fresh }) : null,
+        ]),
+        el('p', { class: 't', text: r.text }),
+        el('span', { class: 'chip' + (r.status === 'fixed' ? ' fx' : '') }, [d ? icon(d) : null, document.createTextNode(S.status[r.status] || r.status)]),
         r.status === 'declined' && r.decline_reason
-          ? el('div', { class: 'reason', text: S.why + r.decline_reason }) : null,
-        r.status === 'fixed' && r.fix_note
-          ? el('div', { class: 'reason', text: r.fix_note }) : null,
+          ? el('p', { class: 'n2' }, [el('b', { text: S.why }), document.createTextNode(r.decline_reason)]) : null,
+        r.status === 'fixed' && r.fix_note ? el('p', { class: 'n2', text: r.fix_note }) : null,
         r.status === 'fixed' && r.fix_version
-          ? el('div', { class: 'small', text: fmt(S.fixedIn, { v: r.fix_version }) + (older(state.version, r.fix_version) ? ' ' + fmt(S.updateTo, { v: r.fix_version }) : '') }) : null,
-        r.status === 'withdrawn' && r.withdrawn_reason ? el('div', { class: 'small', text: S.yourWhy + r.withdrawn_reason }) : null,
+          ? el('p', { class: 'n2', text: fmt(S.fixedIn, { v: r.fix_version }) + (older(state.version, r.fix_version) ? ' ' + fmt(S.updateTo, { v: r.fix_version }) : '') }) : null,
+        r.status === 'withdrawn' && r.withdrawn_reason ? el('p', { class: 'n2', text: S.yourWhy + r.withdrawn_reason }) : null,
         r.status === 'open' ? takeBack(r) : null,
       ]));
     });
   }
+
 
   /** "Take back": a report they sent and the team hasn't accepted. Kept as withdrawn, not deleted. */
   function takeBack(r) {
@@ -1573,7 +1817,7 @@
       box.appendChild(why);
       box.appendChild(el('div', { class: 'row' }, [
         el('button', { class: 'link', type: 'button', text: S.keep, onclick: idle }),
-        el('button', { class: 'send', type: 'button', text: S.takeBackYes, onclick: function () {
+        el('button', { class: 'send sm', type: 'button', text: S.takeBackYes, onclick: function () {
           withdrawReport(r.id, why.value.trim()).then(function (b) {
             state.reports = state.reports.map(function (x) { return x.id === r.id ? b.report : x; });
             markSeen();
@@ -1606,15 +1850,11 @@
     if (dead || bubble || scrim || load(INTRO_KEY) || !fabShowing()) return false;
     save(INTRO_KEY, new Date().toISOString());
     var done = function () { if (bubble) { bubble.remove(); bubble = null; } };
-    var label = LABEL === S.report ? LABEL : '“' + LABEL + '”';
     bubble = el('div', { class: 'intro ' + PLACE + ' st-' + STYLE, role: 'dialog', 'aria-label': S.introAria }, [
       el('b', { text: words(o.title, 80) || S.introTitle }),
-      el('p', { text: words(o.body, 280) || fmt(S.introBody, { label: label }) }),
-      el('div', { class: 'row' }, [
-        el('button', { class: 'link', type: 'button', text: S.got, onclick: done }),
-        el('button', { class: 'send', type: 'button', text: S.tryIt, onclick: function () { done(); open('new'); } }),
-      ]),
-      byline(false),
+      el('p', { text: words(o.body, 280) || S.introBody }),
+      el('div', { class: 'row' }, [el('span'), el('button', { class: 'send sm', type: 'button', text: S.got, onclick: done })]),
+      foot(),
     ]);
     bubble.addEventListener('keydown', function (e) { if (e.key === 'Escape') done(); });
     root.appendChild(bubble);
@@ -1662,14 +1902,14 @@
       el('p', { text: stuck ? S.nudgeStuckBody : S.nudgeBody }),
       el('div', { class: 'row' }, [
         el('button', { class: 'link', type: 'button', text: S.nudgeNo, onclick: function () { done(); } }),
-        el('button', { class: 'send', type: 'button', text: S.nudgeYes, onclick: function () {
+        el('button', { class: 'send sm', type: 'button', text: S.nudgeYes, onclick: function () {
           done();
           var as = stuck ? 'confusing' : 'broken';
           if (!state.type && OFFERED.some(function (t) { return t.id === as; })) state.type = as;
           open('new');
         } }),
       ]),
-      byline(false),
+      foot(),
     ]);
     root.appendChild(nudgeEl);
     later();
@@ -1693,7 +1933,7 @@
       state.userId = u.id != null ? String(u.id) : null;
       state.userLabel = u.label != null ? String(u.label) : null;
       state.userEmail = u.email != null ? String(u.email) : null;
-      if (scrim && view === 'prefs') renderPanel();
+      if (scrim && view === 'mine') renderPanel();
     },
     setVersion: function (v) { state.version = v != null ? String(v) : null; versionSeen(state.version); },
     setScreen: function (s) {
@@ -1707,7 +1947,7 @@
       if (o.text != null) state.draft = String(o.text).slice(0, 2000);
       open('new');
     },
-    openPreferences: function () { if (PREFS_TAB) open('prefs'); },
+    openPreferences: function () { if (PREFS_ROW) { prefsOpen = true; open('mine'); } },
     /** Show the one-time introduction now. False if it was already shown on this device. */
     introduce: function (o) { return introduce(o); },
     /** The app saw trouble itself (an error screen, a retry that failed): offer to report it.

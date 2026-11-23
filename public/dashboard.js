@@ -563,8 +563,12 @@
    * what differs from the recommendation goes in the tag. The full list: public/guides/customize-web.md.
    */
   var DESIGN = [
+    { group: 'Layout', items: [
+      { a: 'layout', label: 'How it looks to the reporter', c: [['', 'Composer: type pills and a text box'], ['steps', 'Steps: pick what it is, then say it'], ['bar', 'Bar: a compact box beside the button']],
+        hint: 'Composer suits most apps. Steps guides people who don’t know what to write. Bar stays small where a panel would cover their work.' },
+    ]},
     { group: 'The button', items: [
-      { a: 'position', label: 'Where it sits', c: [['', 'Bottom right'], ['left', 'Bottom left'], ['top-right', 'Top right'], ['top-left', 'Top left'], ['center', 'Bottom centre']] },
+      { a: 'position', label: 'Where it sits', c: [['', 'Bottom right'], ['bottom-left', 'Bottom left'], ['top-right', 'Top right'], ['top-left', 'Top left'], ['bottom-center', 'Bottom centre']] },
       { a: 'offset', label: 'Distance from the edge', c: [['', '20px'], ['40', '40px'], ['96', '96px, above a chat bubble']], text: 'or x,y like 24,96', pattern: /^\d{1,3}(\s*,\s*\d{1,3})?$/ },
       { a: 'button', label: 'When it shows', c: [['', 'Always'], ['none', 'Never: my app has its own menu item'], ['desktop', 'Not on phones'], ['scroll', 'After the first scroll']] },
       { a: 'label', label: 'Text', c: [['', 'Report'], ['Feedback', 'Feedback'], ['Help us improve', 'Help us improve'], ['Found a bug?', 'Found a bug?']], text: 'or your own words', max: 40 },
@@ -582,15 +586,15 @@
     ]},
     { group: 'Words', items: [
       { a: 'lang', label: 'Language', c: [['', 'My page’s language'], ['auto', 'The browser’s'], ['en', 'English'], ['fr', 'Français'], ['ta', 'தமிழ்'], ['hi', 'हिन्दी']], hint: 'English, French, Tamil and Hindi today; any other language shows English.' },
-      { a: 'placeholder', label: 'Question in the text box', c: [['', 'What happened, or what would you change?']], text: 'or your own words', max: 120 },
+      { a: 'placeholder', label: 'Question in the text box', c: [['', 'Follows the type: What went wrong?, What would you like?…']], text: 'or your own words', max: 120 },
       { a: 'types', label: 'Report types', c: [['', 'All four'], ['broken,confusing,improvement', 'No “Idea”'], ['broken,confusing', 'Only Broken and Confusing']], hint: 'Their names can’t change: the type sets the priority.' },
       { a: 'thanks', label: 'Thank-you line after sending', c: [['', 'None']], text: 'e.g. Thanks! We read every one.', max: 160 },
     ]},
     { group: 'The panel', items: [
-      { a: 'panel', label: 'Where it opens', c: [['', 'Next to the button'], ['sheet', 'Side sheet'], ['center', 'Middle of the screen']] },
+      { a: 'panel', label: 'Where it opens', c: [['', 'Next to the button'], ['sheet', 'Side sheet'], ['center', 'Middle of the screen']], hint: 'The bar layout ignores this; its Your reports view opens next to the button.' },
       { a: 'width', label: 'Width', c: [['', 'Regular'], ['narrow', 'Narrow'], ['wide', 'Wide']] },
       { a: 'backdrop', label: 'Behind it', c: [['', 'Dim the page'], ['clear', 'Leave the page clear'], ['blur', 'Blur']] },
-      { a: 'preferences', label: 'Preferences tab', c: [['', 'Show'], ['hide', 'Hide']], hint: 'Hide it if your app calls identify() and asks nothing else.' },
+      { a: 'preferences', label: 'Name and email row', c: [['', 'Show'], ['hide', 'Hide']], hint: 'Hide it if your app calls identify() and asks nothing else.' },
       { a: 'intro', label: 'Introduce the button', c: [['', 'When my app calls introduce()'], ['auto', '3 seconds after the first visit']] },
     ]},
   ];
@@ -600,7 +604,13 @@
 
   /** The data- attributes a design adds to the tag, in the order the list shows them. */
   function designAttrs(cfg) {
-    return DESIGN_ITEMS.filter(function (it) { return cfg[it.a]; }).map(function (it) { return ['data-' + it.a, cfg[it.a]]; });
+    var c = Object.assign({}, cfg);
+    // One attribute says where the button goes: the tab and "no button" cases fold into data-position.
+    if (c.button === 'none') { c.position = 'none'; c.button = ''; c.style = ''; }
+    else if (c.style === 'tab' && (!c.position || /^bottom-(left|right|center)$/.test(c.position))) {
+      c.position = c.position === 'bottom-left' ? 'left-tab' : 'right-tab'; c.style = '';
+    }
+    return DESIGN_ITEMS.filter(function (it) { return c[it.a]; }).map(function (it) { return ['data-' + it.a, c[it.a]]; });
   }
 
   function designTag(p, cfg) {
@@ -618,7 +628,7 @@
       panel: 'H.open();',
       intro: 'if(!H.introduce())document.getElementById("note").hidden=false;',
       sent: 'H.open({type:"broken",text:"The export button does nothing."});' +
-        'document.querySelector("[data-feedback-sdk]").shadowRoot.querySelector(".send").click();',
+        'document.querySelector("[data-feedback-sdk]").shadowRoot.querySelector(".send,.bsend").click();',
     }[show] || '';
     return '<!doctype html><html lang="en"><head><meta charset="utf-8"><style>' +
       'body{margin:0;min-height:1400px;font:15px/1.6 Georgia,serif;background:' + (dark ? '#111317;color:#e6e8eb' : '#fff;color:#1d2127') + '}' +
@@ -657,13 +667,13 @@
         var a = designAttrs(cfg);
         return 'Update the Heresay script tag in this app (the one with data-key="' + p.key + '") so it looks like this. ' +
           'Keep it where it is and keep the framework\'s own way of writing it (for example next/script in Next.js). ' +
-          'Remove any other design attributes it has (data-position, data-offset, data-button, data-label, data-style, data-size, data-fill, data-shadow, data-hide-on, data-accent, data-mark, data-theme, data-font, data-lang, data-placeholder, data-types, data-thanks, data-panel, data-width, data-backdrop, data-preferences, data-intro); keep data-key, data-version and anything about the signed-in user.\n\n' +
+          'Remove any other design attributes it has (data-layout, data-position, data-offset, data-button, data-label, data-style, data-size, data-fill, data-shadow, data-hide-on, data-accent, data-mark, data-theme, data-font, data-lang, data-placeholder, data-types, data-thanks, data-panel, data-width, data-backdrop, data-preferences, data-intro); keep data-key, data-version and anything about the signed-in user.\n\n' +
           designTag(p, cfg) + '\n' +
           (cfg.button === 'none' ? '\nThere is no floating button now, so add a "Send feedback" item to the app\'s own help or account menu that calls window.Heresay?.open().\n' : '') +
           (a.some(function (x) { return x[0] === 'data-intro'; }) ? '' : '\nIf the app doesn\'t call window.Heresay?.introduce() yet, call it once the main screen appears.\n') +
           '\nFor what each option does, read the Heresay guide customize-web (heresay_guide, or npx -y heresay@latest guide customize-web).';
       },
-      fixed: 'Always there, whatever you choose: the Heresay mark on the button, the “Your reports” tab (people read why a report was declined), and “Powered by Heresay”, so people can tell your app uses an outside tool.',
+      fixed: 'Always there, whatever you choose: the Heresay mark on the button, “Your reports” (people read why a report was declined), and “Powered by Heresay”, so people can tell your app uses an outside tool.',
     };
   }
 
@@ -790,14 +800,14 @@
       ]},
       { group: 'Words', items: [
         { a: 'language', label: 'Language', c: [['', 'My app’s language'], ['en', 'English'], ['fr', 'Français'], ['ta', 'தமிழ்'], ['hi', 'हिन्दी']], hint: 'English, French, Tamil and Hindi today; any other language shows English.' },
-        { a: 'placeholder', label: 'Question in the text box', c: [['', 'What happened, or what would you change?']], text: 'or your own words', max: 120 },
+        { a: 'placeholder', label: 'Question in the text box', c: [['', 'Follows the type: What went wrong?, What would you like?…']], text: 'or your own words', max: 120 },
         { a: 'types', label: 'Report types', c: [['', 'All four'], ['broken,confusing,improvement', 'No “Idea”'], ['broken,confusing', 'Only Broken and Confusing']], hint: 'Their names can’t change: the type sets the priority.' },
         { a: 'thanks', label: 'Thank-you line after sending', c: [['', 'None']], text: 'e.g. Thanks! We read every one.', max: 160 },
       ]},
       { group: 'The sheet', items: [
         { a: 'sheet', label: 'Size', c: mac ? [['', 'Regular'], ['compact', 'Narrow'], ['large', 'Wide']]
           : [['', 'Full height'], ['compact', 'Half height, pull up for more'], ['large', 'Full screen']] },
-        { a: 'showsPreferences', label: 'Preferences tab', c: [['', 'Show'], ['false', 'Hide']], hint: 'Hide it if your app calls identify() and asks nothing else.' },
+        { a: 'showsPreferences', label: 'Name and email row', c: [['', 'Show'], ['false', 'Hide']], hint: 'At the bottom of Your reports. Hide it if your app calls identify() and asks nothing else.' },
       ]},
     ];
   }
@@ -871,44 +881,28 @@
           '\nIf the app doesn\'t call Heresay.introduce() yet, call it once the main screen appears.' +
           '\nFor what each option does, read the Heresay guide customize-apple (heresay_guide, or npx -y heresay@latest guide customize-apple).';
       },
-      fixed: 'Always there, whatever you choose: the Heresay mark, the “Your reports” tab (people read why a report was declined), and “Powered by Heresay” in the sheet and the introduction, so people can tell your app uses an outside tool.',
+      fixed: 'Always there, whatever you choose: the Heresay mark, “Your reports” (people read why a report was declined), and “Powered by Heresay” in the sheet and the introduction, so people can tell your app uses an outside tool.',
     };
   }
 
   /** The words the preview shows, from Words.swift. Only a likeness needs these few. */
   var APPLE_WORDS = {
-    en: { report: 'Report', send: 'Send', sendFeedback: 'Send feedback', straight: 'Straight to the {app} team', tabs: ['Report', 'Your reports', 'Preferences'],
-      what: 'What is it?', happened: 'What happened?', ph: 'What happened, or what would you change?', attached: 'Sent with this screen and the app version.',
-      types: [['Broken', 'Something doesn’t work'], ['Confusing', 'I couldn’t tell how'], ['Could be better', 'It works, and could be better'], ['Idea', 'Something that isn’t there yet']],
-      powered: 'Powered by Heresay', introTitle: 'Help make this app better',
-      introBody: '{reach} to share an idea or tell the team what you’d change. A real person reads every report, and you’ll see what happens to yours.',
-      reachTap: 'Tap {label} in the corner any time', reachClick: 'Click {label} any time', reachMenu: 'Choose Help › Report a Problem… (⌥⌘R) any time', reachUse: 'Use {label} any time',
-      tryIt: 'Try it', gotIt: 'Got it', cancel: 'Cancel', sentTitle: 'Sent. Thank you.', sentBody: 'A person on the team reads every report. You’ll see what happens to it under Your reports.',
-      another: 'Send another', see: 'See your reports', menu: 'Report a Problem…' },
-    fr: { report: 'Signaler', send: 'Envoyer', sendFeedback: 'Envoyer un retour', straight: 'Directement à l’équipe {app}', tabs: ['Signaler', 'Vos signalements', 'Préférences'],
-      what: 'De quoi s’agit-il ?', happened: 'Que s’est-il passé ?', ph: 'Que s’est-il passé, ou que changeriez-vous ?', attached: 'Envoyé avec cet écran et la version de l’app.',
-      types: [['Cassé', 'Quelque chose ne marche pas'], ['Déroutant', 'Je ne voyais pas comment faire'], ['Pourrait être mieux', 'Ça marche, mais ça pourrait être mieux'], ['Idée', 'Quelque chose qui n’existe pas encore']],
-      powered: 'Propulsé par Heresay', introTitle: 'Aidez à améliorer cette app',
-      introBody: '{reach} pour partager une idée ou dire à l’équipe ce que vous changeriez. Une vraie personne lit chaque signalement, et vous verrez ce qu’il devient.',
-      reachTap: 'Touchez {label} dans le coin à tout moment', reachClick: 'Cliquez sur {label} à tout moment', reachMenu: 'Choisissez Aide › Signaler un problème… (⌥⌘R) à tout moment', reachUse: 'Utilisez {label} à tout moment',
-      tryIt: 'Essayer', gotIt: 'Compris', cancel: 'Annuler', sentTitle: 'Envoyé. Merci.', sentBody: 'Une personne de l’équipe lit chaque signalement. Vous verrez ce qu’il devient dans Vos signalements.',
-      another: 'En envoyer un autre', see: 'Voir vos signalements', menu: 'Signaler un problème…' },
-    ta: { report: 'தெரிவி', send: 'அனுப்பு', sendFeedback: 'கருத்து அனுப்பு', straight: 'நேராக {app} குழுவுக்கு', tabs: ['தெரிவி', 'உங்கள் புகார்கள்', 'விருப்பங்கள்'],
-      what: 'இது என்ன வகை?', happened: 'என்ன நடந்தது?', ph: 'என்ன நடந்தது, அல்லது எதை மாற்ற விரும்புகிறீர்கள்?', attached: 'இந்தத் திரை மற்றும் ஆப் பதிப்புடன் அனுப்பப்படும்.',
-      types: [['வேலை செய்யவில்லை', 'ஏதோ ஒன்று சரியாக இயங்கவில்லை'], ['குழப்பமாக உள்ளது', 'எப்படிச் செய்வது என்று புரியவில்லை'], ['இன்னும் சிறப்பாக்கலாம்', 'வேலை செய்கிறது, ஆனால் மேம்படுத்தலாம்'], ['யோசனை', 'இன்னும் இல்லாத ஒன்று']],
-      powered: 'Heresay மூலம் இயங்குகிறது', introTitle: 'இந்த ஆப்பை இன்னும் சிறப்பாக்க உதவுங்கள்',
-      introBody: 'ஒரு யோசனையைப் பகிர அல்லது நீங்கள் எதை மாற்ற விரும்புகிறீர்கள் என்று குழுவிடம் சொல்ல, {reach}. ஒவ்வொரு கருத்தையும் ஒருவர் படிக்கிறார்; உங்களுடையதற்கு என்ன ஆனது என்பதைப் பார்க்கலாம்.',
-      reachTap: 'எப்போது வேண்டுமானாலும் மூலையில் உள்ள {label} ஐத் தட்டுங்கள்', reachClick: 'எப்போது வேண்டுமானாலும் {label} ஐக் கிளிக் செய்யுங்கள்', reachMenu: 'எப்போது வேண்டுமானாலும் Help › சிக்கலைத் தெரிவி… (⌥⌘R) என்பதைத் தேர்ந்தெடுங்கள்', reachUse: 'எப்போது வேண்டுமானாலும் {label} ஐப் பயன்படுத்துங்கள்',
-      tryIt: 'முயன்று பாருங்கள்', gotIt: 'சரி', cancel: 'ரத்துசெய்', sentTitle: 'அனுப்பப்பட்டது. நன்றி.', sentBody: 'குழுவில் ஒருவர் ஒவ்வொரு புகாரையும் படிக்கிறார். அதற்கு என்ன ஆனது என்பதை “உங்கள் புகார்கள்” பகுதியில் பார்க்கலாம்.',
-      another: 'இன்னொன்று அனுப்பு', see: 'உங்கள் புகார்களைப் பார்', menu: 'சிக்கலைத் தெரிவி…' },
-    hi: { report: 'रिपोर्ट करें', send: 'भेजें', sendFeedback: 'फ़ीडबैक भेजें', straight: 'सीधे {app} टीम को', tabs: ['रिपोर्ट', 'आपकी रिपोर्ट', 'प्राथमिकताएँ'],
-      what: 'यह क्या है?', happened: 'क्या हुआ?', ph: 'क्या हुआ, या आप क्या बदलना चाहेंगे?', attached: 'इस स्क्रीन और ऐप के वर्शन के साथ भेजा जाता है।',
-      types: [['टूटा हुआ', 'कुछ काम नहीं कर रहा'], ['उलझन भरा', 'समझ नहीं आया कि कैसे करें'], ['बेहतर हो सकता है', 'काम करता है, पर बेहतर हो सकता है'], ['सुझाव', 'कुछ ऐसा जो अभी नहीं है']],
-      powered: 'Heresay द्वारा संचालित', introTitle: 'इस ऐप को और बेहतर बनाने में मदद करें',
-      introBody: 'कोई आइडिया बताने या टीम को यह बताने के लिए कि आप क्या बदलना चाहेंगे, {reach}। हर रिपोर्ट कोई इंसान पढ़ता है, और आपकी रिपोर्ट का क्या हुआ, यह आप देखेंगे।',
-      reachTap: 'कभी भी कोने में {label} पर टैप करें', reachClick: 'कभी भी {label} पर क्लिक करें', reachMenu: 'कभी भी Help › समस्या की रिपोर्ट करें… (⌥⌘R) चुनें', reachUse: 'कभी भी {label} का इस्तेमाल करें',
-      tryIt: 'आज़माएँ', gotIt: 'ठीक है', cancel: 'रद्द करें', sentTitle: 'भेज दिया गया। धन्यवाद।', sentBody: 'टीम का कोई व्यक्ति हर रिपोर्ट पढ़ता है। इसका क्या हुआ, यह आप “आपकी रिपोर्ट” में देखेंगे।',
-      another: 'एक और भेजें', see: 'अपनी रिपोर्ट देखें', menu: 'समस्या की रिपोर्ट करें…' },
+    en: { report: 'Report', send: 'Send', mine: 'Your reports', ph: 'What’s on your mind?', sentTo: 'Sent to this app’s team',
+      types: ['Broken', 'Confusing', 'Could be better', 'Idea'],
+      powered: 'Powered by Heresay', introTitle: 'Spotted something off?', introBody: 'Tell the team here.', introMenu: 'Tell the team here, or any time from Help › Report a Problem…',
+      gotIt: 'Got it', done: 'Done', sentLine: 'Sent. You’ll see the reply under Your reports.', menu: 'Report a Problem…' },
+    fr: { report: 'Signaler', send: 'Envoyer', mine: 'Vos signalements', ph: 'Qu’avez-vous en tête ?', sentTo: 'Envoyé à l’équipe de cette app',
+      types: ['Cassé', 'Déroutant', 'Pourrait être mieux', 'Idée'],
+      powered: 'Propulsé par Heresay', introTitle: 'Quelque chose cloche ?', introBody: 'Dites-le à l’équipe ici.', introMenu: 'Dites-le à l’équipe ici, ou à tout moment depuis Aide › Signaler un problème…',
+      gotIt: 'Compris', done: 'OK', sentLine: 'Envoyé. Vous verrez la réponse dans Vos signalements.', menu: 'Signaler un problème…' },
+    ta: { report: 'தெரிவி', send: 'அனுப்பு', mine: 'உங்கள் புகார்கள்', ph: 'உங்கள் மனதில் என்ன இருக்கிறது?', sentTo: 'இந்த ஆப்பின் குழுவுக்கு அனுப்பப்படும்',
+      types: ['வேலை செய்யவில்லை', 'குழப்பமாக உள்ளது', 'இன்னும் சிறப்பாக்கலாம்', 'யோசனை'],
+      powered: 'Heresay மூலம் இயங்குகிறது', introTitle: 'ஏதாவது சரியில்லையா?', introBody: 'குழுவிடம் இங்கே சொல்லுங்கள்.', introMenu: 'குழுவிடம் இங்கே சொல்லுங்கள், அல்லது எப்போது வேண்டுமானாலும் Help › சிக்கலைத் தெரிவி… மூலம்.',
+      gotIt: 'சரி', done: 'முடிந்தது', sentLine: 'அனுப்பப்பட்டது. பதிலை “உங்கள் புகார்கள்” பகுதியில் பார்க்கலாம்.', menu: 'சிக்கலைத் தெரிவி…' },
+    hi: { report: 'रिपोर्ट करें', send: 'भेजें', mine: 'आपकी रिपोर्ट', ph: 'आपके मन में क्या है?', sentTo: 'इस ऐप की टीम को भेजा जाता है',
+      types: ['टूटा हुआ', 'उलझन भरा', 'बेहतर हो सकता है', 'सुझाव'],
+      powered: 'Heresay द्वारा संचालित', introTitle: 'कुछ गड़बड़ दिखी?', introBody: 'टीम को यहीं बताएँ।', introMenu: 'टीम को यहीं बताएँ, या कभी भी Help › समस्या की रिपोर्ट करें… से।',
+      gotIt: 'ठीक है', done: 'हो गया', sentLine: 'भेज दिया गया। जवाब आप “आपकी रिपोर्ट” में देखेंगे।', menu: 'समस्या की रिपोर्ट करें…' },
   };
   var TYPE_IDS = ['broken', 'confusing', 'improvement', 'idea'];
   var TYPE_ICON = { broken: '⚠︎', confusing: '?', improvement: '✦', idea: '💡' };
@@ -940,32 +934,29 @@
         mark(neutral ? markC : '#fff', sz[3]) + (icon ? '' : '<b>' + esc(label) + '</b>') + '</div>' : '';
 
     var types = (cfg.types || TYPE_IDS.join(',')).split(',');
-    var typeCards = types.map(function (t) {
-      var tw = w.types[TYPE_IDS.indexOf(t)];
-      return '<div class="am-type"><span class="am-ti" style="color:' + acc + ';background:' + acc + '1f">' + TYPE_ICON[t] + '</span><span><b>' + esc(tw[0]) + '</b><i>' + esc(tw[1]) + '</i></span></div>';
+    var pills = types.map(function (t) {
+      return '<span class="am-pill" style="padding:5px 10px;border-radius:999px;background:rgba(127,127,127,.12);border:1px solid rgba(127,127,127,.2);font-size:11.5px;font-weight:500;white-space:nowrap">' + esc(w.types[TYPE_IDS.indexOf(t)]) + '</span>';
     }).join('');
-    var tabs = [w.tabs[0], w.tabs[1]].concat(cfg.showsPreferences === 'false' ? [] : [w.tabs[2]]);
-    var powered = '<div class="am-powered">' + mark(markC, 14) + esc(w.powered) + '</div>';
-    var head = '<div class="am-head">' + mark(markC, 28) + '<div><b>' + esc(w.sendFeedback) + '</b><span>' + esc(fmt(w.straight, { app: productName(p) })) + '</span></div>' + (mac ? '' : '<em>✕</em>') + '</div>' +
-      '<div class="am-seg">' + tabs.map(function (t, i) { return '<span' + (i === 0 ? ' class="on"' : '') + '>' + esc(t) + '</span>'; }).join('') + '</div>';
-    var form = '<div class="am-body"><p class="am-lab">' + esc(w.what) + '</p><div class="am-types' + (mac ? ' grid' : '') + '">' + typeCards + '</div>' +
-      '<p class="am-lab">' + esc(w.happened) + '</p><div class="am-text">' + esc(cfg.placeholder || w.ph) + '</div></div>' + powered +
-      '<div class="am-foot"><span>' + esc(w.attached) + '</span>' + (mac ? '<u>' + esc(w.cancel) + '</u>' : '') + '<strong style="background:' + acc + '">' + esc(w.send) + '</strong></div>';
-    var sent = '<div class="am-body am-sent">' + mark(markC, 56) + '<b>' + esc(w.sentTitle) + '</b>' + (cfg.thanks ? '<p>' + esc(cfg.thanks) + '</p>' : '') +
-      '<p class="mute">' + esc(w.sentBody) + '</p><div><u>' + esc(w.another) + '</u><strong style="background:' + acc + '">' + esc(w.see) + '</strong></div></div>' + powered;
+    var foot = '<div class="am-powered">' + esc(w.sentTo) + ' · ' + mark(markC, 14) + esc(w.powered) + '</div>';
+    var head = '<div class="am-head">' + mark(markC, 24) + '<div><b>' + esc(w.report) + '</b></div><span style="white-space:nowrap">' + esc(w.mine) + '</span><em>✕</em></div>';
+    var sendBtn = '<strong style="display:block;text-align:center;color:#fff;padding:9px;border-radius:' + (mac ? '8px' : '999px') + ';background:' + acc + (mac ? ';width:max-content;margin-left:auto;padding:6px 16px' : '') + ';opacity:.45">' + esc(w.send) + '</strong>';
+    var form = '<div class="am-body"><div style="display:flex;gap:6px;margin-bottom:10px;overflow:hidden">' + pills + '</div>' +
+      '<div class="am-text" style="min-height:90px">' + esc(cfg.placeholder || w.ph) + '</div><div style="margin-top:10px">' + sendBtn + '</div></div>' + foot;
+    var sent = '<div class="am-body am-sent"><svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="' + acc + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-7"/></svg>' +
+      '<b style="font-size:15px">' + esc(w.sentLine) + '</b>' + (cfg.thanks ? '<p>' + esc(cfg.thanks) + '</p>' : '') +
+      '<div><strong style="background:' + acc + '">' + esc(w.done) + '</strong></div></div>' + foot;
     var sheetSize = cfg.sheet || '';
     var sheet = show === 'panel' || show === 'sent'
-      ? '<div class="am-dim"></div><div class="am-sheet ' + (mac ? 'mac ' : '') + (sheetSize || 'regular') + '">' + head + (show === 'sent' ? sent : form) + '</div>' : '';
-    var reach = mac ? (cfg.entry !== 'none' ? w.reachMenu : fmt(hasButton ? w.reachClick : w.reachUse, { label: cfg.label ? '“' + cfg.label + '”' : w.report }))
-      : fmt(hasButton ? w.reachTap : w.reachUse, { label: cfg.label ? '“' + cfg.label + '”' : w.report });
+      ? '<div class="am-dim"></div><div class="am-sheet ' + (mac ? 'mac ' : '') + (sheetSize || 'regular') + '">' + (show === 'sent' ? head.replace(/<span[^>]*>.*?<\/span>/, '') : head) + (show === 'sent' ? sent : form) + '</div>' : '';
+    var intro = mac && cfg.entry !== 'none' ? w.introMenu : w.introBody;
     // The introduction: a welcome sheet on iPhone, its own small window on the Mac.
     var badge = '<span class="am-badge" style="background:' + markC + '24">' + mark(markC, 32) + '</span>';
-    var introText = badge + '<b>' + esc(w.introTitle) + '</b><p>' + esc(fmt(w.introBody, { reach: reach })) + '</p>';
+    var introText = badge + '<b>' + esc(w.introTitle) + '</b><p>' + esc(intro) + '</p>';
     var alert = show !== 'intro' ? '' : mac
       ? '<div class="am-intro mac"><div class="am-intro-bar"><i></i></div><div class="am-intro-text">' + introText + '</div>' +
-        '<div class="am-intro-foot">' + powered + '<u>' + esc(w.gotIt) + '</u><strong style="background:' + acc + '">' + esc(w.tryIt) + '</strong></div></div>'
+        '<div class="am-intro-foot"><strong style="background:' + acc + '">' + esc(w.gotIt) + '</strong></div>' + foot + '</div>'
       : '<div class="am-dim"></div><div class="am-intro"><div class="am-intro-text">' + introText + '</div>' +
-        '<strong style="background:' + acc + '">' + esc(w.tryIt) + '</strong><u style="color:' + acc + '">' + esc(w.gotIt) + '</u>' + powered + '</div>';
+        '<strong style="background:' + acc + '">' + esc(w.gotIt) + '</strong>' + foot + '</div>';
     var menu = mac && cfg.entry !== 'none' && show === 'button'
       ? '<div class="am-menu"><span>' + esc(w.menu) + '</span><kbd>⌥⌘R</kbd></div>' : '';
     var rows = ['Groceries', 'Trip to Ooty', 'Quarterly plan', 'Book list'].map(function (r) { return '<li>' + r + '</li>'; }).join('');

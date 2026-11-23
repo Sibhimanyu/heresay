@@ -37,7 +37,8 @@ struct ExampleApp: App {
             language: env["HERESAY_LANG"],
             types: env["HERESAY_TYPES"]?.split(separator: ",").compactMap { ReportType(rawValue: String($0)) } ?? ReportType.allCases,
             thanks: env["HERESAY_THANKS"],
-            sheet: env["HERESAY_SHEET"].flatMap(HeresayStyle.Sheet.init) ?? .regular
+            sheet: env["HERESAY_SHEET"].flatMap(HeresayStyle.Sheet.init) ?? .regular,
+            layout: env["HERESAY_LAYOUT"].flatMap(HeresayLayout.init) ?? .composer
         )
     }
 
@@ -100,7 +101,7 @@ struct NotesView: View {
                 let env = ProcessInfo.processInfo.environment
                 // The main screen is up: introduce Heresay, once per install (HERESAY_INTRO=1 for demos).
                 if env["HERESAY_INTRO"] == "1" { Heresay.introduce() }
-                if env["HERESAY_SIGNED_IN"] == "1" { Heresay.identify(id: "u_42", label: "Sibhi Govindasamy", email: "sibhi@example.com") }
+                if env["HERESAY_SIGNED_IN"] == "1" { Heresay.identify(id: "u_42", label: "Alex Example", email: "alex@example.com") }
                 #if os(macOS)
                 // HERESAY_DEMO_TRAIL plays someone using the app before reporting (the trail);
                 // HERESAY_SNAPSHOT=path opens the sheet for a screenshot of it.
@@ -128,6 +129,7 @@ struct NotesView: View {
                 if env["HERESAY_DEMO_SEND"] == "1" { try? await Heresay.send(.broken, text: "The export button does nothing.") }
                 switch env["HERESAY_OPEN"] {
                 case "1": try? await Task.sleep(for: .seconds(1)); Heresay.present()
+                case "typed": try? await Task.sleep(for: .seconds(1)); Heresay.present(type: .broken, text: "I tapped Export and nothing happened.")
                 case "preferences": try? await Task.sleep(for: .seconds(1)); Heresay.presentPreferences()
                 default: break
                 }

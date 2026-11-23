@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// How the report opens. Chosen by the app's developer; the reporter never sees the choice.
+public enum HeresayLayout: String, Sendable, CaseIterable {
+    /// One sheet: the four types in a row, the text box under them, Send. The default.
+    case composer
+    /// Two steps: pick what it is from a list, then write. Reads like a guided form.
+    case steps
+    /// Compact: a bar docked at the bottom (iPhone, iPad) or a small panel in the window (Mac) with a
+    /// Type menu, one line of text and a send arrow.
+    case bar
+}
+
 /// How Heresay looks in your app. **The defaults are the recommended setup**; change only what
 /// your app needs. Pass it to `Heresay.configure(…, style:)`.
 ///
@@ -9,7 +20,7 @@ import SwiftUI
 /// ```
 ///
 /// Not configurable, on purpose: the Heresay mark on the button, the report types' names (they
-/// set the priority), the Your reports tab (people read why a report was declined), and
+/// set the priority), Your reports (people read why a report was declined), and
 /// "Powered by Heresay", so people can tell the app uses an outside tool.
 public struct HeresayStyle: Equatable, Sendable {
     public enum Position: String, Sendable, CaseIterable { case bottomTrailing, bottomLeading, topTrailing, topLeading, bottom }
@@ -25,9 +36,10 @@ public struct HeresayStyle: Equatable, Sendable {
     public enum Theme: String, Sendable, CaseIterable { case system, light, dark }
     public enum Typeface: String, Sendable, CaseIterable { case system, rounded, serif }
     public enum Sheet: String, Sendable, CaseIterable {
-        /// A full-height sheet on iPhone; a regular sheet on iPad and Mac.
+        /// A sheet that fits its form on iPhone (rises with the keyboard, pull up for more);
+        /// a regular sheet on iPad and Mac.
         case regular
-        /// Half height on iPhone, pull up for more; a narrower sheet on Mac.
+        /// Like regular on iPhone but fixed at the form's height, no pulling up; a narrower sheet on Mac.
         case compact
         /// Full screen on iPhone and iPad; a wider sheet on Mac.
         case large
@@ -51,21 +63,26 @@ public struct HeresayStyle: Equatable, Sendable {
     public var typeface: Typeface
     /// `"en"`, `"fr"`, `"ta"` or `"hi"`. `nil`: the app's own language, falling back to English.
     public var language: String?
-    /// The question in the text box before a type is picked.
+    /// The question in the text box. Replaces the one that follows the type (“What went wrong?”,
+    /// “What would you like?”…); `nil` keeps those.
     public var placeholder: String?
     /// The types people can pick, in this order. Their names never change.
     public var types: [ReportType]
     /// A line under "Sent. Thank you.", from the team. Don't promise a fix.
     public var thanks: String?
     public var sheet: Sheet
+    /// Whether the “Your name and email” row (and “Signed in as …”) shows at the bottom of Your
+    /// reports. Hide it if your app calls `identify()` and asks nothing else.
     public var showsPreferences: Bool
+    /// How the report opens: `.composer` (default), `.steps` or `.bar`.
+    public var layout: HeresayLayout
 
     public init(position: Position = .bottomTrailing, offset: CGFloat = 16, label: String? = nil,
                 button: ButtonKind = .pill, size: Size = .regular, fill: Fill = .accent, shadow: Shadow = .soft,
                 hiddenOnScreens: Set<String> = [], markFollowsAccent: Bool = true, theme: Theme = .system,
                 typeface: Typeface = .system, language: String? = nil, placeholder: String? = nil,
                 types: [ReportType] = ReportType.allCases, thanks: String? = nil, sheet: Sheet = .regular,
-                showsPreferences: Bool = true) {
+                showsPreferences: Bool = true, layout: HeresayLayout = .composer) {
         self.position = position
         self.offset = min(max(offset, 0), 200)
         self.label = label.map { String($0.trimmed.prefix(40)) }?.nilIfEmpty
@@ -86,6 +103,7 @@ public struct HeresayStyle: Equatable, Sendable {
         self.thanks = thanks.map { String($0.trimmed.prefix(160)) }?.nilIfEmpty
         self.sheet = sheet
         self.showsPreferences = showsPreferences
+        self.layout = layout
     }
 
     var alignment: Alignment {

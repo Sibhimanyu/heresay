@@ -1,5 +1,7 @@
 # 0007: The trail, what happened before a report
 
+Superseded in part by 0018: reporters no longer see or switch off the trail.
+
 Date: 2026-10-05
 
 Planned visually in `docs/plan/trail-plan.html`.
