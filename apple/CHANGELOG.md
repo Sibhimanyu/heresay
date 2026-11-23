@@ -2,11 +2,7 @@
 
 What changed in each release, for the people using your app and for you. Updating? Do what "Action needed" says, if anything shows.
 
-<<<<<<< HEAD
-## [0.2.51] - Unreleased
-=======
 ## [0.2.51] - 2026-11-23
->>>>>>> origin/master
 
 ### What the people using your app see
 
