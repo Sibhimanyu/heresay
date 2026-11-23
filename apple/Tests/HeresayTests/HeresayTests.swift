@@ -779,6 +779,36 @@ final class BlackBoxTests: XCTestCase {
         XCTAssertTrue(three.lastRunEntries(now: t + 300).isEmpty)
     }
 
+    func testARunThatWasNeverActiveIsNotACrash() {
+        let d = dir(), ud = defaults()
+        let t = Date()
+        // Launched in the background (iOS prewarm): never active, never told it went to the background.
+        BlackBox(dir: d).begin(version: "1.4", defaults: ud, now: t, active: false)
+        XCTAssertNil(BlackBox(dir: d).begin(version: "1.4", defaults: ud, now: t + 1, active: false), "never active, so not a crash")
+    }
+
+    func testARunThatBecameActiveAndNeverEndedWellIsACrash() {
+        let d = dir(), ud = defaults()
+        let t = Date()
+        let one = BlackBox(dir: d)
+        one.begin(version: "1.4", defaults: ud, now: t, active: false)
+        one.markClean(false, now: t + 5) // became active
+        XCTAssertEqual(BlackBox(dir: d).begin(version: "1.4", defaults: ud, now: t + 100, active: false)?.version, "1.4")
+        // And one that starts active (configured late) counts from the start.
+        let d2 = dir()
+        BlackBox(dir: d2).begin(version: "1.4", defaults: ud, now: t, active: true)
+        XCTAssertNotNil(BlackBox(dir: d2).begin(version: "1.4", defaults: ud, now: t + 1, active: true))
+    }
+
+    func testARunFileFromBeforeStillDecodes() throws {
+        let d = dir()
+        try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        let json = #"{"launchedAt":1000,"version":"1.0","firstOfVersion":false,"savedAt":1010,"clean":false,"entries":[],"logs":[]}"#
+        try Data(json.utf8).write(to: d.appendingPathComponent("run.json"))
+        let found = BlackBox(dir: d).begin(version: "1.0", defaults: defaults(), now: Date(timeIntervalSince1970: 1100), active: true)
+        XCTAssertEqual(found?.version, "1.0")
+    }
+
     func testTheEndingSaysHowSoonAndAfterWhichUpdate() {
         let t = Date()
         var r = BlackBox.Run(launchedAt: t, version: "2.0", previousVersion: nil, firstOfVersion: false, savedAt: t + 750, clean: false)
