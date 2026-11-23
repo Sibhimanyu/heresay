@@ -1093,13 +1093,13 @@
     // the panel
     '.scrim{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:flex-end;padding:var(--fb-pad,16px)}',
     '.scrim.l{justify-content:flex-start}.scrim.c{justify-content:center}.scrim.t{align-items:flex-start}.scrim.side{align-items:center}',
-    '.scrim.center{align-items:center;justify-content:center;padding:16px}',
+    '.scrim.center{align-items:center;justify-content:center;padding:16px}.scrim.center.dim{background:rgba(0,0,0,.55)}',
     '.scrim.sheet{padding:0;align-items:stretch}',
     '.panel{animation:fb-rise .2s ease-out}.scrim.t .panel{animation-name:fb-drop}.scrim.center .panel,.scrim.side .panel{animation-name:fb-fade}',
     '@keyframes fb-rise{from{opacity:0;transform:translateY(8px)}}@keyframes fb-drop{from{opacity:0;transform:translateY(-8px)}}',
     '.scrim.clear{background:none}',
     '.scrim.anch{padding:0!important;display:block}.scrim.anch>.panel,.scrim.anch>.barbox{position:fixed;left:0;top:0}',
-    '.scrim.bar.center{pointer-events:auto;background:rgba(0,0,0,.35)}.scrim.bar.center.clear{background:none}',
+    '.scrim.bar.center{pointer-events:auto;background:rgba(0,0,0,.55)}.scrim.bar.center.clear{background:none}',
     '.scrim.bar.center.blur{background:rgba(0,0,0,.18);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}',
     '.scrim.blur{background:rgba(0,0,0,.18);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}',
     '.panel{width:min(var(--fb-w),100%);max-height:min(600px,calc(100vh - 32px));display:flex;flex-direction:column;overflow:hidden;background:var(--fb-bg);',
@@ -1551,6 +1551,9 @@
     listBox = null; hdDot = null; hdMine = null;
     state.justSent = false;
     prefsOpen = false;
+    // Only an unsent message is kept. A type picked with nothing written is dropped, so the next
+    // report never opens with last time's choice already selected.
+    if (!String(state.draft || '').trim()) { state.type = null; state.draft = ''; }
     renderBadge();
     if (how !== 'outside' && lastFocus && lastFocus.focus && lastFocus.isConnected !== false) lastFocus.focus();
   }

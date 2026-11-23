@@ -1048,6 +1048,10 @@ final class AnchorTests: XCTestCase {
         XCTAssertEqual(KeptDraft.start(asked: h.draft, kept: h.kept), KeptDraft(type: .broken, text: "It crashes"))
         h.keep(type: nil, text: "  ")
         XCTAssertNil(h.kept)
+        // A type picked with nothing written is not kept: the next report opens with none selected.
+        h.keep(type: .broken, text: " \n")
+        XCTAssertNil(h.kept)
+        XCTAssertEqual(KeptDraft.start(asked: h.draft, kept: h.kept), KeptDraft(type: nil, text: ""))
     }
 
     func testWhatTheAppAsksForBeatsAKeptDraft() {
