@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.52] - Unreleased
+
+### What the people using your app see
+
+- A new report never opens with last time's type already selected; only an unsent message (with its type) is kept.
+- The page behind the centred Report window is dimmed more, so the window stands out, especially in dark apps.
+
+### Action needed
+
+- None required.
+
 ## [0.2.51] - 2026-11-23
 
 ### What the people using your app see

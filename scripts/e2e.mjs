@@ -1039,6 +1039,15 @@ try {
       await asd.locator('.panel').waitFor({ state: 'detached' });
       await ap.click('#side');
       assert.equal(await asd.getByRole('textbox', { name: 'Your report' }).inputValue(), 'Kept after an outside click.');
+      // A type picked with nothing written is not kept: the next report opens with none selected.
+      await asd.getByRole('textbox', { name: 'Your report' }).fill('');
+      await asd.getByRole('radio', { name: 'Broken' }).click();
+      await ap.mouse.click(1200, 100);
+      await asd.locator('.panel').waitFor({ state: 'detached' });
+      await ap.click('#side');
+      assert.equal(await asd.locator('[role="radio"][aria-checked="true"]').count(), 0, 'no type is preselected from last time');
+      await ap.mouse.click(1200, 100);
+      await asd.locator('.panel').waitFor({ state: 'detached' });
     }
     if (layout === 'bar') {
       await asd.getByRole('button', { name: /What kind of report/ }).click();

@@ -70,9 +70,11 @@ extension Heresay {
         #endif
     }
 
+    /// Only an unsent message is worth keeping. A type picked with nothing written is dropped, so
+    /// the next report never opens with last time's choice already selected.
     func keep(type: ReportType?, text: String) {
-        let d = KeptDraft(type: type, text: text)
-        kept = d.isEmpty ? nil : d
+        let written = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        kept = written.isEmpty ? nil : KeptDraft(type: type, text: text)
     }
 }
 
