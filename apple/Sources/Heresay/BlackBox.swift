@@ -11,7 +11,9 @@ import UIKit
 /// and is forgotten after a day.
 ///
 /// A run that never said it ended (going to the background on iOS, quitting on macOS) ended
-/// badly: a crash, a hang the system killed, running out of memory, or a force quit.
+/// badly: a crash, a hang the system killed, running out of memory, or a force quit. On iOS, tvOS
+/// and visionOS only a run the app was active in counts: the system also launches apps without
+/// ever showing them (prewarming, background launches) and then suspends or kills them silently.
 final class BlackBox: @unchecked Sendable {
     struct Run: Codable, Equatable {
         var launchedAt: Date
@@ -59,7 +61,7 @@ final class BlackBox: @unchecked Sendable {
     /// At launch: if the run before this one ended badly, keep it as the last run. Then start this
     /// one. Returns the run that ended badly, when there was one.
     @discardableResult
-    func begin(version: String?, defaults: UserDefaults, now: Date = Date()) -> Run? {
+    func begin(version: String?, defaults: UserDefaults, now: Date = Date(), active: Bool = BlackBox.appIsActive) -> Run? {
         var found: Run?
         if let prev = read(current), !prev.clean, now.timeIntervalSince(prev.savedAt) < Self.keep {
             found = prev
@@ -69,12 +71,24 @@ final class BlackBox: @unchecked Sendable {
         let first = version != nil && seen != version
         if let version { defaults.set(version, forKey: Self.versionKey) }
         let r = Run(launchedAt: now, version: version, previousVersion: first ? seen : nil, firstOfVersion: first,
-                    savedAt: now, clean: false)
+                    savedAt: now, clean: !active)
         lock.withLock { run = r }
         write(r, to: current)
         watchLifecycle()
         startHeartbeat()
         return found
+    }
+
+    /// Whether the app is in the foreground right now. Always true on macOS, where a run that
+    /// starts is a run the person can quit.
+    static var appIsActive: Bool {
+        #if os(macOS)
+        return true
+        #else
+        // Off the main thread, keep the old behaviour: count the run.
+        guard Thread.isMainThread else { return true }
+        return MainActor.assumeIsolated { UIApplication.shared.applicationState == .active }
+        #endif
     }
 
     static let versionKey = "heresay.last_version"
@@ -215,6 +229,9 @@ final class BlackBox: @unchecked Sendable {
         // Suspended in the background is how iOS apps end; being killed there isn't a crash.
         observers.append(nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil, using: mark(true)))
         observers.append(nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil, using: mark(false)))
+        // A run that was never active (prewarmed, launched in the background) can't have crashed
+        // in front of anyone: it only counts once the app becomes active.
+        observers.append(nc.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil, using: mark(false)))
         observers.append(nc.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: nil, using: mark(true)))
         #endif
     }
