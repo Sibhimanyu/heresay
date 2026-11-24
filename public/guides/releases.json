@@ -10,7 +10,8 @@
       "developers": [
         "Swift: on macOS 26 the whole panel uses Liquid Glass (older macOS: regular material); no fixed heights or outer scroll view on macOS, so no view can clip."
       ],
-      "action": "None required."
+      "action": "None required.",
+      "date": "2026-11-24"
     },
     {
       "version": "0.2.52",
