@@ -113,12 +113,20 @@ struct ReportBar: View {
                 if sending { HeresayGlance(.white).frame(width: 22, height: 22) }
                 else { Image(systemName: "arrow.up").font(.body.weight(.bold)) }
             }
+            #if os(macOS)
+            .frame(width: 20, height: 20)
+            #else
             .foregroundStyle(canSend || sending ? Color.white : Color.secondary)
             .frame(width: 36, height: 36)
             .background(Circle().fill(canSend || sending ? heresay.accent : Color.primary.opacity(0.1)))
             .contentShape(Circle())
+            #endif
         }
+        #if os(macOS)
+        .prominentCircle(accent: heresay.accent)
+        #else
         .buttonStyle(.plain)
+        #endif
         .keyboardShortcut(.return, modifiers: .command)
         .disabled(!canSend)
         .accessibilityLabel(sending ? w[.sending] : w[.send])
@@ -188,12 +196,20 @@ struct ReportBar: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button { heresay.isPresented = false } label: {
+                #if os(macOS)
+                Text(w[.done]).font(.subheadline.weight(.semibold))
+                #else
                 Text(w[.done]).font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .foregroundStyle(Color.white)
                     .background(Capsule().fill(heresay.accent))
+                #endif
             }
+            #if os(macOS)
+            .prominentOrGlass().tint(heresay.accent)
+            #else
             .buttonStyle(.plain)
+            #endif
             .keyboardShortcut(.defaultAction)
         }
         .padding(.vertical, 4)
@@ -212,5 +228,17 @@ struct ReportBar: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+}
+
+extension View {
+    /// The Mac bar's send arrow: a round accent glass button (bordered-prominent before macOS 26).
+    @ViewBuilder func prominentCircle(accent: Color) -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26, macOS 26, *) { buttonStyle(.glassProminent).buttonBorderShape(.circle).tint(accent) }
+        else { buttonStyle(.borderedProminent).tint(accent) }
+        #else
+        buttonStyle(.borderedProminent).tint(accent)
+        #endif
     }
 }
