@@ -5,7 +5,7 @@ import Foundation
 enum W: String, CaseIterable {
     case report, reportA11y, reportA11yUpdate, menuItem
     case introTitle, introBody, introBodyMenu, gotIt
-    case yourReports, yourReportsA11yUpdate, back, close, done, send, sending, sendHelp, sentTo
+    case yourReports, yourReportsA11yUpdate, back, close, cancel, done, send, sending, sendHelp, sentTo
     case whatIsIt, whatHappened, placeholder, brokenAsk, confusingAsk, improvementAsk, ideaAsk
     case broken, confusing, improvement, idea
     case sentLine
@@ -41,7 +41,7 @@ struct Words: Sendable {
         .report: "Report", .reportA11y: "Report a problem", .reportA11yUpdate: "Report a problem. You have an update.",
         .menuItem: "Report a Problem…",
         .gotIt: "Got it",
-        .close: "Close", .done: "Done", .send: "Send", .sending: "Sending…", .sendHelp: "Send (⌘↩)",
+        .close: "Close", .cancel: "Cancel", .done: "Done", .send: "Send", .sending: "Sending…", .sendHelp: "Send (⌘↩)",
         .whatIsIt: "What is it?",
         .broken: "Broken",
         .confusing: "Confusing",
@@ -69,7 +69,7 @@ struct Words: Sendable {
         .report: "Signaler", .reportA11y: "Signaler un problème", .reportA11yUpdate: "Signaler un problème. Vous avez du nouveau.",
         .menuItem: "Signaler un problème…",
         .gotIt: "Compris",
-        .close: "Fermer", .done: "OK", .send: "Envoyer", .sending: "Envoi…", .sendHelp: "Envoyer (⌘↩)",
+        .close: "Fermer", .cancel: "Annuler", .done: "OK", .send: "Envoyer", .sending: "Envoi…", .sendHelp: "Envoyer (⌘↩)",
         .whatIsIt: "De quoi s’agit-il ?",
         .broken: "Cassé",
         .confusing: "Déroutant",
@@ -97,7 +97,7 @@ struct Words: Sendable {
         .report: "தெரிவி", .reportA11y: "சிக்கலைத் தெரிவிக்கவும்", .reportA11yUpdate: "சிக்கலைத் தெரிவிக்கவும். உங்களுக்குப் புதிய தகவல் உள்ளது.",
         .menuItem: "சிக்கலைத் தெரிவி…",
         .gotIt: "சரி",
-        .close: "மூடு", .done: "முடிந்தது", .send: "அனுப்பு", .sending: "அனுப்புகிறது…", .sendHelp: "அனுப்பு (⌘↩)",
+        .close: "மூடு", .cancel: "ரத்து செய்", .done: "முடிந்தது", .send: "அனுப்பு", .sending: "அனுப்புகிறது…", .sendHelp: "அனுப்பு (⌘↩)",
         .whatIsIt: "இது என்ன வகை?",
         .broken: "வேலை செய்யவில்லை",
         .confusing: "குழப்பமாக உள்ளது",
@@ -125,7 +125,7 @@ struct Words: Sendable {
         .report: "रिपोर्ट करें", .reportA11y: "समस्या की रिपोर्ट करें", .reportA11yUpdate: "समस्या की रिपोर्ट करें। आपके लिए नई जानकारी है।",
         .menuItem: "समस्या की रिपोर्ट करें…",
         .gotIt: "ठीक है",
-        .close: "बंद करें", .done: "हो गया", .send: "भेजें", .sending: "भेजा जा रहा है…", .sendHelp: "भेजें (⌘↩)",
+        .close: "बंद करें", .cancel: "रद्द करें", .done: "हो गया", .send: "भेजें", .sending: "भेजा जा रहा है…", .sendHelp: "भेजें (⌘↩)",
         .whatIsIt: "यह क्या है?",
         .broken: "टूटा हुआ",
         .confusing: "उलझन भरा",

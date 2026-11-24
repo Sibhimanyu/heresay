@@ -2,13 +2,25 @@
   "about": "What each Heresay release changed, in plain words. `users`: what the people using an app with Heresay will see. `developers`: what a developer can now do or must know. `action`: a code change an app needs, if any. `features`: ids from changes.json that this release introduced. Read by whats_new to explain an update before it is applied. A release cannot be cut without an entry here (scripts/release.mjs).",
   "versions": [
     {
+      "version": "0.2.53",
+      "users": [
+        "On the Mac, the Report window is on real glass and sized to fit: the text box, the last type row and the footer are never cut off.",
+        "The Mac window looks native: glass type buttons, Cancel and a large Send at the bottom right (Esc and ⌘Return), a soft text field and compact rows in the steps layout."
+      ],
+      "developers": [
+        "Swift: on macOS 26 the whole panel uses Liquid Glass (older macOS: regular material); no fixed heights or outer scroll view on macOS, so no view can clip."
+      ],
+      "action": "None required."
+    },
+    {
       "version": "0.2.52",
       "users": [
         "A new report never opens with last time's type already selected; only an unsent message (with its type) is kept.",
         "The page behind the centred Report window is dimmed more, so the window stands out, especially in dark apps."
       ],
       "developers": [],
-      "action": "None required."
+      "action": "None required.",
+      "date": "2026-11-23"
     },
     {
       "version": "0.2.51",

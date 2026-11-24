@@ -2,7 +2,22 @@
 
 What changed in each release, for the people using your app and for you. Updating? Do what "Action needed" says, if anything shows.
 
-## [0.2.52] - Unreleased
+## [0.2.53] - Unreleased
+
+### What the people using your app see
+
+- On the Mac, the Report window is on real glass and sized to fit: the text box, the last type row and the footer are never cut off.
+- The Mac window looks native: glass type buttons, Cancel and a large Send at the bottom right (Esc and ⌘Return), a soft text field and compact rows in the steps layout.
+
+### For developers
+
+- Swift: on macOS 26 the whole panel uses Liquid Glass (older macOS: regular material); no fixed heights or outer scroll view on macOS, so no view can clip.
+
+### Action needed
+
+- None required.
+
+## [0.2.52] - 2026-11-23
 
 ### What the people using your app see
 
