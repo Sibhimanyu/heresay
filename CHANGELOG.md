@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.54] - 2026-11-26
+
+### What the people using your app see
+
+- Report categories on the web are separate outlined buttons with icons and a clear selected state; they wrap on narrow screens.
+- The report form explains whether Send needs a category or some text.
+- The Mac report sheet uses the system surface, a native category menu, clearer headings, smaller action buttons and a stable writing area.
+
+### For developers
+
+- No integration changes are required. The existing composer, steps and bar layout options remain available.
+- Browser regression checks cover four languages, both themes and narrow screens. Native accessibility-dependent layout checks report a skip when macOS cannot expose the controls; native cutoff verification remains incomplete.
+
+### Action needed
+
+- None required.
+
 ## [0.2.53] - 2026-11-24
 
 ### What the people using your app see

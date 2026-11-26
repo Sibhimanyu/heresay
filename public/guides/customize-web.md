@@ -39,10 +39,12 @@ bar (most compact), composer, steps; guidance runs the other way, steps (most gu
 **`composer`** (default). Best for most apps: web apps, sites, SaaS, anything with no strong reason
 to pick another.
 - The reporter taps the button. A panel opens beside it with a header (mark, "Report", "Your
-  reports" with a dot when something has an update, close), one row of four type pills (Broken,
-  Confusing, Could be better, Idea), a text box whose placeholder follows the type ("What went
-  wrong?"), Send, and one footer line.
-- Tap a pill, type, tap Send. A check and "Sent. You'll see the reply under Your reports." appear,
+  reports" with a dot when something has an update, close), individually outlined category
+  buttons (Broken, Confusing, Could be better, Idea) that wrap on narrow screens, a text box
+  whose placeholder follows the type ("What went wrong?"), Send, and one footer line.
+- A label asks the reporter to choose a category. A visible hint explains whether Send needs
+  a category or some report text.
+- Tap a category, type, tap Send. A check and "Sent. You'll see the reply under Your reports." appear,
   with Done.
 - On phones (under 600px) the panel is a bottom sheet over a dimmed page. On wider screens it
   opens beside the button, away from the edge, and never covers the button.

@@ -218,7 +218,16 @@ try {
   await sdk.getByRole('button', { name: 'Back to Report' }).click();
   assert.equal(await sdk.getByRole('radio', { checked: true }).count(), 0, 'no type preselected');
   assert.equal(await sdk.getByRole('button', { name: 'Send' }).isDisabled(), true, 'Send waits for a type and some text');
+  await sdk.getByText('Choose a category', { exact: true }).waitFor();
+  await sdk.getByRole('textbox', { name: 'Your report' }).fill('I typed before choosing a category.');
+  await sdk.getByText('Choose a category above to send.').waitFor();
+  assert.equal(await sdk.getByRole('button', { name: 'Send' }).isDisabled(), true, 'text alone explains the missing category');
   await sdk.getByRole('radio', { name: 'Confusing' }).click();
+  assert.equal(await sdk.getByRole('button', { name: 'Send' }).isEnabled(), true, 'choosing the missing category enables Send');
+  assert.equal(await sdk.getByText('Choose a category above to send.').count(), 0);
+  await sdk.getByRole('textbox', { name: 'Your report' }).fill('   ');
+  await sdk.getByText('Write a short report to send.').waitFor();
+  assert.equal(await sdk.getByRole('button', { name: 'Send' }).isDisabled(), true, 'whitespace does not count as a report');
   await sdk.getByPlaceholder('What were you trying to do?').waitFor();
   await sdk.getByRole('textbox', { name: 'Your report' }).fill('I could not work out how to cancel my plan.');
   await app.screenshot({ path: `${SHOTS}e2e-2-report-form.png` });

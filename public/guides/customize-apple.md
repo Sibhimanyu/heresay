@@ -44,15 +44,15 @@ HeresayStyle(layout: .steps)   // .composer (default) · .steps · .bar
 ```
 
 **`.composer` (default).** One sheet. Header: mark, "Report", Your reports (with a dot when there
-is a reply), close. Then one row of the four type pills, a text box whose question follows the
-type, Send, and a one-line footer. Choose it when you have no strong preference: one screen, all
-choices visible. iPhone: a sheet that fits the form and rises with the keyboard. iPad and Mac: a
+is a reply), close. Then type pills on iOS or a labelled category menu on Mac, a text box whose
+question follows the type, Send, and a one-line footer. A hint explains which requirement is
+missing while Send is unavailable. Choose it when you have no strong preference: one screen. iPhone: a sheet that fits the form and rises with the keyboard. iPad and Mac: a
 regular sheet.
 
 **`.steps`.** Two screens. Screen 1: "What's going on?", Your reports (clock icon with a dot),
 close, and four full-width rows (Broken, Confusing, Could be better, Idea), each with an icon and
 a chevron, then "Powered by Heresay". Tapping a row goes to screen 2: back, the chosen type as a
-pill, the text box, Send. Choose it for a guided, friendlier feel or for people who don't know what
+pill on iOS or a plain heading on Mac, the text box, Send. Choose it for a guided, friendlier feel or for people who don't know what
 to write until they have chosen a kind. `types:` shortens the list. With `present(type:)` it opens
 on screen 2. iPhone: a sheet that fits each screen. iPad and Mac: a regular sheet.
 
