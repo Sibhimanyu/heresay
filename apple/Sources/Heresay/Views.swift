@@ -272,9 +272,6 @@ struct SheetPresenter: ViewModifier {
         ReportSheet(heresay: heresay)
             .heresayTypeface(heresay.style.typeface)
             .preferredColorScheme(heresay.style.colorScheme)
-            #if os(macOS)
-            .fittedSheet()
-            #endif
     }
 
     func body(content: Content) -> some View {
@@ -513,10 +510,9 @@ struct ReportSheet: View {
     #endif
 
     #if os(macOS)
-    /// The Mac layout. No ScrollView and no measured heights: the form is laid out at its natural
-    /// size inside a fixed width, and the sheet (`.presentationSizing(.fitted)`) or popover is exactly
-    /// that tall. (The old layout summed the header and form but not the footer, so the form's
-    /// scroll view lost the footer's height and clipped the editor behind the Send row.)
+    /// Measure the entire Mac panel, including the footer. The sizing policy must change with
+    /// that measurement: a stateless `.fitted` policy can keep the category screen's old height
+    /// when the steps layout switches to the taller form, clipping its footer.
     private var macContent: some View {
         VStack(spacing: 0) {
             switch page {
@@ -532,8 +528,7 @@ struct ReportSheet: View {
             SheetFooter(heresay: heresay,
                         compact: heresay.style.layout == .steps && page == .report && !sent && !picked)
         }
-        .frame(width: inPopover ? 440 : macWidth)
-        .fixedSize(horizontal: false, vertical: true)
+        .modifier(MacReportPanelSizing(width: inPopover ? 440 : macWidth))
     }
 
     /// Your reports grows to its content and then scrolls, never past 70% of the window.
@@ -1573,9 +1568,36 @@ struct PreferencesRow: View {
 
 #if os(macOS)
 extension View {
-    /// The sheet is as big as its content, so nothing is ever clipped or scrolled needlessly.
-    @ViewBuilder func fittedSheet() -> some View {
-        if #available(macOS 15, *) { presentationSizing(.fitted) } else { self }
+    /// An explicit, changing proposal makes the native presentation resize after navigation.
+    @ViewBuilder func reportSheetSize(height: CGFloat?) -> some View {
+        if #available(macOS 15, *) {
+            presentationSizing(ReportPresentationSizing(height: height))
+        } else { self }
+    }
+}
+
+/// Keep the measurement independent of the presentation's previous height, and include all
+/// children (especially the footer) when updating the native sheet's proposal.
+struct MacReportPanelSizing: ViewModifier {
+    let width: CGFloat
+    @State private var height: CGFloat?
+
+    func body(content: Content) -> some View {
+        content
+            .frame(width: width)
+            .fixedSize(horizontal: false, vertical: true)
+            .measured()
+            .onPreferenceChange(FitHeight.self) { if $0 > 0 { height = $0 } }
+            .frame(height: height)
+            .reportSheetSize(height: height)
+    }
+}
+
+@available(macOS 15, *)
+private struct ReportPresentationSizing: PresentationSizing {
+    let height: CGFloat?
+    func proposedSize(for root: PresentationSizingRoot, context: PresentationSizingContext) -> ProposedViewSize {
+        ProposedViewSize(width: nil, height: height)
     }
 }
 
