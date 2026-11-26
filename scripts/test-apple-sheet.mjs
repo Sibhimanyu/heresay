@@ -1,7 +1,7 @@
 // Headful macOS integration regression. A standalone app exercises real sheet resizing;
 // SwiftPM's XCTest host does not reliably attach SwiftUI sheets or expose accessibility.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { arch, platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,7 +39,14 @@ if (process.argv.includes('--build-only')) {
   console.log(app);
   process.exit(0);
 }
-run('open', ['-W', '-n', '--env', `HERESAY_PROBE_RESULT=${result}`, app], 30_000);
+try {
+  run('open', ['-W', '-n', '--env', `HERESAY_PROBE_RESULT=${result}`, app], 30_000);
+} catch (error) {
+  for (const path of [result, `${result}.phase`]) {
+    if (existsSync(path)) console.error(`${path}: ${readFileSync(path, 'utf8')}`);
+  }
+  throw error;
+}
 const report = readFileSync(result, 'utf8');
 process.stdout.write(report);
 if (!report.startsWith('PASS ')) process.exitCode = 1;

@@ -2,6 +2,7 @@
 // It exercises a real SwiftUI .sheet and internal state changes without relying on accessibility.
 import AppKit
 import SwiftUI
+import Darwin
 
 @MainActor final class ProbeResult {
     var requiredHeight: CGFloat = 0
@@ -22,7 +23,11 @@ private struct GrowingPanel: View {
         }
         .modifier(MacReportPanelSizing(width: 480))
         .task {
-            try? await Task.sleep(for: .milliseconds(800))
+            for _ in 0..<100 {
+                if result.initialHeight > 0 { break }
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            guard result.initialHeight > 0 else { return }
             result.requiredHeight = result.initialHeight + 100
             withAnimation(.easeInOut(duration: 0.25)) { expanded = true }
         }
@@ -42,6 +47,7 @@ private struct ProbeRoot: View {
 
 @main enum SheetSizingProbe {
     @MainActor static func main() {
+        recordPhase("starting")
         let app = NSApplication.shared
         let delegate = ProbeDelegate()
         app.delegate = delegate
@@ -55,26 +61,45 @@ private struct ProbeRoot: View {
     let result = ProbeResult()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        recordPhase("launched")
         let heresay = Heresay(defaults: UserDefaults(suiteName: "heresay.sheet-sizing-probe")!)
         window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 700),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.contentView = NSHostingView(rootView: ProbeRoot(result: result, heresay: heresay))
         window.makeKeyAndOrderFront(nil)
-        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [self] _ in
-            MainActor.assumeIsolated { result.initialHeight = window.attachedSheet?.contentView?.bounds.height ?? 0 }
+        let ready = Timer(timeInterval: 0.1, repeats: true) { [self] timer in
+            MainActor.assumeIsolated {
+                let height = window.attachedSheet?.contentView?.bounds.height ?? 0
+                if height > 0 {
+                    result.initialHeight = height
+                    recordPhase("sheet ready: \(height)")
+                    timer.invalidate()
+                }
+            }
         }
-        Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [self] _ in
+        RunLoop.main.add(ready, forMode: .common)
+        let deadline = Timer(timeInterval: 8, repeats: false) { [self] _ in
             MainActor.assumeIsolated {
                 let actual = window.attachedSheet?.contentView?.bounds.height ?? 0
                 let passed = result.initialHeight > 0 && result.requiredHeight > result.initialHeight + 50
                     && actual >= result.requiredHeight - 1
                 let report = "\(passed ? "PASS" : "FAIL") initial=\(result.initialHeight) required=\(result.requiredHeight) sheet=\(actual)\n"
-                let path = ProcessInfo.processInfo.environment["HERESAY_PROBE_RESULT"]
-                    ?? Bundle.main.object(forInfoDictionaryKey: "HeresayProbeResult") as? String
-                    ?? "/tmp/heresay-sheet-sizing-result.txt"
-                try? report.write(toFile: path, atomically: true, encoding: .utf8)
-                NSApp.terminate(nil)
+                try? report.write(toFile: probeResultPath(), atomically: true, encoding: .utf8)
+                recordPhase("finished")
+                // This standalone test process must exit even if AppKit has an active sheet.
+                exit(passed ? 0 : 1)
             }
         }
+        RunLoop.main.add(deadline, forMode: .common)
     }
+}
+
+private func probeResultPath() -> String {
+    ProcessInfo.processInfo.environment["HERESAY_PROBE_RESULT"]
+        ?? Bundle.main.object(forInfoDictionaryKey: "HeresayProbeResult") as? String
+        ?? "/tmp/heresay-sheet-sizing-result.txt"
+}
+
+private func recordPhase(_ phase: String) {
+    try? phase.write(toFile: probeResultPath() + ".phase", atomically: true, encoding: .utf8)
 }
