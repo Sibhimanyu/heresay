@@ -161,6 +161,10 @@ The accessibility-dependent layout checks require macOS to expose SwiftUI contro
 process. They report a skip if those controls are unavailable; a skip leaves control containment
 and Send-state behavior unverified. The editor scrolling check runs independently.
 
+`node scripts/test-apple-sheet.mjs`, run from the main Heresay repository root in a macOS GUI
+session, checks that a real SwiftUI sheet grows when its content changes. The script is not
+included in the standalone Swift package.
+
 `npm run e2e:apple` in the main repo sends real reports from macOS and the iOS simulator to the
 emulators, then uses the example Mac app (`HERESAY_DEMO_TRAIL=1`) and checks the trail that
 arrives with its report. `HERESAY_DEMO_NUDGE=/tmp/shot` makes the example app click Sync now five

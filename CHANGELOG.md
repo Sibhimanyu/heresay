@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.55] - 2026-11-26
+
+### What the people using your app see
+
+- On Mac, choosing a report category now resizes the sheet to fit the form, keeping the footer text and Heresay logo visible.
+
+### For developers
+
+- The Swift report panel updates its native sheet size when its content height changes, including the footer in the measurement.
+- A native integration regression opens a real SwiftUI sheet and checks that it grows after an internal content change. It runs in the Apple CI job without depending on accessibility controls.
+
+### Action needed
+
+- Update the Heresay Swift package to 0.2.55 and rebuild your app to receive the Mac footer fix.
+
 ## [0.2.54] - 2026-11-26
 
 ### What the people using your app see
