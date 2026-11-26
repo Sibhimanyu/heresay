@@ -152,9 +152,14 @@ hides it.
 
 ```sh
 swift test                                   # macOS
+swift test --filter ReportLayoutTests          # rendered macOS panel bounds and long-text scrolling
 xcodebuild test -scheme Heresay -destination 'platform=iOS Simulator,name=iPhone 18 Pro'
 cd Example && xcodegen && open HeresayExample.xcodeproj    # a tiny app to try it in
 ```
+
+The accessibility-dependent layout checks require macOS to expose SwiftUI controls to the test
+process. They report a skip if those controls are unavailable; a skip leaves control containment
+and Send-state behavior unverified. The editor scrolling check runs independently.
 
 `npm run e2e:apple` in the main repo sends real reports from macOS and the iOS simulator to the
 emulators, then uses the example Mac app (`HERESAY_DEMO_TRAIL=1`) and checks the trail that

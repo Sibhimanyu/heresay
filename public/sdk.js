@@ -95,6 +95,7 @@
       close: 'Close', dialog: 'Feedback', back: 'Back to Report',
       mine: 'Your reports', mineAria: 'Your reports, {n} with an update', kindAria: 'What kind of report is this?', reportLabel: 'Your report',
       phNone: 'What’s on your mind?',
+      categoryLabel: 'Choose a category', needCategory: 'Choose a category above to send.', needReport: 'Write a short report to send.',
       send: 'Send', sending: 'Sending…', cantSend: 'Could not send. Try again.',
       sentMsg: 'Sent. You’ll see the reply under Your reports.', done: 'Done',
       types: {
@@ -122,6 +123,7 @@
       close: 'Fermer', dialog: 'Signalement', back: 'Retour à Signaler',
       mine: 'Vos signalements', mineAria: 'Vos signalements, {n} avec du nouveau', kindAria: 'De quel type de signalement s’agit-il ?', reportLabel: 'Votre signalement',
       phNone: 'Qu’avez-vous en tête ?',
+      categoryLabel: 'Choisissez une catégorie', needCategory: 'Choisissez une catégorie ci-dessus pour envoyer.', needReport: 'Écrivez un court signalement pour envoyer.',
       send: 'Envoyer', sending: 'Envoi…', cantSend: 'Envoi impossible. Réessayez.',
       sentMsg: 'Envoyé. Vous verrez la réponse dans Vos signalements.', done: 'Terminé',
       types: {
@@ -149,6 +151,7 @@
       close: 'மூடு', dialog: 'கருத்து', back: 'தெரிவி பக்கத்துக்குத் திரும்பு',
       mine: 'உங்கள் புகார்கள்', mineAria: 'உங்கள் புகார்கள், {n} இல் புதிய தகவல் உள்ளது', kindAria: 'இது எந்த வகைப் புகார்?', reportLabel: 'உங்கள் புகார்',
       phNone: 'உங்கள் மனதில் என்ன இருக்கிறது?',
+      categoryLabel: 'ஒரு வகையைத் தேர்ந்தெடுக்கவும்', needCategory: 'அனுப்ப மேலே ஒரு வகையைத் தேர்ந்தெடுக்கவும்.', needReport: 'அனுப்ப ஒரு சிறு புகாரை எழுதவும்.',
       send: 'அனுப்பு', sending: 'அனுப்புகிறது…', cantSend: 'அனுப்ப முடியவில்லை. மீண்டும் முயலவும்.',
       sentMsg: 'அனுப்பப்பட்டது. பதிலை “உங்கள் புகார்கள்” பகுதியில் பார்க்கலாம்.', done: 'முடிந்தது',
       types: {
@@ -176,6 +179,7 @@
       close: 'बंद करें', dialog: 'फ़ीडबैक', back: 'रिपोर्ट पर वापस जाएँ',
       mine: 'आपकी रिपोर्ट', mineAria: 'आपकी रिपोर्ट, {n} में नई जानकारी है', kindAria: 'यह किस तरह की रिपोर्ट है?', reportLabel: 'आपकी रिपोर्ट',
       phNone: 'आपके मन में क्या है?',
+      categoryLabel: 'एक श्रेणी चुनें', needCategory: 'भेजने के लिए ऊपर एक श्रेणी चुनें।', needReport: 'भेजने के लिए एक छोटी रिपोर्ट लिखें।',
       send: 'भेजें', sending: 'भेजा जा रहा है…', cantSend: 'भेजा नहीं जा सका। फिर से कोशिश करें।',
       sentMsg: 'भेज दिया गया। जवाब आपको “आपकी रिपोर्ट” में दिखेगा।', done: 'हो गया',
       types: {
@@ -1117,9 +1121,10 @@
     '.ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;display:block}',
     '.udot{width:7px;height:7px;border-radius:50%;background:var(--fb-dot);flex:none}',
     'form.pad{padding:4px 18px;min-height:0;overflow-y:auto}',
-    '.seg{display:flex;gap:2px;padding:3px;background:var(--fb-soft);border-radius:12px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none}.seg::-webkit-scrollbar{display:none}',
-    '.seg button{flex:1 0 auto;white-space:nowrap;border:0;background:none;cursor:pointer;font-size:13px;font-weight:550;color:var(--fb-mute);padding:8px 9px;border-radius:9px}',
-    '.seg button[aria-checked=true]{background:var(--fb-on);color:var(--fb-pick);font-weight:650;box-shadow:0 1px 3px rgba(16,24,40,.14)}',
+    '.category-label{display:block;font-size:13px;font-weight:600;margin:0 0 8px}.requirement{font-size:12px;line-height:1.4;color:var(--fb-mute);margin-top:8px;min-height:17px}',
+    '.seg{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}',
+    '.seg button{display:flex;align-items:center;gap:6px;flex:1 0 auto;white-space:nowrap;border:1px solid var(--fb-line);background:var(--fb-soft);cursor:pointer;font-size:13px;font-weight:550;color:var(--fb-fg);padding:8px 10px;border-radius:9px}.seg button:hover{border-color:var(--fb-acc)}.seg .ic{width:15px;height:15px}',
+    '.seg button[aria-checked=true]{background:var(--fb-acc);border-color:var(--fb-acc);color:var(--fb-acc-fg);font-weight:650}',
     '@media (max-width:440px){.seg button{padding:8px 6px;font-size:12.5px}}',
     'textarea{display:block;width:100%;min-height:112px;resize:none;border:1px solid var(--fb-line);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.45;background:none}',
     'textarea::placeholder,input::placeholder{color:var(--fb-ph);opacity:1}',
@@ -1622,17 +1627,19 @@
   function typeOf(id) { return OFFERED.filter(function (x) { return x.id === id; })[0]; }
 
   function formView() {
+    var requirement = el('div', { class: 'requirement', id: 'report-requirement', 'aria-live': 'polite' });
     var err = el('div', { class: 'err', role: 'alert' });
     var text = el('textarea', {
       'aria-label': S.reportLabel, maxlength: '2000', rows: '4',
       oninput: function () { state.draft = text.value; sync(); },
     });
     text.value = state.draft;
-    var sendBtn = el('button', { class: 'send', type: 'submit', text: S.send });
+    var sendBtn = el('button', { class: 'send', type: 'submit', text: S.send, 'aria-describedby': 'report-requirement' });
     function sync() {
       var t = typeOf(state.type);
       text.placeholder = PLACEHOLDER || (t ? t.ph : S.phNone);
       sendBtn.disabled = !(state.type && text.value.trim());
+      requirement.textContent = !state.type ? S.needCategory : !text.value.trim() ? S.needReport : '';
     }
     function choose(i, focusText) {
       state.type = OFFERED[i].id;
@@ -1645,9 +1652,9 @@
     var pills = OFFERED.map(function (t, i) {
       return el('button', {
         type: 'button', role: 'radio', 'aria-checked': String(i === picked), tabindex: i === (picked < 0 ? 0 : picked) ? '0' : '-1',
-        'data-type': t.id, text: t.label,
+        'data-type': t.id,
         onclick: function () { choose(i, true); },
-      });
+      }, [typeIcon(t.id), el('span', { text: t.label })]);
     });
     var seg = el('div', {
       class: 'seg', role: 'radiogroup', 'aria-label': S.kindAria,
@@ -1682,7 +1689,7 @@
             sync();
           });
         },
-      }, [seg, text, sendBtn, err]),
+      }, [el('div', { class: 'category-label', text: S.categoryLabel }), seg, text, sendBtn, requirement, err]),
     ]);
   }
 

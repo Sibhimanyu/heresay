@@ -2,6 +2,20 @@
   "about": "What each Heresay release changed, in plain words. `users`: what the people using an app with Heresay will see. `developers`: what a developer can now do or must know. `action`: a code change an app needs, if any. `features`: ids from changes.json that this release introduced. Read by whats_new to explain an update before it is applied. A release cannot be cut without an entry here (scripts/release.mjs).",
   "versions": [
     {
+      "version": "0.2.54",
+      "date": "2026-11-26",
+      "users": [
+        "Report categories on the web are separate outlined buttons with icons and a clear selected state; they wrap on narrow screens.",
+        "The report form explains whether Send needs a category or some text.",
+        "The Mac report sheet uses the system surface, a native category menu, clearer headings, smaller action buttons and a stable writing area."
+      ],
+      "developers": [
+        "No integration changes are required. The existing composer, steps and bar layout options remain available.",
+        "Browser regression checks cover four languages, both themes and narrow screens. Native accessibility-dependent layout checks report a skip when macOS cannot expose the controls; native cutoff verification remains incomplete."
+      ],
+      "action": "None required."
+    },
+    {
       "version": "0.2.53",
       "users": [
         "On the Mac, the Report window is on real glass and sized to fit: the text box, the last type row and the footer are never cut off.",

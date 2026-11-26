@@ -398,7 +398,11 @@ struct SheetFooter: View {
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 20).padding(.vertical, 10)
+        #if os(iOS)
         .overlay(alignment: .top) { Divider() }
+        #else
+        .padding(.bottom, 4)
+        #endif
     }
 }
 
@@ -542,9 +546,9 @@ struct ReportSheet: View {
     #if os(macOS)
     private var macWidth: CGFloat {
         switch heresay.style.sheet {
-        case .compact: 480
-        case .regular: 560
-        case .large: 680
+        case .compact: 420
+        case .regular: 480
+        case .large: 600
         }
     }
     #endif
@@ -573,10 +577,10 @@ struct ReportSheet: View {
         #endif
     }
 
-    /// Header padding: the Mac's is on a 20pt frame with room above; the phone's is tighter.
+    /// Mac sheets use a 24pt content margin; phone headers are tighter.
     private var headerInsets: EdgeInsets {
         #if os(macOS)
-        EdgeInsets(top: 20, leading: 20, bottom: 12, trailing: 20)
+        EdgeInsets(top: 24, leading: 24, bottom: 20, trailing: 24)
         #else
         EdgeInsets(top: 14, leading: 20, bottom: 6, trailing: 20)
         #endif
@@ -640,7 +644,7 @@ struct ReportSheet: View {
         }
         .accessibilityLabel(heresay.unseen > 0 ? w[.yourReportsA11yUpdate] : w[.yourReports])
         #if os(macOS)
-        return button.quietGlassButton()
+        return button.buttonStyle(.borderless).controlSize(.small)
         #else
         return button.buttonStyle(.plain)
         #endif
@@ -666,7 +670,7 @@ struct ReportSheet: View {
     private var mineHeader: some View {
         HStack(spacing: 8) {
             #if os(macOS)
-            iconButton("chevron.left", w[.back], tint: heresay.accent) {
+            iconButton("chevron.left", w[.back]) {
                 if heresay.style.layout == .bar { dismiss() } else { go(.report) }
             }
             #else
@@ -736,7 +740,11 @@ struct ReportSheet: View {
     /// Four full-width rows, one per type.
     @ViewBuilder private var stepsList: some View {
         #if os(macOS)
-        stepRows.padding(.horizontal, 20).padding(.bottom, 16)
+        stepRows
+            .padding(6)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color(nsColor: .separatorColor).opacity(0.5)))
+            .padding(.horizontal, 24).padding(.bottom, 16)
         #else
         ScrollView { stepRows.padding(.horizontal, 20).padding(.vertical, 8).measured() }
         #endif
@@ -784,11 +792,11 @@ struct ReportSheet: View {
         #endif
     }
 
-    /// Screen 2's header: back, the chosen type as a pill, Your reports, close.
+    /// Screen 2: back, the chosen type (a heading on Mac, a pill on iOS), and Your reports.
     private var stepTwoHeader: some View {
         HStack(spacing: 8) {
             #if os(macOS)
-            iconButton("chevron.left", w[.back], tint: heresay.accent) {
+            iconButton("chevron.left", w[.back]) {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { picked = false; type = nil }
                 textFocused = false
             }
@@ -808,12 +816,18 @@ struct ReportSheet: View {
             .help(w[.back])
             #endif
             if let type {
+                #if os(macOS)
+                Text(type.label(w))
+                    .font(titleFont)
+                    .accessibilityAddTraits(.isHeader)
+                #else
                 Text(type.label(w))
                     .font(.footnote.weight(.semibold)).lineLimit(1)
                     .padding(.horizontal, 12).padding(.vertical, 7)
                     .foregroundStyle(Color.white)
                     .background(Capsule().fill(heresay.accent))
                     .accessibilityAddTraits(.isHeader)
+                #endif
             }
             Spacer(minLength: 8)
             #if os(macOS)
@@ -843,16 +857,32 @@ struct ReportSheet: View {
     #if os(macOS)
     private var macForm: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if heresay.style.layout != .steps { pills }
+            if heresay.style.layout != .steps {
+                HStack {
+                    Text(w[.whatIsIt]).foregroundStyle(.secondary)
+                    Spacer()
+                    Picker(w[.whatIsIt], selection: $type) {
+                        Text(w[.whatIsIt]).tag(ReportType?.none)
+                        ForEach(heresay.style.types) { t in
+                            Label(t.label(w), systemImage: t.symbol).tag(Optional(t))
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+                .font(.callout)
+            }
             editor
             if let error {
                 Label(error, systemImage: "exclamationmark.circle.fill")
                     .font(.callout).foregroundStyle(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            requirementHint
             sendRow
         }
-        .padding(.horizontal, 20).padding(.bottom, 20)
+        .padding(.horizontal, 24).padding(.bottom, 24)
     }
     #endif
 
@@ -873,6 +903,7 @@ struct ReportSheet: View {
                         .font(.callout).foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                requirementHint
                 sendRow
             }
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 12)
@@ -959,34 +990,31 @@ struct ReportSheet: View {
     }
 
     #if os(macOS)
-    /// A soft inset field. A hidden copy of the text sets its height (140 up to 280), so the box
-    /// grows as they type and only then scrolls, inside itself.
+    /// Keep the writing area predictable. Long reports scroll inside the editor rather than
+    /// making the sheet jump in size while typing.
     private var macEditor: some View {
-        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        let mirror = text.hasSuffix("\n") ? text + " " : text
-        return Text(mirror).font(.body).foregroundStyle(.clear)
-            .padding(.horizontal, 5)
-            .frame(maxWidth: .infinity, minHeight: 140, maxHeight: 280, alignment: .topLeading)
-            .accessibilityHidden(true)
-            .overlay {
-                TextEditor(text: $text)
-                    .scrollContentBackground(.hidden)
-                    .font(.body)
-                    .focused($textFocused)
-                    .accessibilityLabel(w[.whatHappened])
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        return ZStack(alignment: .topLeading) {
+            TextEditor(text: $text)
+                .scrollContentBackground(.hidden)
+                .font(.body)
+                .focused($textFocused)
+                .accessibilityLabel(w[.whatHappened])
+            if text.isEmpty {
+                Text(heresay.style.placeholder ?? type?.placeholder(w) ?? w[.placeholder])
+                    .foregroundStyle(.secondary)
+                    .padding(.top, Self.editorInset.height)
+                    .padding(.leading, Self.editorInset.width)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
-            .overlay(alignment: .topLeading) {
-                if text.isEmpty {
-                    Text(heresay.style.placeholder ?? type?.placeholder(w) ?? w[.placeholder])
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, Self.editorInset.width)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(10)
-            .background(Color.primary.opacity(0.05), in: shape)
-            .overlay(shape.strokeBorder(textFocused ? heresay.accent.opacity(0.6) : Color(nsColor: .separatorColor), lineWidth: 1))
+        }
+        .frame(height: heresay.style.sheet == .large ? 200 : 144)
+        .padding(10)
+        .background(Color(nsColor: .textBackgroundColor), in: shape)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1))
+        .overlay(shape.strokeBorder(textFocused ? heresay.accent.opacity(0.65) : .clear, lineWidth: 2))
     }
     #endif
 
@@ -1013,6 +1041,15 @@ struct ReportSheet: View {
             .stroke(textFocused ? heresay.accent : Color.primary.opacity(0.12), lineWidth: textFocused ? 1.5 : 1))
     }
 
+    @ViewBuilder private var requirementHint: some View {
+        if !sending && !canSend {
+            Text(type == nil ? w[.pickType] : w[.whatHappened])
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     private var sendRow: some View {
         let button = Button {
             Task { await submit() }
@@ -1028,7 +1065,11 @@ struct ReportSheet: View {
             #endif
         }
         .prominentOrGlass()
+        #if os(macOS)
+        .controlSize(.regular)
+        #else
         .controlSize(.large)
+        #endif
         .tint(heresay.accent)
         .keyboardShortcut(.return, modifiers: .command)
         .disabled(!canSend)
@@ -1036,11 +1077,11 @@ struct ReportSheet: View {
         #if os(iOS)
         return button
         #else
-        return HStack(spacing: 12) {
+        return HStack(spacing: 8) {
             Spacer()
             Button(w[.cancel]) { dismiss() }
                 .glassOrBordered()
-                .controlSize(.large)
+                .controlSize(.regular)
                 .keyboardShortcut(.cancelAction)
             button
         }
@@ -1170,9 +1211,17 @@ extension View {
         background(GeometryReader { Color.clear.preference(key: FitHeight.self, value: $0.size.height) })
     }
 
-    /// The panel itself is glass, never a flat colour. On 26 and later the system's opaque sheet
-    /// fill is cleared and the whole panel is Liquid Glass; before that, a frosted material.
+    /// macOS supplies its own adaptive sheet/popover surface. Layering custom glass over
+    /// that surface doubles the chrome and competes with the writing area.
     @ViewBuilder func panelGlass() -> some View {
+        #if os(macOS)
+        self
+        #else
+        phonePanelGlass()
+        #endif
+    }
+
+    @ViewBuilder private func phonePanelGlass() -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26, macOS 26, *) {
             presentationBackground(.clear)
@@ -1530,7 +1579,7 @@ extension View {
     }
 }
 
-/// One report type on the Mac: a compact native row (about 38pt), a small tinted symbol, the
+/// One report type on the Mac: a grouped row, a small tinted symbol, the
 /// title, a chevron, and a highlight under the pointer.
 struct MacStepRow: View {
     let type: ReportType
@@ -1554,8 +1603,8 @@ struct MacStepRow: View {
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, 10).padding(.vertical, 6)
-            .frame(maxWidth: .infinity, minHeight: 38)
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 46)
             .background(hovering ? Color.primary.opacity(0.08) : Color.clear, in: shape)
             .contentShape(shape)
         }
